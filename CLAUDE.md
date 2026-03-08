@@ -1,0 +1,119 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code when working in this repository.
+
+## What This Is
+
+Household financial visibility app for the Forbell family. Syncs bank/credit card/investment
+accounts via Plaid into a local Postgres database, detects inter-account transfers, and provides
+a unified view of household money flow. No UI in Feature 1 — data layer only.
+
+Family: Eric (Dad), Alex (Mom), Jordan (Son), Casey (Daughter).
+
+## Dev Commands
+
+```bash
+npm install            # first time
+npm run dev            # node --watch (Node 18+)
+npm start              # production
+
+# Database (Docker)
+docker-compose up -d   # start PostgreSQL on port 5434
+node db/migrate.js     # apply migrations (idempotent)
+psql $DATABASE_URL -f db/seed.sql  # seed default data
+
+# Sync & CLI
+npm run sync           # manual Plaid sync
+npm run accounts       # list accounts with balances
+npm run status         # last sync time + counts
+
+# Tests
+npm test               # node --test (all test/*.test.js)
+```
+
+Copy `.env.example` to `.env` and fill in values.
+
+## Architecture
+
+Single-process Node.js/Express. No build step. Vanilla HTML/CSS/JS frontend (when added).
+
+```
+server.js              # Express — all routes inline, cron schedule
+lib/
+  db.js                # Pool wrapper, query helper, transaction support
+  plaid-client.js      # Plaid API client (accounts, sync, liabilities)
+  sync.js              # Sync engine — orchestrates full sync cycle
+  transfer-detection.js # Detects inter-account transfers, CC payments, etc.
+  logger.js            # Structured JSON logging
+  secrets-guard.js     # Sanitize secrets from logs and API responses
+  cli.js               # CLI entry point (sync, accounts, status)
+db/
+  migrations/          # Numbered SQL migrations
+  migrate.js           # Migration runner
+  seed.sql             # Default categories, family members, config
+deploy/
+  family-pulse.service # systemd unit
+  deploy.sh            # Smart git-based deploy script
+public/                # Static frontend (future features)
+test/                  # node:test test files
+```
+
+## Key Design Decisions
+
+### Secrets Invariant
+Access tokens and API keys MUST NEVER appear in:
+- Log output (logger.js sanitizes automatically)
+- API responses (secrets-guard.js throws on access_token in query results)
+- LLM context (sanitizeForLLM strips known patterns)
+Disk encryption handles at-rest protection; no app-level encryption of tokens.
+
+### Plaid Sync
+Cron-based: 6 AM + 8 PM Eastern. No webhooks. Cursor-based transaction sync
+(`/transactions/sync`) with upsert on `plaid_transaction_id`. Handles pending → posted
+transitions and removed transactions.
+
+### Transfer Detection
+Runs after each sync. Detects:
+- Inter-account transfers (matching amounts ±$1, opposite signs, within 3 days)
+- Credit card payments (payee pattern + amount match)
+- 529 contributions (merchant pattern)
+- BTC/crypto savings (merchant pattern: Coinbase, Swan, Strike, etc.)
+
+### Nginx subpath compatible
+All fetch() calls use relative paths: `fetch('api/health')` — never `fetch('/api/...')`.
+The app runs at its own root on port 3003; nginx maps `/pulse/ → http://127.0.0.1:3003/`.
+
+## Environment Variables
+
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| DATABASE_URL | Yes | — | PostgreSQL connection |
+| PORT | No | 3003 | HTTP port |
+| PLAID_CLIENT_ID | Yes | — | Plaid API client ID |
+| PLAID_SECRET | Yes | — | Plaid API secret |
+| PLAID_ENV | No | sandbox | sandbox / production |
+| OPENAI_API_KEY | No | — | For future AI features |
+| OPENAI_MODEL | No | gpt-4o-mini | Any chat completion model |
+| HOUSEHOLD_TIMEZONE | No | America/New_York | For cron schedule |
+
+## Data Model
+
+- `items` — Plaid Items (linked institutions)
+- `accounts` — Bank/credit/investment accounts
+- `transactions` — All transactions with transfer detection flags
+- `categories` — Spending categories with budget amounts
+- `category_rules` — Auto-categorization rules by merchant pattern
+- `budgets` / `budget_periods` — Budget tracking
+- `planning_goals` / `savings_signals` — Future planning features
+- `family_members` — Eric, Alex, Jordan, Casey
+- `app_config` — Key/value config
+
+## Deployment (Linux / Tailscale)
+
+```bash
+npm install --omit=dev
+node server.js
+# or via systemd (see deploy/family-pulse.service)
+```
+
+Accent color: emerald #10b981.

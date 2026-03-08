@@ -1,0 +1,21 @@
+{
+  "name": "family-pulse",
+  "version": "1.0.0",
+  "description": "Forbell family financial pulse — household money visibility with Plaid sync",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "sync": "node lib/cli.js sync",
+    "accounts": "node lib/cli.js accounts",
+    "status": "node lib/cli.js status"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.5",
+    "plaid": "^28.0.0"
+  }
+}
