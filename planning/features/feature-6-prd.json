@@ -1,0 +1,147 @@
+{
+  "branchName": "feature/kids-view",
+  "projectName": "Kids View",
+  "description": "Age-appropriate financial dashboards for Jordan and Casey, scoped to their individual Capital One Money accounts. Simple balance, spending breakdown, and a monthly LLM-generated 'Money Report Card.' Also adds parental side-by-side view of both kids' accounts.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 4",
+    "gatingCondition": "Feature 4 complete (budget framework + category cards). Can be developed in parallel with Feature 5."
+  },
+  "principles": [
+    "Kids see ONLY their own account — no household financial data visible",
+    "Keep it simple — teenagers need clarity, not complexity",
+    "Money Report Card should feel encouraging, not judgmental",
+    "Parent view provides oversight without separate login/permission system",
+    "SECRETS INVARIANT — Money Report Card LLM prompts contain only the kid's first name, transaction amounts, merchant names, and categories. Never access tokens, account numbers, .env values, or household financial data. Enforced by secrets-guard."
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (existing schema, filtered by account)",
+    "testing": "Jest for data scoping tests, Playwright for UI isolation verification",
+    "llmProvider": "OpenAI API (gpt-5-nano) for Money Report Card"
+  },
+  "userStories": [
+    {
+      "id": "KID-001",
+      "title": "Kids dashboard route and data scoping",
+      "acceptanceCriteria": [
+        "Routes: /pulse/kids/jordan and /pulse/kids/casey",
+        "Each route shows ONLY the data for that kid's Capital One Money account",
+        "No navigation links to household dashboard, budget, or other accounts",
+        "Account linked to kid via configuration (admin assigns account_id to kid profile)",
+        "API endpoints for kids data enforce account scoping at query level"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "API scoping test: /kids/jordan endpoint returns ONLY Jordan's transactions (zero from other accounts). Negative test: household data not accessible from kids routes.",
+      "passes": false
+    },
+    {
+      "id": "KID-002",
+      "title": "Kids balance and transaction view",
+      "acceptanceCriteria": [
+        "Current account balance displayed prominently",
+        "Recent transactions list (last 30 days, most recent first)",
+        "Each transaction: date, merchant, amount",
+        "Monthly spending total for current month",
+        "Simple, clean design appropriate for teenage users"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "UI test: page loads with correct balance and transactions. Monthly total calculation test.",
+      "passes": false
+    },
+    {
+      "id": "KID-003",
+      "title": "Kids category breakdown",
+      "acceptanceCriteria": [
+        "Simple pie or bar chart: spending by category for current month",
+        "Categories simplified for kids: Food & Drinks, Entertainment, Shopping, Personal Care, Other",
+        "Chart.js visualization (CDN)",
+        "Category totals displayed alongside chart"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Category aggregation test with known transaction data. Chart renders without errors.",
+      "passes": false
+    },
+    {
+      "id": "KID-004",
+      "title": "Kids monthly budget vs. actual",
+      "acceptanceCriteria": [
+        "Parent-set monthly budget for each kid (admin configuration)",
+        "Budget progress bar: spent / total budget",
+        "Color coding: green (<70%), yellow (70-99%), red (100%+)",
+        "Remaining amount displayed: '$X left this month'",
+        "Budget resets monthly"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Budget calculation test. Color threshold test. Monthly reset test.",
+      "passes": false
+    },
+    {
+      "id": "KID-005",
+      "title": "Money Report Card (LLM narrative)",
+      "acceptanceCriteria": [
+        "Monthly LLM-generated narrative for each kid",
+        "Tone: encouraging, educational, age-appropriate (14-16 year olds)",
+        "Content: total spent, top categories, biggest purchase, comparison to budget",
+        "Example: 'You spent $47 this month. $22 went to food and drinks, $18 to entertainment. Your biggest single purchase was $12 at GameStop.'",
+        "Generated on 1st of month, cached in magic_actions_log",
+        "Displayed on kids dashboard as a 'card' or collapsible section",
+        "No household financial data included in prompt"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Prompt construction test (verify kid-only data, no household info). Mock LLM response rendering test. Tone validation (manual review).",
+      "passes": false
+    },
+    {
+      "id": "KID-006",
+      "title": "Parental kids overview",
+      "acceptanceCriteria": [
+        "Section on parent dashboard showing both kids' accounts side-by-side",
+        "Per kid: balance, monthly spend, budget status, recent transactions (top 5)",
+        "Link to full kids dashboard for each child",
+        "Only visible on household dashboard (not on kids routes)"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "UI test: parental view shows both kids. Data accuracy test: balances match individual kid views.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Data scoping failure = kids see household financial data — must have test coverage on data isolation"
+    ],
+    "medium": [
+      "Kids may not engage if the UI feels like a 'parent monitoring tool' — design for empowerment, not surveillance",
+      "LLM tone for teenagers requires careful prompt engineering — too formal = ignored, too casual = not useful"
+    ],
+    "low": [
+      "Capital One Money accounts may have limited transaction categorization from Plaid"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm Jordan and Casey's Capital One Money account IDs in Plaid",
+    "Decide: kids budget amounts (Eric to set initial values)",
+    "Decide: simplified category list for kids or reuse household categories?",
+    "Review: should kids routes have any access control, or Tailscale trust = sufficient?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+1050/-0",
+    "storiesCount": 6,
+    "filesCreated": [
+      "lib/routes/kids.js",
+      "lib/kids-report-card.js",
+      "public/kids.html",
+      "public/kids.js",
+      "test/kids-data-scoping.test.js",
+      "test/kids-report-card.test.js",
+      "test/kids-budget.test.js"
+    ]
+  }
+}

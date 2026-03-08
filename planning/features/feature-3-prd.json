@@ -1,0 +1,120 @@
+{
+  "branchName": "feature/monarch-import",
+  "projectName": "Monarch Money Migration",
+  "description": "Import historical transaction data and categories from Monarch Money CSV export. This seeds Family Pulse with 12+ months of categorized history, enabling meaningful budget baselines and trend analysis from day one. Migration is a one-time operation but must be repeatable and auditable.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 2",
+    "gatingCondition": "Feature 2 complete (category CRUD and transaction browser working). Monarch CSV export downloaded and inspected."
+  },
+  "principles": [
+    "Inspect the actual CSV before writing the parser — do not assume column layout",
+    "Category mapping is a human-guided process, not fully automated",
+    "Deduplication is critical — imported data must not conflict with Plaid-synced data",
+    "Every import run is logged and auditable",
+    "Monarch-sourced transactions always traceable via source='monarch' flag"
+  ],
+  "techStack": {
+    "language": "Node.js",
+    "runtime": "Express.js",
+    "database": "PostgreSQL",
+    "testing": "Jest with fixture CSV files for parser validation"
+  },
+  "userStories": [
+    {
+      "id": "MIG-001",
+      "title": "CSV upload and parsing",
+      "acceptanceCriteria": [
+        "Admin page with file upload for Monarch CSV",
+        "Parser handles Monarch export format (columns validated against actual export)",
+        "Preview mode: show first 20 rows parsed before committing import",
+        "Handles edge cases: quoted fields, commas in merchant names, empty categories",
+        "Upload stored in uploads/ directory with timestamp",
+        "File size limit enforced (10MB max)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "Unit tests with fixture CSV files (valid, malformed, edge cases). Parser output validated against expected transaction objects.",
+      "passes": false
+    },
+    {
+      "id": "MIG-002",
+      "title": "Category mapping UI",
+      "acceptanceCriteria": [
+        "Extract unique Monarch categories from uploaded CSV",
+        "Display mapping table: Monarch category → Family Pulse category (dropdown)",
+        "Auto-suggest mappings using fuzzy string matching",
+        "Option to create new Family Pulse category inline if no match exists",
+        "Mapping saved and reusable for re-imports",
+        "Unmapped categories default to 'Uncategorized'"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "Fuzzy matching unit tests. UI test: mapping table renders, selections persist, new categories created inline.",
+      "passes": false
+    },
+    {
+      "id": "MIG-003",
+      "title": "Transaction import with deduplication",
+      "acceptanceCriteria": [
+        "Import transactions with mapped categories, original dates, and amounts",
+        "Deduplication: skip if matching transaction exists (same date ± 1 day, same amount, same merchant substring)",
+        "Imported transactions flagged source='monarch' in database",
+        "Import runs in a database transaction — all or nothing on failure",
+        "Progress indicator during import (total, imported, skipped, errors)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "Unit test for dedup logic (exact match, fuzzy date, partial merchant). Integration test: import CSV, verify DB records, re-import same CSV and confirm zero new records.",
+      "passes": false
+    },
+    {
+      "id": "MIG-004",
+      "title": "Import summary and audit",
+      "acceptanceCriteria": [
+        "Import run recorded in import_runs table: filename, timestamp, record_count, skipped_count, error_count, status",
+        "Summary page after import: records imported, duplicates skipped, category mapping used, any errors",
+        "Admin view of import history (all past runs)",
+        "Imported transactions visible in transaction browser with 'Monarch' source badge"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Integration test: verify import_runs record created with correct counts. UI test: summary page displays after import.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Monarch CSV format is undocumented — parser must be built from actual export inspection, not assumptions",
+      "Dedup logic too aggressive could skip legitimate transactions; too loose creates duplicates"
+    ],
+    "medium": [
+      "Category mapping quality affects all downstream budget analysis — bad mappings corrupt historical baselines",
+      "Large CSV imports (12+ months) may be slow — need progress feedback"
+    ],
+    "low": [
+      "Monarch may change export format before Eric downloads — low risk since download happens pre-development"
+    ]
+  },
+  "preFlightChecklist": [
+    "CRITICAL: Download Monarch CSV export and inspect actual column layout before writing parser",
+    "Identify Monarch category taxonomy — full list needed for mapping UI",
+    "Decide: import all historical transactions or only last N months?",
+    "Confirm: how does Monarch handle transfers in their export? Are they categorized or flagged?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+950/-0",
+    "storiesCount": 4,
+    "filesCreated": [
+      "lib/routes/import.js",
+      "lib/monarch-parser.js",
+      "lib/category-mapper.js",
+      "public/import.html",
+      "test/monarch-parser.test.js",
+      "test/category-mapper.test.js",
+      "test/import-dedup.test.js",
+      "test/fixtures/monarch-sample.csv",
+      "test/fixtures/monarch-edge-cases.csv"
+    ]
+  }
+}

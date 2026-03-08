@@ -1,0 +1,194 @@
+{
+  "branchName": "feature/foundation",
+  "projectName": "Foundation — Data Layer + Plaid Sync",
+  "description": "Stand up the Family Pulse application skeleton, PostgreSQL schema, Plaid integration (Transactions + Liabilities sync), transfer detection engine, and development infrastructure. This is the data plumbing layer — no UI. Exit criteria: real family transaction data queryable in the database.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "2026-03-08",
+    "gatingCondition": "Plaid access tokens available (already onboarded). Docker available for dev PostgreSQL."
+  },
+  "principles": [
+    "Data integrity first — every Plaid response validated before storage",
+    "Idempotent sync — re-running sync never creates duplicates",
+    "Transfer detection runs automatically post-sync, before any downstream consumers",
+    "Dev environment must be isolated from production data",
+    "Test coverage from day one — Plaid API stewardship requires verified correctness",
+    "SECRETS NEVER LEAVE THE SERVER — access tokens, API keys, .env values, and sensitive DB columns (items.access_token) are never logged, never returned in API responses, never included in LLM prompts, and never sent to the browser. This is a hardcoded project-wide invariant enforced by code review and test coverage."
+  ],
+  "techStack": {
+    "language": "Node.js (LTS)",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (docker-compose for dev, erebor instance for prod)",
+    "storage": "pg (node-postgres) with raw SQL migrations",
+    "testing": "Jest for unit + integration tests, Plaid sandbox for API integration",
+    "port": 3003,
+    "nginxPath": "/pulse/"
+  },
+  "userStories": [
+    {
+      "id": "FND-001",
+      "title": "Project scaffold and dev environment",
+      "acceptanceCriteria": [
+        "Node/Express project initialized with package.json, .env.example, .gitignore",
+        "docker-compose.yml provides PostgreSQL 16 instance for local development",
+        "PM2 ecosystem config file created",
+        "deploy/deploy.sh follows worktree checkout pattern from sibling apps",
+        "Server starts and responds to GET /pulse/api/health with { status: 'ok' }",
+        "CLAUDE.md created with project conventions"
+      ],
+      "priority": 1,
+      "estimatedLines": "+350/-0",
+      "testStrategy": "Health endpoint test, server startup test, docker-compose up validates DB connectivity",
+      "passes": false
+    },
+    {
+      "id": "FND-002",
+      "title": "PostgreSQL schema initialization",
+      "acceptanceCriteria": [
+        "All core tables created: items, accounts, transactions, categories, category_rules, budgets, budget_periods, planning_goals, savings_signals, magic_actions_log, anomalies, import_runs",
+        "Migration system: numbered SQL files in db/migrations/, applied in order",
+        "Seed script for default categories (uncategorized, income, transfer)",
+        "Schema supports all transfer_type values: inter_account, cc_payment, 529_contribution, btc_savings",
+        "Indexes on transactions(account_id, date), transactions(plaid_transaction_id)",
+        "Foreign key constraints enforced"
+      ],
+      "priority": 1,
+      "estimatedLines": "+400/-0",
+      "testStrategy": "Migration idempotency test (run twice, no errors). Schema validation tests confirm all tables, columns, and constraints exist.",
+      "passes": false
+    },
+    {
+      "id": "FND-003",
+      "title": "Plaid Items and Accounts sync",
+      "acceptanceCriteria": [
+        "Plaid client initialized from env vars (PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV)",
+        "API endpoint POST /pulse/api/admin/sync triggers full sync for all Items",
+        "Items table stores: access_token (plain text, protected by erebor full-disk encryption), item_id, institution_id, institution_name, status, error_code, token_last_used_at",
+        "Accounts table stores: plaid account_id, name, official_name, type, subtype, mask, current_balance, available_balance, iso_currency_code",
+        "Account balances updated on every sync",
+        "Handles Plaid API errors gracefully: ITEM_LOGIN_REQUIRED, RATE_LIMIT, etc.",
+        "Access tokens never logged or returned in API responses"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "Unit tests for response parsing and error handling. Integration tests with Plaid sandbox. Verify access tokens excluded from all log output.",
+      "passes": false
+    },
+    {
+      "id": "FND-004",
+      "title": "Transaction sync engine (cron-based)",
+      "acceptanceCriteria": [
+        "Uses Plaid /transactions/sync (cursor-based) for incremental updates",
+        "Stores sync cursor per Item for resumable sync",
+        "Handles added, modified, and removed transactions from sync response",
+        "Transactions stored with: plaid_transaction_id, account_id, amount, date, authorized_date, merchant_name, name, category (Plaid), pending, iso_currency_code, raw_json",
+        "Deduplication by plaid_transaction_id (upsert pattern)",
+        "Pending transactions updated when they post",
+        "Cron-scheduled sync: morning (6 AM) and evening (8 PM) via node-cron",
+        "Manual sync trigger via POST /pulse/api/admin/sync and npm run sync",
+        "Sync status tracked: last_sync_at timestamp per Item, logged on completion"
+      ],
+      "priority": 1,
+      "estimatedLines": "+400/-0",
+      "testStrategy": "Unit tests for transaction upsert logic, cursor management, and dedup. Integration test with Plaid sandbox sync endpoint. Cron schedule validation test.",
+      "passes": false
+    },
+    {
+      "id": "FND-005",
+      "title": "Liabilities sync for credit accounts",
+      "acceptanceCriteria": [
+        "Plaid /liabilities/get called for credit-type Items",
+        "Credit card details stored: last_statement_balance, last_statement_date, minimum_payment_amount, next_payment_due_date, last_payment_amount",
+        "Liabilities data linked to existing accounts table via plaid account_id",
+        "Sync runs as part of the main sync cycle (after accounts, before transfer detection)"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Unit tests for liabilities response parsing. Integration test confirming credit account details persist correctly.",
+      "passes": false
+    },
+    {
+      "id": "FND-006",
+      "title": "Transfer detection engine",
+      "acceptanceCriteria": [
+        "Runs automatically after transaction sync completes",
+        "Detects inter-account transfers: same absolute amount ±$1, opposite signs, within 3-day window, across linked accounts",
+        "Detects credit card payments: payee pattern match (e.g., 'CHASE CARD', 'CITI PAYMENT') + amount matching against credit accounts",
+        "Detects 529 contributions: merchant/payee pattern match (configurable in category_rules)",
+        "Detects BTC savings: merchant pattern match (Coinbase, Swan, Strike, etc.)",
+        "Sets is_transfer=true and transfer_type on matched transactions",
+        "Paired transfers linked via transfer_pair_id",
+        "Transfer detection is idempotent — re-running does not create duplicate flags",
+        "All is_transfer=true transactions excluded from budget/spend calculations by default"
+      ],
+      "priority": 1,
+      "estimatedLines": "+350/-0",
+      "testStrategy": "Comprehensive unit tests: paired transfer matching (exact, fuzzy ±$1, edge cases), CC payment detection, 529/BTC pattern matching. Test with synthetic transaction sets covering all transfer types. Idempotency test.",
+      "passes": false
+    },
+    {
+      "id": "FND-007",
+      "title": "Admin CLI and logging",
+      "acceptanceCriteria": [
+        "npm run sync — triggers manual full sync from command line",
+        "npm run accounts — lists all accounts with balances",
+        "npm run status — shows last sync time, transaction count, any Item errors",
+        "Structured logging (JSON format) with log levels: info, warn, error",
+        "Sensitive data (access tokens, full account numbers) never appears in logs",
+        "Plaid API call logging: endpoint, status, duration (no request/response bodies)"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "CLI smoke tests. Log output validation: confirm no sensitive data leaks in log output across all log levels.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Secrets leaking to LLM prompts, logs, API responses, or browser — hardcoded invariant: access tokens, API keys, .env values, and items.access_token column never leave server-side code paths. Enforced by dedicated test suite."
+    ],
+    "medium": [
+      "Transfer detection false positives — paired matching may incorrectly flag legitimate transactions as transfers",
+      "Plaid rate limits during initial historical sync — may need backoff/retry logic",
+      "Docker dev environment must not accidentally connect to production Plaid credentials"
+    ],
+    "low": [
+      "PostgreSQL version differences between dev (Docker) and prod (erebor)",
+      "node-cron timezone handling for daily sync schedule"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm Plaid sandbox credentials available for testing (separate from production)",
+    "Confirm erebor PostgreSQL version for Docker image parity",
+    "Confirm nginx mountpoint /pulse/ is available on erebor"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+2150/-0",
+    "storiesCount": 7,
+    "filesCreated": [
+      "package.json",
+      "server.js",
+      ".env.example",
+      ".gitignore",
+      "CLAUDE.md",
+      "docker-compose.yml",
+      "ecosystem.config.js",
+      "deploy/deploy.sh",
+      "db/migrations/001-initial-schema.sql",
+      "db/migrate.js",
+      "db/seed.js",
+      "lib/plaid-client.js",
+      "lib/sync.js",
+      "lib/liabilities.js",
+      "lib/transfer-detection.js",
+      "lib/db.js",
+      "lib/logger.js",
+      "lib/cli.js",
+      "lib/secrets-guard.js",
+      "test/transfer-detection.test.js",
+      "test/sync.test.js",
+      "test/schema.test.js",
+      "test/secrets-guard.test.js"
+    ]
+  }
+}

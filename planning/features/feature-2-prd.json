@@ -1,0 +1,139 @@
+{
+  "branchName": "feature/transaction-browser",
+  "projectName": "Transaction Browser — Web UI",
+  "description": "First web interface for Family Pulse. Browse accounts and transactions, assign categories, manage category rules, and toggle transfer visibility. Accessible via Tailscale tailnet at /pulse/. This is the 'see the data' milestone.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 1",
+    "gatingCondition": "Feature 1 complete — transaction data flowing and queryable in PostgreSQL."
+  },
+  "principles": [
+    "Read-first UI — browsing and understanding data before any editing workflows",
+    "Mobile-friendly — Alex and Eric will check this on iPhones via Tailscale",
+    "Category assignment should be fast — single-click or minimal friction",
+    "Transfer toggle is prominent — users must see the impact of transfer filtering on totals",
+    "Consistent styling with sibling apps (Tailwind CDN, clean layout)"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS (server-rendered HTML with client-side interactivity)",
+    "runtime": "Express.js with EJS or Handlebars templates",
+    "database": "PostgreSQL (existing schema from Feature 1)",
+    "testing": "Jest for API endpoint tests, Playwright for critical UI flows",
+    "accentColor": "#10b981"
+  },
+  "userStories": [
+    {
+      "id": "TXB-001",
+      "title": "Account list view",
+      "acceptanceCriteria": [
+        "Dashboard shows all connected accounts grouped by member (Eric, Alex, Kids)",
+        "Each account displays: institution name, account name (masked), type, current balance",
+        "Total liquid balance displayed prominently (checking + savings)",
+        "Total revolving credit balance displayed (credit card balances owed)",
+        "Net liquid position: liquid assets minus credit card balances",
+        "Balances refresh on page load from database (no live Plaid call)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "API endpoint tests for /api/accounts. UI test: page loads, accounts display with correct grouping.",
+      "passes": false
+    },
+    {
+      "id": "TXB-002",
+      "title": "Transaction list with filtering",
+      "acceptanceCriteria": [
+        "Paginated transaction list (50 per page) sorted by date descending",
+        "Each row: date, merchant/name, amount (color-coded debit/credit), account, category badge",
+        "Filter by: account (dropdown), date range (start/end), category (dropdown), search text (merchant name)",
+        "Toggle: show/hide transfers (default: hidden)",
+        "Running total displayed changes with filters applied",
+        "Pending transactions visually distinguished (italic or badge)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+400/-0",
+      "testStrategy": "API endpoint tests for /api/transactions with filter params. Pagination test. Transfer toggle test: totals change when transfers shown/hidden.",
+      "passes": false
+    },
+    {
+      "id": "TXB-003",
+      "title": "Category assignment UI",
+      "acceptanceCriteria": [
+        "Click transaction row to open category assignment",
+        "Dropdown of all categories with color swatches",
+        "Assigning category persists immediately via API call",
+        "Option to 'Create rule: always categorize [merchant] as [category]'",
+        "Bulk categorize: select multiple transactions, assign same category",
+        "Uncategorized transactions have a visual indicator"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "API tests for PUT /api/transactions/:id/category. Rule creation test. Bulk assignment test.",
+      "passes": false
+    },
+    {
+      "id": "TXB-004",
+      "title": "Category CRUD admin",
+      "acceptanceCriteria": [
+        "Admin page to list, create, edit, and delete categories",
+        "Category fields: name, color (hex picker), monthly budget amount, is_income flag, is_transfer_class flag, icon (optional emoji)",
+        "Cannot delete category if transactions are assigned to it (must reassign first)",
+        "Default categories seeded: Uncategorized, Income, Transfer, Groceries, Dining, Gas, Medical, Entertainment, Subscriptions, Shopping, Home, Utilities, Kids",
+        "Category ordering/grouping for dropdown UX"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "CRUD API tests. Deletion constraint test. Seed categories validation.",
+      "passes": false
+    },
+    {
+      "id": "TXB-005",
+      "title": "Auto-categorization rule engine",
+      "acceptanceCriteria": [
+        "Rules table: merchant_pattern (substring match), category_id, created_by (user/system)",
+        "On sync, new transactions matched against rules before user sees them",
+        "Admin UI to view, create, edit, delete rules",
+        "Rule priority: exact match > substring match > Plaid category fallback > uncategorized",
+        "Rules applied retroactively on demand: 'Apply rules to all uncategorized' button",
+        "Test mode: preview which transactions a rule would match before saving"
+      ],
+      "priority": 2,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "Unit tests for pattern matching engine (exact, substring, priority ordering). Integration test: sync + auto-categorize pipeline.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Category assignment must be idempotent and handle concurrent edits (Alex and Eric editing same transaction)"
+    ],
+    "medium": [
+      "Transaction list performance with 12+ months of history — pagination and indexing critical",
+      "Mobile UX for category assignment — dropdown may be clunky on iPhone"
+    ],
+    "low": [
+      "Color picker for categories — can use preset palette instead of free-form hex"
+    ]
+  },
+  "preFlightChecklist": [
+    "Decide: EJS, Handlebars, or plain HTML template strings for server rendering?",
+    "Confirm Tailwind CDN version to use (match sibling apps if possible)",
+    "Define default category list — use Monarch categories as starting point or simplified set?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+1500/-0",
+    "storiesCount": 5,
+    "filesCreated": [
+      "public/index.html",
+      "public/app.js",
+      "public/style.css",
+      "lib/routes/accounts.js",
+      "lib/routes/transactions.js",
+      "lib/routes/categories.js",
+      "lib/routes/admin.js",
+      "lib/categorization.js",
+      "test/transactions-api.test.js",
+      "test/categories-api.test.js",
+      "test/categorization.test.js"
+    ]
+  }
+}

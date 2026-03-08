@@ -1,0 +1,131 @@
+{
+  "branchName": "feature/budget-framework",
+  "projectName": "Budget Framework",
+  "description": "Monthly budget targets per category with a dashboard showing budget vs. actual spending, income tracking, net cash flow, and rolling averages. This is the core value proposition — the reason to replace Monarch Money.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 3",
+    "gatingCondition": "Features 2 + 3 complete — categories established, historical data imported, auto-categorization rules in place."
+  },
+  "principles": [
+    "Budget math must be bulletproof — transfers excluded, income separated, rounding handled",
+    "Visual hierarchy: over-budget categories should scream, on-track categories should fade",
+    "Rolling averages provide context — 'you usually spend X' is more useful than just 'you budgeted X'",
+    "Dashboard loads fast — precomputed snapshots, not real-time aggregation on every page load"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL with materialized budget period snapshots",
+    "testing": "Jest for budget calculation logic, Playwright for dashboard UI"
+  },
+  "userStories": [
+    {
+      "id": "BDG-001",
+      "title": "Monthly budget targets per category",
+      "acceptanceCriteria": [
+        "Admin UI to set monthly budget target for each spending category",
+        "Budget stored in budgets table: category_id, monthly_amount, effective_from date",
+        "Budget amounts carry forward month-to-month until changed",
+        "Income and transfer categories excluded from budget targets",
+        "Total monthly budget displayed as sum of all category budgets"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "CRUD API tests for budget targets. Carry-forward logic test. Total calculation test excluding income/transfers.",
+      "passes": false
+    },
+    {
+      "id": "BDG-002",
+      "title": "Budget dashboard — category cards",
+      "acceptanceCriteria": [
+        "Dashboard page showing current month at a glance",
+        "Category cards: name, icon, budget amount, spent amount, remaining, percentage bar",
+        "Color coding: green (<70% used), yellow (70-99%), red (>=100% / over budget)",
+        "Cards sorted: over-budget first, then by percentage used descending",
+        "Click card to drill into category's transactions for current month",
+        "Responsive grid: 2 columns on mobile, 3-4 on desktop"
+      ],
+      "priority": 1,
+      "estimatedLines": "+350/-0",
+      "testStrategy": "Budget calculation API tests with known data. Color threshold tests. Sort order test. Drill-down links verified.",
+      "passes": false
+    },
+    {
+      "id": "BDG-003",
+      "title": "Income tracking and net cash flow",
+      "acceptanceCriteria": [
+        "Income transactions detected via is_income category flag and payroll patterns",
+        "Monthly income total displayed on dashboard",
+        "Net cash flow: income minus non-transfer, non-income spending",
+        "Net cash flow color: green (positive), red (negative)",
+        "Month-over-month cash flow comparison (current vs. prior month)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Income detection unit tests. Net cash flow calculation with transfers excluded. Month-over-month comparison test.",
+      "passes": false
+    },
+    {
+      "id": "BDG-004",
+      "title": "Rolling 3-month average per category",
+      "acceptanceCriteria": [
+        "Compute rolling 3-month average spend for each category",
+        "Displayed on category cards as 'typical: $X/mo' alongside budget",
+        "Average excludes current (incomplete) month",
+        "Handles categories with <3 months of data gracefully (shows available average)",
+        "Stored in budget_periods table as monthly snapshots for performance"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Rolling average calculation tests with known data sets (3 months, 2 months, 1 month, 0 months). Snapshot generation test.",
+      "passes": false
+    },
+    {
+      "id": "BDG-005",
+      "title": "Budget period snapshots",
+      "acceptanceCriteria": [
+        "End-of-month job computes and stores budget_periods snapshot",
+        "Snapshot includes: category_id, period (YYYY-MM), budgeted, actual_spent, income, net_cash_flow",
+        "Snapshots enable fast historical comparison without re-aggregating transactions",
+        "Manual snapshot trigger available via admin for backfill",
+        "Historical months (from Monarch import) backfilled on first run"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Snapshot generation test with known transactions. Backfill test against imported Monarch data. Idempotency test.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Budget calculations must perfectly exclude transfers — any leak inflates spending and destroys trust in the tool"
+    ],
+    "medium": [
+      "Uncategorized transactions create blind spots in budget tracking — need prominent indicator of uncategorized spend",
+      "Rolling average meaningless if categories were renamed/merged during Monarch import"
+    ],
+    "low": [
+      "Mid-month category changes affect budget calculations — decide if changes apply retroactively or next month"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm initial budget amounts for major categories (Eric to provide)",
+    "Decide: does changing a budget target apply to current month or next month?",
+    "Decide: how to handle uncategorized spending in budget view — separate 'uncategorized' card or warning banner?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+1150/-0",
+    "storiesCount": 5,
+    "filesCreated": [
+      "lib/routes/budget.js",
+      "lib/budget-calculator.js",
+      "lib/snapshot-generator.js",
+      "public/dashboard.html",
+      "public/dashboard.js",
+      "test/budget-calculator.test.js",
+      "test/snapshot-generator.test.js",
+      "test/budget-api.test.js"
+    ]
+  }
+}

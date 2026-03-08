@@ -1,0 +1,124 @@
+{
+  "branchName": "feature/planning-goals",
+  "projectName": "Planning & Goals",
+  "description": "Forward-looking financial intelligence: liquid savings signal (can we splurge?), named planning goals (Alex's Pacific Rim trip, medical budget), and college tuition horizon tracking for Jordan (2028) and Casey (2030). The 'looking ahead' complement to the budget's 'looking at now.'",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 7",
+    "gatingCondition": "Features 4 + 7 complete — budget snapshots provide baseline data, Magic Actions provide forecasting capability."
+  },
+  "principles": [
+    "Savings signal must be immediately scannable — emoji status at a glance",
+    "Goals are motivating, not stressful — progress bars, not countdown timers",
+    "529 tracking is contribution-only — no investment performance (out of scope)",
+    "Thresholds are configurable — Eric's comfort level is subjective"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (planning_goals, savings_signals tables)",
+    "testing": "Jest for signal computation and goal projection logic"
+  },
+  "userStories": [
+    {
+      "id": "PLN-001",
+      "title": "Liquid savings signal",
+      "acceptanceCriteria": [
+        "Compute: total across all savings accounts + checking buffer (checking balance minus rolling monthly spend)",
+        "Signal status: Tight (< 2x monthly expenses), Comfortable (2-4x), Ready to Splurge (> 4x)",
+        "Thresholds configurable via admin settings",
+        "Signal displayed prominently on dashboard (emoji + label + dollar amount)",
+        "Savings snapshot stored in savings_signals table with timestamp",
+        "Recomputed daily after sync"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Unit tests for signal computation at each threshold boundary. Configuration change test. Snapshot persistence test.",
+      "passes": false
+    },
+    {
+      "id": "PLN-002",
+      "title": "Named planning goals (R&R / Travel)",
+      "acceptanceCriteria": [
+        "CRUD for planning goals: name, target amount, current amount, deadline (optional), linked account (optional)",
+        "First goal: 'Alex\\'s Pacific Rim Trip' with configurable target",
+        "Progress bar: current / target with percentage",
+        "If linked to savings account, current amount auto-updates from account balance",
+        "If manual, current amount editable via admin",
+        "Projected achievement date: based on average monthly savings rate",
+        "Planning section on dashboard shows all active goals"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "CRUD API tests. Progress calculation test. Projection date calculation test with known savings rate. Auto-update from linked account test.",
+      "passes": false
+    },
+    {
+      "id": "PLN-003",
+      "title": "Medical expense planning",
+      "acceptanceCriteria": [
+        "Dedicated 'Medical' budget category with annual target (in addition to monthly budget)",
+        "Quarterly tracking: Q1-Q4 medical spend vs. annual pace",
+        "Rolling 3-year average for medical spend (from imported + synced data)",
+        "Alert when YTD medical spend approaches annual average (configurable threshold, default 80%)",
+        "Medical planning card on dashboard: YTD spend, annual target, 3-year average, pace indicator"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Annual pace calculation test. Rolling 3-year average with partial year data. Alert threshold test.",
+      "passes": false
+    },
+    {
+      "id": "PLN-004",
+      "title": "College tuition horizon",
+      "acceptanceCriteria": [
+        "Two tuition milestones: Jordan (September 2028), Casey (September 2030)",
+        "Planning view: months remaining countdown for each",
+        "529 contribution tracking: detect transactions categorized as 529_contribution transfer type",
+        "Monthly and YTD 529 contribution totals displayed per child",
+        "No investment performance tracking — contribution detection only",
+        "Visual: timeline or progress indicator showing preparation status"
+      ],
+      "priority": 3,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Countdown calculation test (handles edge cases: past dates, exact month). 529 contribution detection test from categorized transactions.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Savings signal false confidence — 'Splurge Ready' status must account for known upcoming large expenses (medical, tuition)"
+    ],
+    "medium": [
+      "Projected achievement dates are linear extrapolations — savings rates fluctuate, projections could mislead",
+      "Medical 3-year average requires 3 years of data — may need to seed from Monarch import or show 'insufficient data' gracefully"
+    ],
+    "low": [
+      "529 contribution patterns may vary by institution — pattern matching needs to cover common 529 providers"
+    ]
+  },
+  "preFlightChecklist": [
+    "Eric to define: initial savings signal thresholds (multiplier of monthly expenses)",
+    "Eric to define: Alex's Pacific Rim trip target amount",
+    "Eric to define: annual medical budget target",
+    "Identify 529 provider names for transaction pattern matching",
+    "Decide: should savings signal factor in known upcoming large expenses, or just current liquid position?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+900/-0",
+    "storiesCount": 4,
+    "filesCreated": [
+      "lib/routes/planning.js",
+      "lib/savings-signal.js",
+      "lib/goal-projector.js",
+      "lib/medical-tracker.js",
+      "lib/tuition-horizon.js",
+      "public/planning.html",
+      "public/planning.js",
+      "test/savings-signal.test.js",
+      "test/goal-projector.test.js",
+      "test/medical-tracker.test.js",
+      "test/tuition-horizon.test.js"
+    ]
+  }
+}

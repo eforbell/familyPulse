@@ -1,0 +1,16 @@
+{
+  "currentFeature": null,
+  "status": "idle",
+  "completedFeatures": [],
+  "futureEnhancements": [
+    "Feature #1: Foundation (Data Layer + Plaid Sync)",
+    "Feature #2: Transaction Browser (Web UI)",
+    "Feature #3: Monarch Money Migration",
+    "Feature #4: Budget Framework",
+    "Feature #5: Hot Spots & Anomaly Detection",
+    "Feature #6: Kids View",
+    "Feature #7: Magic Actions (LLM Layer)",
+    "Feature #8: MCP Server",
+    "Feature #9: Planning & Goals"
+  ]
+}

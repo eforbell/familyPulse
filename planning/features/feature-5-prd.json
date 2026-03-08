@@ -1,0 +1,123 @@
+{
+  "branchName": "feature/anomaly-detection",
+  "projectName": "Hot Spots & Anomaly Detection",
+  "description": "Automatically surface unexpected spending spikes by comparing current month spend against rolling 3-month averages. Hot spots panel on dashboard, drill-down into driving transactions, and a weekly LLM-generated narrative digest. This is the 'catch what you'd otherwise miss' feature.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 4",
+    "gatingCondition": "Feature 4 complete — budget periods and rolling averages computed."
+  },
+  "principles": [
+    "Anomalies should surface without Eric looking for them — push, don't pull",
+    "False positives destroy trust — threshold must be tunable",
+    "LLM narratives add color but raw data must always be accessible behind them",
+    "Dismiss/acknowledge workflow prevents alert fatigue",
+    "SECRETS INVARIANT — LLM prompts receive only derived/aggregated financial data (category names, amounts, date ranges, first names). Never access tokens, account numbers, .env values, or items table secrets. Enforced by secrets-guard module and test coverage."
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (anomalies table)",
+    "testing": "Jest for detection logic, fixture data sets for threshold testing",
+    "llmProvider": "OpenAI API (gpt-5-nano) for narrative generation"
+  },
+  "userStories": [
+    {
+      "id": "ANM-001",
+      "title": "Anomaly detection engine",
+      "acceptanceCriteria": [
+        "Compute: current month spend per category vs. 3-month rolling average",
+        "Flag anomaly when current spend > 130% of rolling average",
+        "Anomaly record: category_id, current_amount, average_amount, delta_percentage, period, detected_at",
+        "Detection runs daily (post-sync job) and on-demand via admin",
+        "Categories with <3 months history excluded from anomaly detection",
+        "Small-dollar categories (average < $25/mo) excluded to avoid noise",
+        "Detection is idempotent — same anomaly not re-created if already exists for current period"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "Unit tests with fixture data: normal spending (no anomaly), 130% spike (anomaly), 129% (no anomaly), small-dollar exclusion, insufficient history. Idempotency test.",
+      "passes": false
+    },
+    {
+      "id": "ANM-002",
+      "title": "Hot spots dashboard panel",
+      "acceptanceCriteria": [
+        "Dashboard panel showing top 3-5 unacknowledged anomalies",
+        "Each anomaly displays: category name, dollar delta, percentage over average",
+        "Visual treatment: red/orange alert styling, distinct from budget cards",
+        "Click anomaly to drill into transactions driving the spike",
+        "Panel hidden when no anomalies exist (clean dashboard state)",
+        "Position: above budget cards for visibility"
+      ],
+      "priority": 1,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "UI test: panel renders with anomalies, hides when none. Drill-down link verification.",
+      "passes": false
+    },
+    {
+      "id": "ANM-003",
+      "title": "Anomaly drill-down and acknowledge",
+      "acceptanceCriteria": [
+        "Drill-down view shows all transactions in the anomalous category for current month",
+        "Comparison: this month's transactions vs. typical month (count and total)",
+        "Acknowledge button: marks anomaly as reviewed with optional note",
+        "Dismissed anomalies no longer appear in hot spots panel",
+        "History view of past acknowledged anomalies (admin)"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Acknowledge API test. History persistence test. UI test for drill-down transaction list.",
+      "passes": false
+    },
+    {
+      "id": "ANM-004",
+      "title": "Weekly anomaly digest (LLM narrative)",
+      "acceptanceCriteria": [
+        "Background job runs Sunday evening (configurable via cron)",
+        "Collects current anomalies + week's spending summary",
+        "Sends structured prompt to OpenAI API (gpt-5-nano) with financial data context",
+        "LLM generates plain-English narrative: what spiked, possible reasons, one recommendation",
+        "Narrative cached in magic_actions_log (type='weekly_digest', prompt_hash for dedup)",
+        "Digest viewable on dashboard — latest digest displayed in dedicated panel",
+        "LLM prompt does NOT include account numbers, access tokens, or PII beyond first names"
+      ],
+      "priority": 2,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "Unit test for prompt construction (verify no sensitive data). Mock LLM response test. Caching/dedup test. Integration test with OpenAI API (manual, sandbox).",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "LLM prompt must not leak secrets — all prompts pass through secrets-guard sanitization before API call. Test suite validates no access tokens, account numbers, or .env values appear in constructed prompts."
+    ],
+    "medium": [
+      "130% threshold may be too sensitive or too loose depending on category — consider per-category thresholds later",
+      "OpenAI API availability/cost — cache aggressively, degrade gracefully if API unavailable"
+    ],
+    "low": [
+      "Anomaly detection on imported Monarch data may flag historical months — decide if backfill detection is desired"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm OpenAI API key and gpt-5-nano model availability",
+    "Decide: anomaly detection on historical months (Monarch data) or current month only?",
+    "Decide: 130% threshold global or per-category configurable?",
+    "Decide: small-dollar exclusion threshold ($25/mo suggested — confirm)"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+950/-0",
+    "storiesCount": 4,
+    "filesCreated": [
+      "lib/anomaly-detector.js",
+      "lib/digest-generator.js",
+      "lib/llm-client.js",
+      "lib/routes/anomalies.js",
+      "public/hotspots.js",
+      "test/anomaly-detector.test.js",
+      "test/digest-generator.test.js",
+      "test/llm-prompt-security.test.js"
+    ]
+  }
+}

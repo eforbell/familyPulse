@@ -1,0 +1,129 @@
+{
+  "branchName": "feature/magic-actions",
+  "projectName": "Magic Actions — Full LLM Layer",
+  "description": "The complete LLM intelligence layer: weekly household digest, monthly close report, on-demand analysis, and what-if forecasting. All server-side OpenAI API calls with results cached to magic_actions_log. This turns raw financial data into actionable household intelligence.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 5",
+    "gatingCondition": "Features 4 + 5 complete — budget data, rolling averages, and anomaly detection all feeding the LLM context."
+  },
+  "principles": [
+    "LLM adds color and insight — never replaces the raw data",
+    "Cache aggressively — same question with same data should not re-call the API",
+    "Degrade gracefully — if OpenAI API is down, app still works, just without narratives",
+    "SECRETS INVARIANT — all LLM prompts pass through secrets-guard sanitization. Only derived/aggregated data reaches the LLM: category names, amounts, date ranges, first names. Never access tokens, account numbers, .env values, or items table secrets. Enforced by test suite.",
+    "Forecasting is directional, not precise — communicate uncertainty clearly"
+  ],
+  "techStack": {
+    "language": "Node.js",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (magic_actions_log table)",
+    "testing": "Jest for prompt construction, response parsing, caching logic",
+    "llmProvider": "OpenAI API (gpt-5-nano)"
+  },
+  "userStories": [
+    {
+      "id": "MAG-001",
+      "title": "Weekly household digest",
+      "acceptanceCriteria": [
+        "Scheduled job: Sunday evening (configurable cron expression)",
+        "Context assembled: week's cash flow, top spending categories vs. budget, active anomalies",
+        "LLM generates narrative: what happened this week, what's notable, one recommendation",
+        "Cached in magic_actions_log with type='weekly_digest' and period date",
+        "Displayed on dashboard in a 'Weekly Pulse' panel",
+        "Historical digests browsable (last 4 weeks)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "Context assembly unit test (verify correct data selection). Prompt construction test (no PII). Cache hit/miss test. Mock LLM response rendering.",
+      "passes": false
+    },
+    {
+      "id": "MAG-002",
+      "title": "Monthly close report",
+      "acceptanceCriteria": [
+        "Scheduled job: 1st of month, covers prior month",
+        "Content: budget vs. actual by category, notable wins/overruns, comparison to prior month and rolling average, net cash flow vs. income",
+        "LLM narrative: conversational summary of the month's financial health",
+        "Cached with type='monthly_close' and period",
+        "Displayed in a dedicated 'Monthly Report' section",
+        "Historical reports browsable"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "Context assembly test with known budget/actual data. Prompt completeness test. Cache key uniqueness test.",
+      "passes": false
+    },
+    {
+      "id": "MAG-003",
+      "title": "On-demand analysis",
+      "acceptanceCriteria": [
+        "UI: text input or preset question buttons on dashboard",
+        "Preset questions: 'Explain this month\\'s dining spend', 'What\\'s our biggest discretionary category this quarter?', 'Are we on track for our savings goal?'",
+        "Free-form text input for custom questions",
+        "System assembles relevant financial context based on question intent",
+        "Response displayed inline on dashboard",
+        "Cached by prompt hash — same question with same underlying data returns cached response",
+        "Rate limiting: max 10 on-demand queries per day"
+      ],
+      "priority": 2,
+      "estimatedLines": "+350/-0",
+      "testStrategy": "Prompt hash generation test. Cache hit test. Rate limit test. Context assembly for different question types.",
+      "passes": false
+    },
+    {
+      "id": "MAG-004",
+      "title": "What-if forecasting",
+      "acceptanceCriteria": [
+        "UI: text input for scenario questions",
+        "Examples: 'If we take a $6,000 trip in October, what does cash flow look like?', 'If Jordan starts at [university] at $X/semester in fall 2028, when do we redirect cash flow?'",
+        "System injects current financial snapshot: balances, monthly income, monthly expenses, savings rate",
+        "LLM generates projected impact with clear uncertainty caveats",
+        "Response includes: current state, projected impact, months until recovered/affected",
+        "Cached with scenario hash"
+      ],
+      "priority": 3,
+      "estimatedLines": "+300/-0",
+      "testStrategy": "Financial snapshot assembly test. Prompt security test. Uncertainty caveat presence test (response must include hedging language).",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Prompt injection via free-form text input — must sanitize user input before including in LLM prompts",
+      "Secrets leaking to LLM — all prompt construction uses secrets-guard; test suite scans constructed prompts for known secret patterns (token prefixes, account number formats, env var values)",
+      "Financial advice liability — responses must clearly state they are informational, not financial advice"
+    ],
+    "medium": [
+      "OpenAI API cost — cache hit rate critical, monitor token usage",
+      "LLM hallucination about financial data — responses should reference actual numbers from context, not fabricate",
+      "API rate limits during digest generation for all family members"
+    ],
+    "low": [
+      "Tone consistency across different Magic Action types — may need per-type system prompts"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm OpenAI API pricing for gpt-5-nano and set monthly budget cap",
+    "Design system prompts for each Magic Action type",
+    "Decide: disclaimer text for AI-generated financial analysis",
+    "Decide: should what-if forecasting be available to kids, or adults only?"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+1200/-0",
+    "storiesCount": 4,
+    "filesCreated": [
+      "lib/magic-actions/weekly-digest.js",
+      "lib/magic-actions/monthly-close.js",
+      "lib/magic-actions/on-demand.js",
+      "lib/magic-actions/what-if.js",
+      "lib/magic-actions/context-assembler.js",
+      "lib/magic-actions/prompt-sanitizer.js",
+      "lib/routes/magic-actions.js",
+      "public/magic-actions.js",
+      "test/context-assembler.test.js",
+      "test/prompt-sanitizer.test.js",
+      "test/magic-actions-cache.test.js"
+    ]
+  }
+}

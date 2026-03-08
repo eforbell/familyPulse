@@ -1,0 +1,117 @@
+{
+  "branchName": "feature/mcp-server",
+  "projectName": "MCP Server",
+  "description": "Model Context Protocol server giving Claude Desktop and Claude CLI structured, queryable access to live Family Pulse data. Enables conversational financial analysis without screen scraping. Runs as stdio or local HTTP server on Tailscale only.",
+  "timing": {
+    "draftedOn": "2026-03-08",
+    "plannedEarliestExecution": "after Feature 4",
+    "gatingCondition": "Feature 4 complete (budget data available). Can be developed in parallel with Features 5-7."
+  },
+  "principles": [
+    "Read-only access — MCP tools query data, never modify it",
+    "Structured responses — return typed data, not rendered HTML or prose",
+    "Tailscale-scoped — server only accessible on tailnet, never public",
+    "Tools should be composable — Claude can combine multiple tool calls to answer complex questions",
+    "SECRETS INVARIANT — MCP tool responses never include access tokens, .env values, or items table secrets. Only user-facing data: account names, balances, transactions, categories. Enforced by secrets-guard module and response schema validation tests."
+  ],
+  "techStack": {
+    "language": "Node.js",
+    "runtime": "MCP SDK (stdio or HTTP transport)",
+    "database": "PostgreSQL (read-only queries)",
+    "testing": "Jest for tool handler unit tests, MCP Inspector for integration"
+  },
+  "userStories": [
+    {
+      "id": "MCP-001",
+      "title": "MCP server scaffold and transport",
+      "acceptanceCriteria": [
+        "MCP server initialized with @modelcontextprotocol/sdk",
+        "Supports stdio transport for Claude Code CLI",
+        "Server metadata: name='familypulse', version, description",
+        "Connects to Family Pulse PostgreSQL database (read-only connection)",
+        "PM2 process config for persistent operation",
+        "Installable in Claude Code config on ThinkPad T14s"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Server starts without error. MCP Inspector connection test. Database connectivity test.",
+      "passes": false
+    },
+    {
+      "id": "MCP-002",
+      "title": "Account and balance tools",
+      "acceptanceCriteria": [
+        "Tool: get_account_balances — returns all accounts with current balances, grouped by member",
+        "Tool: get_savings_signal — returns liquid savings total, signal status (tight/comfortable/splurge-ready), threshold info",
+        "Response schema: typed JSON with account names (no access tokens or raw IDs)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "Unit tests for response schema. No sensitive data in responses.",
+      "passes": false
+    },
+    {
+      "id": "MCP-003",
+      "title": "Transaction query tool",
+      "acceptanceCriteria": [
+        "Tool: get_transactions — query by date_range, category, account, include_transfers (boolean)",
+        "Returns: date, merchant, amount, category, account_name",
+        "Pagination: limit (default 50, max 200) and offset",
+        "Summary mode: return aggregated totals instead of individual transactions",
+        "Transfers excluded by default unless explicitly requested"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Query filter tests (each parameter). Pagination test. Summary mode aggregation test. Transfer exclusion test.",
+      "passes": false
+    },
+    {
+      "id": "MCP-004",
+      "title": "Budget and planning tools",
+      "acceptanceCriteria": [
+        "Tool: get_budget_status — current month budget vs. actual by category, with percentages",
+        "Tool: get_cash_flow_summary — net cash flow for any specified period",
+        "Tool: get_anomalies — current unacknowledged spending anomalies",
+        "Tool: get_planning_goals — all planning goals with target, current, projected date"
+      ],
+      "priority": 2,
+      "estimatedLines": "+200/-0",
+      "testStrategy": "Each tool returns correct data format. Budget status matches dashboard calculations. Cash flow period handling test.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "MCP server must never expose Plaid access tokens or raw database IDs in tool responses"
+    ],
+    "medium": [
+      "Query performance — complex transaction queries could be slow, need appropriate indexes",
+      "MCP SDK version compatibility with Claude Code CLI version"
+    ],
+    "low": [
+      "stdio vs HTTP transport decision — stdio is simpler but limits concurrent access"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm MCP SDK version compatible with current Claude Code CLI",
+    "Decide: stdio or HTTP transport (or both)?",
+    "Design read-only PostgreSQL connection (separate DB user with SELECT-only grants?)",
+    "Confirm ThinkPad T14s Claude Code config path for MCP server registration"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+600/-0",
+    "storiesCount": 4,
+    "filesCreated": [
+      "mcp/index.js",
+      "mcp/tools/accounts.js",
+      "mcp/tools/transactions.js",
+      "mcp/tools/budget.js",
+      "mcp/tools/planning.js",
+      "mcp/package.json",
+      "test/mcp-accounts.test.js",
+      "test/mcp-transactions.test.js",
+      "test/mcp-budget.test.js",
+      "test/mcp-response-security.test.js"
+    ]
+  }
+}
