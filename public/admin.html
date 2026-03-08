@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Admin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Category form overlay -->
+  <div id="category-form-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="cat-form-title">New Category</h2>
+      <input type="hidden" id="cat-form-id">
+      <div class="form-group">
+        <label for="cat-name">Name</label>
+        <input type="text" id="cat-name" placeholder="e.g. Groceries">
+      </div>
+      <div class="form-group">
+        <label>Color</label>
+        <div id="cat-color-palette" class="color-palette"></div>
+      </div>
+      <div class="form-group">
+        <label for="cat-budget">Monthly Budget ($)</label>
+        <input type="number" id="cat-budget" step="0.01" placeholder="optional">
+      </div>
+      <div class="form-group">
+        <label for="cat-icon">Icon (emoji)</label>
+        <input type="text" id="cat-icon" placeholder="optional" maxlength="4">
+      </div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="cat-income"> Is income
+      </label>
+      <div class="form-actions">
+        <button class="btn-primary" onclick="saveCategory()">Save</button>
+        <button class="btn-ghost" onclick="closeCategoryForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rule form overlay -->
+  <div id="rule-form-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="rule-form-title">New Rule</h2>
+      <input type="hidden" id="rule-form-id">
+      <div class="form-group">
+        <label for="rule-pattern">Merchant Pattern</label>
+        <input type="text" id="rule-pattern" placeholder="e.g. Starbucks">
+      </div>
+      <div class="form-group">
+        <label for="rule-match-type">Match Type</label>
+        <select id="rule-match-type">
+          <option value="contains">Contains</option>
+          <option value="exact">Exact</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="rule-category">Category</label>
+        <select id="rule-category"></select>
+      </div>
+      <button class="btn-ghost" style="margin-bottom:0.5rem" onclick="previewCurrentRule()">Preview matches</button>
+      <div id="preview-container" class="hidden">
+        <div id="preview-count" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem"></div>
+        <div id="preview-list" class="preview-list"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" onclick="saveRule()">Save</button>
+        <button class="btn-ghost" onclick="closeRuleForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app">
+    <header>
+      <a href="./" class="btn-ghost" style="font-size:0.85rem">Back</a>
+      <h1>Categories &amp; Rules</h1>
+      <div></div>
+    </header>
+
+    <!-- Categories -->
+    <section>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <h2 class="section-heading" style="margin:0">Categories</h2>
+        <button class="btn-primary" onclick="openCategoryForm()">+ New</button>
+      </div>
+      <div id="category-admin-list" class="admin-list"></div>
+    </section>
+
+    <!-- Rules -->
+    <section>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+        <h2 class="section-heading" style="margin:0">Auto-Categorization Rules</h2>
+        <button class="btn-primary" onclick="openRuleForm()">+ New</button>
+      </div>
+      <button class="btn-ghost" style="margin-bottom:0.75rem;font-size:0.8rem" onclick="applyRulesRetroactive()">Apply rules to uncategorized</button>
+      <div id="rules-admin-list" class="admin-list"></div>
+    </section>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

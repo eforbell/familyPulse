@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Member picker overlay -->
+  <div id="member-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>Who are you?</h2>
+      <p>Pick your profile to get started.</p>
+      <div id="member-list" class="member-grid"></div>
+    </div>
+  </div>
+
+  <!-- Category assignment overlay -->
+  <div id="category-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="cat-overlay-title">Assign Category</h2>
+      <div id="category-list" class="cat-list"></div>
+      <label id="create-rule-row" class="create-rule-row hidden">
+        <input type="checkbox" id="create-rule-check">
+        <span>Always categorize <strong id="rule-merchant"></strong> as this</span>
+      </label>
+      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeCategoryOverlay()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <h1>Pulse</h1>
+      <button id="who-btn" class="who-btn" onclick="openMemberPicker()" title="Change identity"></button>
+    </header>
+
+    <!-- Account Dashboard -->
+    <section id="dashboard-section">
+      <div id="net-position-card" class="net-position-card">
+        <div class="net-label">NET POSITION</div>
+        <div id="net-amount" class="net-amount loading-pulse">Loading...</div>
+        <div id="balance-breakdown" class="balance-breakdown"></div>
+      </div>
+      <div id="accounts-grid" class="accounts-grid"></div>
+    </section>
+
+    <!-- Transaction Browser -->
+    <section id="transactions-section">
+      <h2 class="section-heading">Transactions</h2>
+
+      <!-- Filter bar -->
+      <div id="filter-bar" class="filter-bar">
+        <select id="filter-account"><option value="">All Accounts</option></select>
+        <select id="filter-category"><option value="">All Categories</option><option value="0">Uncategorized</option></select>
+        <input type="date" id="filter-from">
+        <input type="date" id="filter-to">
+        <input type="text" id="filter-search" placeholder="Search merchant...">
+        <label class="toggle-label">
+          <input type="checkbox" id="filter-transfers"> Show transfers
+        </label>
+      </div>
+
+      <!-- Bulk action bar -->
+      <div id="bulk-bar" class="bulk-bar hidden">
+        <span id="bulk-count">0 selected</span>
+        <button class="btn-primary" onclick="bulkAssignCategory()">Assign Category</button>
+        <button class="btn-ghost" onclick="clearSelection()">Clear</button>
+      </div>
+
+      <!-- Stats row -->
+      <div id="tx-stats" class="tx-stats"></div>
+
+      <!-- Transaction list -->
+      <div id="tx-list" class="tx-list"></div>
+
+      <!-- Pagination -->
+      <div id="pagination" class="pagination hidden">
+        <button id="prev-btn" class="btn-ghost" onclick="prevPage()" disabled>Previous</button>
+        <span id="page-info"></span>
+        <button id="next-btn" class="btn-ghost" onclick="nextPage()">Next</button>
+      </div>
+    </section>
+
+    <!-- Admin link -->
+    <section class="admin-entry">
+      <a href="admin.html" class="btn-ghost admin-link">Manage Categories &amp; Rules</a>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
