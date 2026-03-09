@@ -33,6 +33,7 @@ app.use(require('./lib/routes/accounts'));
 app.use(require('./lib/routes/transactions'));
 app.use(require('./lib/routes/categories'));
 app.use(require('./lib/routes/link'));
+app.use(require('./lib/routes/import'));
 
 // ── Server-level routes ──────────────────────────────────────
 

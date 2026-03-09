@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Monarch Import</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="app">
+    <header>
+      <h1>Monarch Import</h1>
+      <a href="settings.html" class="btn-ghost" style="font-size:.85rem">← Settings</a>
+    </header>
+
+    <!-- Step 1: Upload -->
+    <section id="step-upload" class="import-step">
+      <div class="card">
+        <h2>Step 1 — Upload CSV</h2>
+        <p class="muted" style="margin:.5rem 0 1rem">Export from Monarch Money → Settings → Export Data</p>
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="file-input" accept=".csv" hidden>
+          <p>Drop CSV here or <a href="#" onclick="document.getElementById('file-input').click();return false">browse</a></p>
+          <p class="muted" style="font-size:.8rem">Max 10 MB</p>
+        </div>
+        <div id="upload-status" class="hidden" style="margin-top:1rem"></div>
+        <button id="btn-upload" class="btn-primary hidden" style="margin-top:1rem">Upload & Preview</button>
+      </div>
+    </section>
+
+    <!-- Step 2: Preview + Category Mapping -->
+    <section id="step-mapping" class="import-step hidden">
+      <div class="card">
+        <h2>Step 2 — Preview</h2>
+        <p id="preview-summary" class="muted" style="margin:.5rem 0 1rem"></p>
+        <div class="table-wrap">
+          <table id="preview-table" class="import-table">
+            <thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Account</th><th>Amount</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <h2>Category Mapping</h2>
+        <p class="muted" style="margin:.5rem 0 1rem">Map Monarch categories to Family Pulse categories</p>
+        <div class="table-wrap">
+          <table id="category-map-table" class="import-table">
+            <thead><tr><th>Monarch Category</th><th>→</th><th>Family Pulse Category</th><th>Confidence</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem">
+        <h2>Account Mapping</h2>
+        <p class="muted" style="margin:.5rem 0 1rem">Map Monarch accounts to existing accounts or auto-create</p>
+        <div class="table-wrap">
+          <table id="account-map-table" class="import-table">
+            <thead><tr><th>Monarch Account</th><th>→</th><th>Family Pulse Account</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <button id="btn-import" class="btn-primary" style="margin-top:1rem;width:100%">Import Transactions</button>
+    </section>
+
+    <!-- Step 3: Results -->
+    <section id="step-results" class="import-step hidden">
+      <div class="card">
+        <h2>Import Complete</h2>
+        <div id="results-body"></div>
+        <div style="margin-top:1.5rem;display:flex;gap:.5rem">
+          <a href="./" class="btn-primary" style="text-align:center;flex:1">View Transactions</a>
+          <button class="btn-ghost" onclick="resetImport()" style="flex:1">Import Another</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Import History -->
+    <section id="history-section" class="card" style="margin-top:2rem">
+      <h2>Import History</h2>
+      <div id="history-body" style="margin-top:.5rem">
+        <p class="muted">Loading…</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="import.js"></script>
+</body>
+</html>
