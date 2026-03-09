@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Settings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Owner assignment overlay -->
+  <div id="owner-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>Assign Owner</h2>
+      <p>Who owns these accounts?</p>
+      <div id="owner-member-list" class="member-grid"></div>
+      <button class="btn-ghost" style="width:100%;margin-top:0.75rem" onclick="closeOwnerOverlay()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Confirm delete overlay -->
+  <div id="delete-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>Remove Institution</h2>
+      <p id="delete-msg">This will remove the institution and all its accounts and transactions. This cannot be undone.</p>
+      <div class="form-actions">
+        <button class="btn-danger" onclick="confirmDelete()">Remove</button>
+        <button class="btn-ghost" onclick="closeDeleteOverlay()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app">
+    <header>
+      <a href="./" class="btn-ghost" style="font-size:0.85rem">Back</a>
+      <h1>Settings</h1>
+      <div></div>
+    </header>
+
+    <!-- Linked Institutions -->
+    <section>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h2 class="section-heading" style="margin:0">Linked Institutions</h2>
+        <button id="link-btn" class="btn-primary" onclick="startLink()">+ Link Account</button>
+      </div>
+      <div id="items-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading...</div>
+      </div>
+    </section>
+
+    <!-- Sync Status -->
+    <section style="margin-top:1.5rem">
+      <h2 class="section-heading">Sync</h2>
+      <button class="btn-ghost" onclick="triggerFullSync()">Sync All Now</button>
+      <div id="sync-result" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
+    </section>
+  </div>
+
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

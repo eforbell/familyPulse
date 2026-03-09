@@ -32,6 +32,7 @@ async function setCfg(key, value) {
 app.use(require('./lib/routes/accounts'));
 app.use(require('./lib/routes/transactions'));
 app.use(require('./lib/routes/categories'));
+app.use(require('./lib/routes/link'));
 
 // ── Server-level routes ──────────────────────────────────────
 

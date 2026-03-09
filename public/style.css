@@ -489,7 +489,10 @@ header h1 {
 /* ── Admin entry link ──────────────────────────────────────── */
 
 .admin-entry {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
   padding: 1.5rem 0;
 }
 .admin-link { font-size: 0.85rem; }
@@ -621,6 +624,25 @@ header h1 {
   color: var(--muted);
 }
 .preview-item:last-child { border-bottom: none; }
+
+/* ── Settings: status badges ──────────────────────────────── */
+
+.status-good {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(34,197,94,0.15);
+  color: var(--green);
+}
+.status-error {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(248,113,113,0.15);
+  color: var(--red);
+}
 
 /* ── Responsive ────────────────────────────────────────────── */
 

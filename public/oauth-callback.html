@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <title>Pulse — Connecting...</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div></div>
+      <h1>Pulse</h1>
+      <div></div>
+    </header>
+    <div class="empty-state" id="status-msg">
+      <div class="loading-pulse">Completing bank connection...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <script>
+    'use strict';
+
+    // This page is loaded by the OAuth redirect from the bank.
+    // It re-initializes Plaid Link with receivedRedirectUri to complete the flow.
+
+    (async function resumeOAuth() {
+      const statusEl = document.getElementById('status-msg');
+
+      try {
+        // Fetch the most recent pending link token
+        const res = await fetch('api/link/create-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) throw new Error('Failed to create link token');
+        const { link_token } = await res.json();
+
+        const handler = Plaid.create({
+          token: link_token,
+          receivedRedirectUri: window.location.href,
+          onSuccess: async (publicToken) => {
+            statusEl.innerHTML = '<div class="loading-pulse">Linking accounts...</div>';
+            try {
+              const exchRes = await fetch('api/link/exchange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ public_token: publicToken })
+              });
+              if (!exchRes.ok) throw new Error('Exchange failed');
+              statusEl.innerHTML = '<div>Connected! <a href="settings.html">Back to Settings</a></div>';
+            } catch (err) {
+              statusEl.innerHTML = `<div>Connection failed: ${err.message}. <a href="settings.html">Back to Settings</a></div>`;
+            }
+          },
+          onExit: (err) => {
+            const msg = err ? `Connection interrupted: ${err.display_message || err.error_code}` : 'Connection cancelled';
+            statusEl.innerHTML = `<div>${msg}. <a href="settings.html">Back to Settings</a></div>`;
+          }
+        });
+        handler.open();
+      } catch (err) {
+        statusEl.innerHTML = `<div>Failed to resume connection: ${err.message}. <a href="settings.html">Back to Settings</a></div>`;
+      }
+    })();
+  </script>
+</body>
+</html>

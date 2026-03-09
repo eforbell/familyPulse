@@ -1,0 +1,120 @@
+{
+  "branchName": "feature/plaid-link-oauth",
+  "projectName": "Plaid Link + OAuth Integration",
+  "description": "Sub-feature of Feature 2. Adds the Plaid Link flow so Eric and Alex can connect real bank accounts from the browser. Includes Link token creation, public_token exchange, OAuth callback for Chase/CapOne/etc., account owner assignment, and a settings page for managing linked institutions. Depends on Cloudflare Tunnel (Appendix A) for OAuth institutions.",
+  "timing": {
+    "draftedOn": "2026-03-09",
+    "plannedEarliestExecution": "after Feature 2 merge",
+    "gatingCondition": "Feature 2 merged to main. Cloudflare Tunnel configured on erebor (see APPENDIX-A-oauth-callback.md). Plaid production credentials in .env."
+  },
+  "principles": [
+    "Minimal public surface — only /oauth/callback exposed via Cloudflare Tunnel, everything else Tailscale-only",
+    "Secrets invariant — link_tokens and public_tokens are ephemeral and short-lived, but still never logged",
+    "Owner assignment at link time — Eric or Alex picks who owns each linked institution's accounts",
+    "Idempotent re-linking — if an Item errors out, re-link replaces the old access_token cleanly",
+    "Sandbox-first — full flow testable in sandbox mode before switching to production"
+  ],
+  "userStories": [
+    {
+      "id": "PLO-001",
+      "title": "Link token creation + Plaid Link initialization",
+      "acceptanceCriteria": [
+        "POST /api/link/create-token returns a link_token for Plaid Link",
+        "Plaid Link JS SDK loaded from CDN in settings page",
+        "Link opens in modal, user completes institution login",
+        "Products requested: transactions, liabilities",
+        "link_token includes redirect_uri for OAuth institutions",
+        "link_token stored in link_sessions table with expiry for OAuth resume"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "PLO-002",
+      "title": "Public token exchange + Item storage",
+      "acceptanceCriteria": [
+        "POST /api/link/exchange receives public_token from Plaid Link onSuccess",
+        "Exchanges public_token for access_token + item_id via Plaid API",
+        "Stores new Item in items table (access_token, item_id, institution_id, institution_name)",
+        "Fetches and stores initial accounts immediately after exchange",
+        "Triggers initial sync for the new Item",
+        "Returns success with institution name and account count"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "PLO-003",
+      "title": "OAuth callback handler",
+      "acceptanceCriteria": [
+        "GET /oauth/callback receives oauth_state_id from Plaid redirect",
+        "Looks up pending link session by oauth_state_id",
+        "Serves a minimal HTML page that re-initializes Plaid Link with receivedRedirectUri",
+        "Plaid Link completes in-browser, fires onSuccess with public_token",
+        "Redirects to settings page after successful exchange",
+        "Handles error/expiry gracefully with user-friendly message"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "PLO-004",
+      "title": "Settings page — linked institutions management",
+      "acceptanceCriteria": [
+        "New settings.html page linked from main dashboard",
+        "Shows all linked Items: institution name, status, last sync, account count, error state",
+        "Link New Account button opens Plaid Link flow",
+        "Owner assignment: dropdown to assign linked accounts to a family member",
+        "Re-link button for Items in error state (generates update-mode link_token)",
+        "Remove institution button (deletes Item + cascades to accounts/transactions)",
+        "Manual sync trigger button per Item"
+      ],
+      "priority": 1
+    },
+    {
+      "id": "PLO-005",
+      "title": "Update mode for broken connections",
+      "acceptanceCriteria": [
+        "Items with ITEM_LOGIN_REQUIRED or similar errors show re-link prompt",
+        "Re-link uses Plaid Link in update mode (existing access_token)",
+        "On success, Item status resets to 'good', error_code cleared",
+        "Next sync proceeds normally"
+      ],
+      "priority": 2
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "OAuth redirect URI must exactly match Plaid dashboard config — any mismatch fails silently"
+    ],
+    "medium": [
+      "Cloudflare Tunnel must be running during OAuth flows — add health check",
+      "link_token expires after 4 hours — OAuth sessions that take longer will fail"
+    ],
+    "low": [
+      "Sandbox mode doesn't exercise real OAuth — production testing required for Chase"
+    ]
+  },
+  "preFlightChecklist": [
+    "Cloudflare Tunnel running on erebor with plaid-callback.forbell.com routing to localhost:3003",
+    "Redirect URI registered in Plaid Dashboard: https://plaid-callback.forbell.com/oauth/callback",
+    "PLAID_OAUTH_REDIRECT_URI added to .env",
+    "All target institutions approved in Plaid Compliance Center"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+800/-50",
+    "storiesCount": 5,
+    "filesCreated": [
+      "db/migrations/002-link-sessions.sql",
+      "lib/routes/link.js",
+      "public/settings.html",
+      "public/settings.js",
+      "public/oauth-callback.html",
+      "test/link-api.test.js"
+    ],
+    "filesModified": [
+      "lib/plaid-client.js",
+      "server.js",
+      ".env.example",
+      "public/index.html",
+      "public/style.css"
+    ]
+  }
+}
