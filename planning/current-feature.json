@@ -1,11 +1,13 @@
 {
   "currentFeature": null,
   "status": "idle",
-  "completedFeatures": [],
-  "futureEnhancements": [
+  "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
-    "Feature #3: Monarch Money Migration",
+    "Feature #2a: Plaid Link + OAuth Integration",
+    "Feature #3: Monarch Money Migration"
+  ],
+  "futureEnhancements": [
     "Feature #4: Budget Framework",
     "Feature #5: Hot Spots & Anomaly Detection",
     "Feature #6: Kids View",

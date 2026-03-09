@@ -35,7 +35,7 @@
       "priority": 1,
       "estimatedLines": "+250/-0",
       "testStrategy": "Unit tests with fixture CSV files (valid, malformed, edge cases). Parser output validated against expected transaction objects.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "MIG-002",
@@ -51,7 +51,7 @@
       "priority": 1,
       "estimatedLines": "+300/-0",
       "testStrategy": "Fuzzy matching unit tests. UI test: mapping table renders, selections persist, new categories created inline.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "MIG-003",
@@ -66,7 +66,7 @@
       "priority": 1,
       "estimatedLines": "+250/-0",
       "testStrategy": "Unit test for dedup logic (exact match, fuzzy date, partial merchant). Integration test: import CSV, verify DB records, re-import same CSV and confirm zero new records.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "MIG-004",
@@ -80,7 +80,7 @@
       "priority": 2,
       "estimatedLines": "+150/-0",
       "testStrategy": "Integration test: verify import_runs record created with correct counts. UI test: summary page displays after import.",
-      "passes": false
+      "passes": true
     }
   ],
   "riskAssessment": {
