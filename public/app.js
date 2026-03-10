@@ -278,20 +278,21 @@ function renderCategoryOptions() {
 }
 
 async function pickCategory(categoryId) {
+  const target = assignTarget;
   closeCategoryOverlay();
 
   try {
-    if (assignTarget) {
+    if (target) {
       // Single assignment
       const createRule = $('create-rule-check').checked;
       if (createRule) {
-        await api(`api/transactions/${assignTarget.id}/create-rule`, {
+        await api(`api/transactions/${target.id}/create-rule`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ category_id: categoryId })
         });
       } else {
-        await api(`api/transactions/${assignTarget.id}/category`, {
+        await api(`api/transactions/${target.id}/category`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ category_id: categoryId })
@@ -406,7 +407,12 @@ function fmtMoney(amount) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr + 'T00:00:00');
+  // Plaid dates are YYYY-MM-DD but node-postgres may return full ISO timestamps
+  const str = String(dateStr);
+  const d = str.length === 10
+    ? new Date(str + 'T00:00:00')
+    : new Date(str);
+  if (isNaN(d)) return '';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
