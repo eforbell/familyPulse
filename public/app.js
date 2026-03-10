@@ -97,7 +97,7 @@ function renderDashboard(data) {
       const bal = parseFloat(a.current_balance) || 0;
       const isCredit = a.type === 'credit';
       group.innerHTML += `
-        <div class="account-card">
+        <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
           <div class="acct-info">
             <div class="acct-name">${esc(a.name)}</div>
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
