@@ -3,3 +3,19 @@
 - Decomposed PRD into 9 feature PRDs with paired JSON + MD artifacts.
 - Established testing philosophy: unit, integration, and validation tests from Feature 1.
 - Project status: pre-development. Feature 1 (Foundation) ready for kickoff.
+
+2026-03-10
+- Feature 4 (Budget Framework) complete and merged to main.
+  - Monthly budget summary: income, spending vs. budget, net cash flow, rolling 3-month averages
+  - Category cards with color-coded burn rates (green/yellow/red)
+  - Uncategorized spending card with count
+  - Category detail overlay with transaction list
+  - Budget snapshot generation and backfill API
+  - Migration 004: budget_snapshots table
+  - 14 new tests (budget-api + budget-calculator)
+- Standalone transactions page (transactions.html) with URL deep-linking:
+  - Supports category_id, period, date_from/date_to, account_id, search, show_transfers params
+  - Dynamic page title from active filters (e.g. "Uncategorized · March 2026")
+  - Budget page links: uncategorized card + "View all" in category detail overlay
+  - Dashboard account cards deep-link to transactions filtered by account
+- Feature 5 (Hot Spots & Anomaly Detection) up next.

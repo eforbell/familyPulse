@@ -844,6 +844,75 @@ header h1 {
   margin-top: 0.25rem;
 }
 
+/* ── Hot spots panel ──────────────────────────────────────── */
+
+.hotspots-panel {
+  margin-bottom: 1rem;
+}
+
+.hotspot-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(248,113,113,0.06);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.hotspot-link {
+  flex: 1;
+  color: var(--text);
+  text-decoration: none;
+  min-width: 0;
+}
+.hotspot-link:hover { text-decoration: none; }
+
+.hotspot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.hotspot-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.hotspot-pct {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--red);
+}
+.hotspot-detail {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+.hotspot-dismiss {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  flex-shrink: 0;
+}
+
+/* ── Digest panel ────────────────────────────────────────── */
+
+.digest-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.digest-content p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+.digest-content p:last-child { margin-bottom: 0; }
+
 .budget-card-uncat {
   border-color: var(--yellow);
   background: rgba(234,179,8,0.04);

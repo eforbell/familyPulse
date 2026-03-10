@@ -33,3 +33,16 @@ Without budget tracking, Family Pulse is just a transaction viewer. This feature
 - Rolling 3-month averages shown per category
 - Monthly snapshots generated automatically and backfilled for imported history
 - All budget calculation tests pass with known test data
+
+## Status: COMPLETE (2026-03-10)
+
+### What shipped
+- `db/migrations/004-budget-framework.sql` — budget_snapshots table
+- `lib/budget-calculator.js` — monthly summary with income, spending, net cash flow, rolling averages
+- `lib/snapshot-generator.js` — precomputed monthly snapshots with upsert
+- `lib/routes/budget.js` — summary, category detail, snapshot, and backfill endpoints
+- `public/budget.html` + `budget.js` — month nav, summary hero, category cards, detail overlay
+- `public/transactions.html` + `transactions.js` — standalone transaction browser with URL deep-linking
+- Dashboard account cards deep-link to transactions page
+- 14 tests across budget-api and budget-calculator suites
+- Uncategorized card and category detail overlay link to transactions page with filters pre-set

@@ -35,6 +35,7 @@ app.use(require('./lib/routes/categories'));
 app.use(require('./lib/routes/link'));
 app.use(require('./lib/routes/import'));
 app.use(require('./lib/routes/budget'));
+app.use(require('./lib/routes/anomalies'));
 
 // ── Server-level routes ──────────────────────────────────────
 
@@ -97,6 +98,13 @@ if (require.main === module) {
       : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
     logger.info('Monthly budget snapshot', { period: prior });
     generateSnapshot(prior).catch(err => logger.error('Budget snapshot failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  // Sunday 6 PM — weekly spending digest
+  cron.schedule('0 18 * * 0', () => {
+    const { generateWeeklyDigest } = require('./lib/digest-generator');
+    logger.info('Weekly digest cron triggered');
+    generateWeeklyDigest().catch(err => logger.error('Weekly digest failed', { error: err.message }));
   }, { timezone: TZ });
 
   app.listen(PORT, '0.0.0.0', () => {

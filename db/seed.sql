@@ -48,5 +48,7 @@ INSERT INTO app_config (key, value) VALUES
   ('transfer_detection_window_days', '7'),
   ('transfer_amount_tolerance', '1.00'),
   ('transfer_date_tolerance_days', '3'),
-  ('accent_color', '#10b981')
+  ('accent_color', '#10b981'),
+  ('anomaly_threshold_pct', '130'),
+  ('anomaly_min_avg_dollars', '25')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

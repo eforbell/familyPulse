@@ -1,14 +1,14 @@
 {
-  "currentFeature": null,
-  "status": "idle",
+  "currentFeature": "Feature #5: Hot Spots & Anomaly Detection",
+  "status": "planning",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
     "Feature #2a: Plaid Link + OAuth Integration",
-    "Feature #3: Monarch Money Migration"
+    "Feature #3: Monarch Money Migration",
+    "Feature #4: Budget Framework"
   ],
   "futureEnhancements": [
-    "Feature #4: Budget Framework",
     "Feature #5: Hot Spots & Anomaly Detection",
     "Feature #6: Kids View",
     "Feature #7: Magic Actions (LLM Layer)",

@@ -94,6 +94,7 @@ The app runs at its own root on port 3003; nginx maps `/pulse/ → http://127.0.
 | PLAID_ENV | No | sandbox | sandbox / production |
 | OPENAI_API_KEY | No | — | For future AI features |
 | OPENAI_MODEL | No | gpt-4o-mini | Any chat completion model |
+| OPENAI_ANOMALY_DIGEST_MODEL | No | — | Model for weekly digest (falls back to OPENAI_MODEL) |
 | HOUSEHOLD_TIMEZONE | No | America/New_York | For cron schedule |
 
 ## Data Model

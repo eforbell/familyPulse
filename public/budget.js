@@ -19,8 +19,10 @@ async function loadBudget() {
   try {
     summaryData = await api(`api/budget/summary?period=${currentPeriod}`);
     renderSummary();
+    renderHotSpots();
     renderUncategorized();
     renderGrid();
+    renderDigest();
     $('summary-hero').classList.remove('loading-pulse');
   } catch (err) {
     console.error('Budget load failed:', err);
@@ -44,6 +46,79 @@ function renderSummary() {
   $('summary-net').textContent = fmtMoney(net);
   $('summary-net').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
   $('summary-net-prior').textContent = `Prior: ${fmtMoney(d.net_cash_flow.prior)}`;
+}
+
+// ── Render: Hot spots ────────────────────────────────────────
+
+async function renderHotSpots() {
+  const panel = $('hotspots-panel');
+  const list = $('hotspots-list');
+  try {
+    const data = await api(`api/anomalies?period=${currentPeriod}`);
+    if (!data.anomalies || data.anomalies.length === 0) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    list.innerHTML = data.anomalies.map(a => {
+      const avg = a.anomaly_type === 'spending_spike_3mo' ? a.avg_3mo : a.avg_12mo;
+      const pct = a.anomaly_type === 'spending_spike_3mo' ? a.pct_of_3mo : a.pct_of_12mo;
+      const window = a.anomaly_type === 'spending_spike_3mo' ? '3-mo avg' : '12-mo avg';
+      return `
+        <div class="hotspot-card">
+          <a class="hotspot-link" href="transactions.html?category_id=${a.category_id}&period=${currentPeriod}">
+            <div class="hotspot-header">
+              <span class="hotspot-name">${a.icon || ''} ${esc(a.category_name)}</span>
+              <span class="hotspot-pct">${Math.round(parseFloat(pct))}%</span>
+            </div>
+            <div class="hotspot-detail">
+              ${fmtMoney(a.current_amount)} spent vs ${fmtMoney(avg)} ${window}
+            </div>
+          </a>
+          <button class="btn-ghost hotspot-dismiss" onclick="dismissAnomaly(event, ${a.id})">Dismiss</button>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('Hot spots load failed:', err);
+    panel.classList.add('hidden');
+  }
+}
+
+async function dismissAnomaly(event, id) {
+  event.stopPropagation();
+  try {
+    await api(`api/anomalies/${id}/acknowledge`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    renderHotSpots();
+  } catch (err) {
+    console.error('Dismiss failed:', err);
+  }
+}
+
+// ── Render: Weekly digest ───────────────────────────────────
+
+async function renderDigest() {
+  const panel = $('digest-panel');
+  const content = $('digest-content');
+  try {
+    const data = await api(`api/digest?period=${currentPeriod}`);
+    if (!data.digest) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    // Render paragraphs
+    content.innerHTML = data.digest
+      .split('\n')
+      .filter(p => p.trim())
+      .map(p => `<p>${esc(p)}</p>`)
+      .join('');
+  } catch {
+    panel.classList.add('hidden');
+  }
 }
 
 // ── Render: Uncategorized ────────────────────────────────────
