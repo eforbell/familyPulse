@@ -7,14 +7,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pulse — Monarch Import</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-nav-page="settings">
 
   <div id="app">
     <header>
       <h1>Monarch Import</h1>
-      <a href="settings.html" class="btn-ghost" style="font-size:.85rem">← Settings</a>
+      <div></div>
     </header>
 
     <!-- Step 1: Upload -->
@@ -91,6 +93,7 @@
     </section>
   </div>
 
+  <script src="nav.js"></script>
   <script src="import.js"></script>
 </body>
 </html>

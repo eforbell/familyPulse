@@ -67,10 +67,7 @@ function applyUrlParams() {
 }
 
 function setBackLink() {
-  const ref = document.referrer;
-  if (ref && ref.includes('budget.html')) {
-    $('back-link').href = 'budget.html';
-  }
+  // no-op: back link removed in favor of nav sidebar
 }
 
 function updatePageTitle() {
@@ -180,7 +177,7 @@ function renderTransactions() {
           ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
         </div>
       </div>
-      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtMoney(amt)}</div>
+      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
     </div>`;
   }).join('');
 }
@@ -188,7 +185,7 @@ function renderTransactions() {
 function renderStats() {
   $('tx-stats').innerHTML = `
     <span><span class="label">Showing</span> <span class="value">${transactions.length} of ${txTotal}</span></span>
-    <span><span class="label">Net</span> <span class="value">${fmtMoney(txSum)}</span></span>
+    <span><span class="label">Net</span> <span class="value">${fmtTxAmount(txSum)}</span></span>
   `;
 }
 
@@ -403,6 +400,13 @@ function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return n < 0 ? `-$${abs}` : `$${abs}`;
+}
+
+// Transaction-specific: Plaid negative = credit (money in) → show as +$
+function fmtTxAmount(amount) {
+  const n = parseFloat(amount) || 0;
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n < 0 ? `+$${abs}` : `$${abs}`;
 }
 
 function formatDate(dateStr) {

@@ -84,30 +84,6 @@ function renderDashboard(data) {
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
     <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
   `;
-
-  const grid = $('accounts-grid');
-  grid.innerHTML = '';
-
-  for (const [owner, accts] of Object.entries(data.groups)) {
-    const group = document.createElement('div');
-    group.className = 'owner-group';
-    group.innerHTML = `<div class="owner-label">${esc(owner)}</div>`;
-
-    for (const a of accts) {
-      const bal = parseFloat(a.current_balance) || 0;
-      const isCredit = a.type === 'credit';
-      group.innerHTML += `
-        <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
-          <div class="acct-info">
-            <div class="acct-name">${esc(a.name)}</div>
-            <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
-          </div>
-          <div class="acct-balance ${isCredit ? 'credit' : ''}">${fmtMoney(bal)}</div>
-        </div>`;
-    }
-
-    grid.appendChild(group);
-  }
 }
 
 // ── Render: Transactions ─────────────────────────────────────
@@ -141,7 +117,7 @@ function renderTransactions() {
           ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
         </div>
       </div>
-      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtMoney(amt)}</div>
+      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
     </div>`;
   }).join('');
 }
@@ -149,7 +125,7 @@ function renderTransactions() {
 function renderStats() {
   $('tx-stats').innerHTML = `
     <span><span class="label">Showing</span> <span class="value">${transactions.length} of ${txTotal}</span></span>
-    <span><span class="label">Net</span> <span class="value">${fmtMoney(txSum)}</span></span>
+    <span><span class="label">Net</span> <span class="value">${fmtTxAmount(txSum)}</span></span>
   `;
 }
 
@@ -403,6 +379,13 @@ function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return n < 0 ? `-$${abs}` : `$${abs}`;
+}
+
+// Transaction-specific: Plaid negative = credit (money in) → show as +$
+function fmtTxAmount(amount) {
+  const n = parseFloat(amount) || 0;
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n < 0 ? `+$${abs}` : `$${abs}`;
 }
 
 function formatDate(dateStr) {

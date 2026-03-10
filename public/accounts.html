@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Accounts</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-nav-page="accounts">
+
+  <!-- Member picker overlay -->
+  <div id="member-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>Who are you?</h2>
+      <p>Pick your profile to get started.</p>
+      <div id="member-list" class="member-grid"></div>
+    </div>
+  </div>
+
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <h1>Accounts</h1>
+      <button id="who-btn" class="who-btn" onclick="openMemberPicker()" title="Change identity"></button>
+    </header>
+
+    <!-- Net position hero -->
+    <div id="net-position-card" class="net-position-card">
+      <div class="net-label">NET POSITION</div>
+      <div id="net-amount" class="net-amount loading-pulse">Loading...</div>
+      <div id="balance-breakdown" class="balance-breakdown"></div>
+    </div>
+
+    <!-- Account grid -->
+    <div id="accounts-grid" class="accounts-grid"></div>
+
+  </div>
+
+  <script src="nav.js"></script>
+  <script src="accounts.js"></script>
+</body>
+</html>

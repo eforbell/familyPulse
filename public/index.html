@@ -7,9 +7,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Pulse</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-nav-page="dashboard">
 
   <!-- Member picker overlay -->
   <div id="member-overlay" class="overlay hidden">
@@ -37,19 +39,18 @@
 
     <!-- Header -->
     <header>
-      <h1>Pulse</h1>
+      <h1>Dashboard</h1>
       <button id="who-btn" class="who-btn" onclick="openMemberPicker()" title="Change identity"></button>
     </header>
 
-    <!-- Account Dashboard -->
-    <section id="dashboard-section">
-      <div id="net-position-card" class="net-position-card">
+    <!-- Net position summary — links to accounts page -->
+    <a href="accounts.html" style="text-decoration:none;color:inherit">
+      <div id="net-position-card" class="net-position-card" style="cursor:pointer">
         <div class="net-label">NET POSITION</div>
         <div id="net-amount" class="net-amount loading-pulse">Loading...</div>
         <div id="balance-breakdown" class="balance-breakdown"></div>
       </div>
-      <div id="accounts-grid" class="accounts-grid"></div>
-    </section>
+    </a>
 
     <!-- Transaction Browser -->
     <section id="transactions-section">
@@ -88,15 +89,9 @@
       </div>
     </section>
 
-    <!-- Admin links -->
-    <section class="admin-entry">
-      <a href="budget.html" class="btn-ghost admin-link">Budget</a>
-      <a href="admin.html" class="btn-ghost admin-link">Manage Categories &amp; Rules</a>
-      <a href="settings.html" class="btn-ghost admin-link">Settings &amp; Linked Accounts</a>
-    </section>
-
   </div>
 
+  <script src="nav.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
