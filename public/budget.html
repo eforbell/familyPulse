@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Budget</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Category detail overlay -->
+  <div id="detail-overlay" class="overlay hidden">
+    <div class="overlay-box" style="max-width:500px">
+      <h2 id="detail-title">Category Detail</h2>
+      <div id="detail-meta" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem"></div>
+      <div id="detail-txns" class="detail-txn-list"></div>
+      <a id="detail-view-all" href="#" class="btn-ghost" style="width:100%;margin-top:0.75rem;text-align:center;display:block">View all transactions</a>
+      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeDetail()">Close</button>
+    </div>
+  </div>
+
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <a href="./" class="btn-ghost" style="font-size:0.85rem">Back</a>
+      <h1>Budget</h1>
+      <div></div>
+    </header>
+
+    <!-- Month navigation -->
+    <div class="month-nav">
+      <button class="btn-ghost" onclick="prevMonth()" id="prev-month-btn">&larr;</button>
+      <span id="month-label" class="month-label"></span>
+      <button class="btn-ghost" onclick="nextMonth()" id="next-month-btn">&rarr;</button>
+    </div>
+
+    <!-- Summary hero -->
+    <div id="summary-hero" class="budget-summary loading-pulse">
+      <div class="summary-row">
+        <div class="summary-item">
+          <div class="summary-label">INCOME</div>
+          <div id="summary-income" class="summary-value" style="color:var(--green)">--</div>
+          <div id="summary-income-prior" class="summary-prior"></div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">SPENDING</div>
+          <div id="summary-spending" class="summary-value">--</div>
+          <div id="summary-spending-budget" class="summary-prior"></div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">NET CASH FLOW</div>
+          <div id="summary-net" class="summary-value">--</div>
+          <div id="summary-net-prior" class="summary-prior"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Uncategorized warning -->
+    <div id="uncat-card" class="budget-card budget-card-uncat hidden" onclick="viewUncategorized()">
+      <div class="budget-card-header">
+        <span class="budget-card-name">&#10067; Uncategorized</span>
+        <span id="uncat-amount" class="budget-card-spent"></span>
+      </div>
+      <div id="uncat-detail" class="budget-card-meta"></div>
+    </div>
+
+    <!-- Category budget grid -->
+    <div id="budget-grid" class="budget-grid"></div>
+
+  </div>
+
+  <script src="budget.js"></script>
+</body>
+</html>

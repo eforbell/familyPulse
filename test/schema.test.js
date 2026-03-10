@@ -15,7 +15,7 @@ after(async () => {
 describe('database schema', () => {
   const expectedTables = [
     'items', 'accounts', 'transactions', 'categories', 'category_rules',
-    'budgets', 'budget_periods', 'planning_goals', 'savings_signals',
+    'budget_snapshots', 'planning_goals', 'savings_signals',
     'magic_actions_log', 'anomalies', 'import_runs', 'family_members', 'app_config',
     'schema_migrations'
   ];

@@ -6,19 +6,10 @@
   <meta name="theme-color" content="#0f0f0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Pulse</title>
+  <title>Pulse — Transactions</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-  <!-- Member picker overlay -->
-  <div id="member-overlay" class="overlay hidden">
-    <div class="overlay-box">
-      <h2>Who are you?</h2>
-      <p>Pick your profile to get started.</p>
-      <div id="member-list" class="member-grid"></div>
-    </div>
-  </div>
 
   <!-- Category assignment overlay -->
   <div id="category-overlay" class="overlay hidden">
@@ -37,23 +28,13 @@
 
     <!-- Header -->
     <header>
-      <h1>Pulse</h1>
-      <button id="who-btn" class="who-btn" onclick="openMemberPicker()" title="Change identity"></button>
+      <a id="back-link" href="./" class="btn-ghost" style="font-size:0.85rem">Back</a>
+      <h1 id="page-title">Transactions</h1>
+      <div></div>
     </header>
-
-    <!-- Account Dashboard -->
-    <section id="dashboard-section">
-      <div id="net-position-card" class="net-position-card">
-        <div class="net-label">NET POSITION</div>
-        <div id="net-amount" class="net-amount loading-pulse">Loading...</div>
-        <div id="balance-breakdown" class="balance-breakdown"></div>
-      </div>
-      <div id="accounts-grid" class="accounts-grid"></div>
-    </section>
 
     <!-- Transaction Browser -->
     <section id="transactions-section">
-      <h2 class="section-heading">Transactions</h2>
 
       <!-- Filter bar -->
       <div id="filter-bar" class="filter-bar">
@@ -88,15 +69,8 @@
       </div>
     </section>
 
-    <!-- Admin links -->
-    <section class="admin-entry">
-      <a href="budget.html" class="btn-ghost admin-link">Budget</a>
-      <a href="admin.html" class="btn-ghost admin-link">Manage Categories &amp; Rules</a>
-      <a href="settings.html" class="btn-ghost admin-link">Settings &amp; Linked Accounts</a>
-    </section>
-
   </div>
 
-  <script src="app.js"></script>
+  <script src="transactions.js"></script>
 </body>
 </html>

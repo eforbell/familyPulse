@@ -34,6 +34,7 @@ app.use(require('./lib/routes/transactions'));
 app.use(require('./lib/routes/categories'));
 app.use(require('./lib/routes/link'));
 app.use(require('./lib/routes/import'));
+app.use(require('./lib/routes/budget'));
 
 // ── Server-level routes ──────────────────────────────────────
 
@@ -85,6 +86,17 @@ if (require.main === module) {
   cron.schedule('0 20 * * *', () => {
     logger.info('Cron sync triggered (8 PM)');
     syncAll().catch(err => logger.error('Cron sync failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  // 1st of month at 6 AM — snapshot prior month's budget
+  cron.schedule('0 6 1 * *', () => {
+    const { generateSnapshot } = require('./lib/snapshot-generator');
+    const now = new Date();
+    const prior = now.getMonth() === 0
+      ? `${now.getFullYear() - 1}-12`
+      : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
+    logger.info('Monthly budget snapshot', { period: prior });
+    generateSnapshot(prior).catch(err => logger.error('Budget snapshot failed', { error: err.message }));
   }, { timezone: TZ });
 
   app.listen(PORT, '0.0.0.0', () => {
