@@ -47,9 +47,12 @@ function renderItems() {
   }
 
   el.innerHTML = items.map(item => {
-    const statusBadge = item.status === 'good'
+    const normalizedStatus = item.status === 'error' ? 'sync_error' : item.status;
+    const statusBadge = normalizedStatus === 'good'
       ? '<span class="status-good">Connected</span>'
-      : `<span class="status-error">${esc(item.error_code || 'Error')}</span>`;
+      : normalizedStatus === 'needs_reauth'
+        ? `<span class="status-error">Needs reauth${item.error_code ? `: ${esc(item.error_code)}` : ''}</span>`
+        : `<span class="status-error">Sync issue${item.error_code ? `: ${esc(item.error_code)}` : ''}</span>`;
 
     const syncText = item.last_sync_at
       ? `Last synced ${timeAgo(item.last_sync_at)}`
@@ -67,7 +70,7 @@ function renderItems() {
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
-          ${item.status !== 'good' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
+          ${normalizedStatus === 'needs_reauth' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
           <button class="btn-ghost" onclick="openOwnerOverlay(${item.id})" title="Assign owner">Owner</button>
           <button class="btn-ghost" onclick="syncItem(${item.id})" title="Sync now">Sync</button>
           <button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}')" title="Remove">Remove</button>

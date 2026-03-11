@@ -5,6 +5,7 @@ const cron = require('node-cron');
 const { pool } = require('./lib/db');
 const { syncAll } = require('./lib/sync');
 const logger = require('./lib/logger');
+const { validateStartupConfig } = require('./lib/startup-validation');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -83,6 +84,8 @@ app.post('/api/sync', async (req, res) => {
 // ── Cron schedule + Start ─────────────────────────────────────
 
 if (require.main === module) {
+  validateStartupConfig();
+
   // Only register cron when running as the main process (not in tests)
   cron.schedule('0 6 * * *', () => {
     logger.info('Cron sync triggered (6 AM)');
