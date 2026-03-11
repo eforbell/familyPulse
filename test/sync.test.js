@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const { Pool } = require('pg');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const { classifyItemFailure } = require('../lib/sync');
 
 after(async () => {
   await pool.end();
@@ -129,5 +130,23 @@ describe('sync — upsert logic', () => {
     await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE 'tx-sync-%'");
     await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-sync-test'");
     await pool.query("DELETE FROM items WHERE item_id = 'test-item-sync'");
+  });
+});
+
+describe('sync — item failure classification', () => {
+  it('marks ITEM_LOGIN_REQUIRED as needs_reauth', () => {
+    const result = classifyItemFailure({ code: 'ITEM_LOGIN_REQUIRED' });
+    assert.deepEqual(result, {
+      status: 'needs_reauth',
+      errorCode: 'ITEM_LOGIN_REQUIRED'
+    });
+  });
+
+  it('marks transient errors as sync_error', () => {
+    const result = classifyItemFailure({ code: 'RATE_LIMIT_EXCEEDED' });
+    assert.deepEqual(result, {
+      status: 'sync_error',
+      errorCode: 'RATE_LIMIT_EXCEEDED'
+    });
   });
 });
