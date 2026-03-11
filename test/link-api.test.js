@@ -155,12 +155,29 @@ describe('link_sessions table', () => {
 // ── OAuth callback route ────────────────────────────────────
 
 describe('GET /oauth/callback', () => {
-  it('serves the oauth callback HTML page', async () => {
+  it('requires oauth_state_id', async () => {
     const res = await fetch(`${baseUrl}/oauth/callback`);
+    assert.equal(res.status, 400);
+  });
+
+  it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
+    const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    await pool.query(`
+      INSERT INTO link_sessions (link_token, status, owner, expires_at)
+      VALUES ('test-lt-oauth', 'pending', 'Eric', $1)
+    `, [expiresAt]);
+
+    const res = await fetch(`${baseUrl}/oauth/callback?oauth_state_id=test-oauth-state`);
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.ok(text.includes('Completing bank connection'));
     assert.ok(text.includes('receivedRedirectUri'));
+    assert.ok(text.includes('test-lt-oauth'));
+
+    const { rows } = await pool.query(
+      "SELECT oauth_state_id FROM link_sessions WHERE link_token = 'test-lt-oauth'"
+    );
+    assert.equal(rows[0].oauth_state_id, 'test-oauth-state');
   });
 });
 

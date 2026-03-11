@@ -98,7 +98,10 @@ async function startLink() {
           await api('api/link/exchange', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ public_token: publicToken })
+            body: JSON.stringify({
+              public_token: publicToken,
+              link_session_id: data.link_session_id
+            })
           });
           await loadItems();
         } catch (err) {
@@ -131,8 +134,22 @@ async function fixItem(itemId) {
 
     const handler = Plaid.create({
       token: data.link_token,
-      onSuccess: async () => {
-        await loadItems();
+      onSuccess: async (publicToken) => {
+        try {
+          if (publicToken) {
+            await api('api/link/exchange', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                public_token: publicToken,
+                link_session_id: data.link_session_id
+              })
+            });
+          }
+          await loadItems();
+        } catch (err) {
+          alert('Failed to complete re-link: ' + err.message);
+        }
       },
       onExit: (err) => {
         if (err) console.warn('Plaid Link update exit with error:', err);
