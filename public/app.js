@@ -245,7 +245,6 @@ function openBulkCategoryOverlay() {
 function renderCategoryOptions() {
   const list = $('category-list');
   list.innerHTML = categories
-    .filter(c => !c.is_transfer_class)
     .map(c => `
       <button class="cat-option" onclick="pickCategory(${c.id})">
         <span class="cat-swatch" style="background:${c.color}"></span>
