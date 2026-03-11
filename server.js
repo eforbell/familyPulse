@@ -36,6 +36,11 @@ app.use(require('./lib/routes/link'));
 app.use(require('./lib/routes/import'));
 app.use(require('./lib/routes/budget'));
 app.use(require('./lib/routes/anomalies'));
+app.use(require('./lib/routes/magic-actions'));
+
+// Expose cfg/setCfg on app so route modules can access them
+app.set('cfg', cfg);
+app.set('setCfg', setCfg);
 
 // ── Server-level routes ──────────────────────────────────────
 
@@ -102,9 +107,16 @@ if (require.main === module) {
 
   // Sunday 6 PM — weekly spending digest
   cron.schedule('0 18 * * 0', () => {
-    const { generateWeeklyDigest } = require('./lib/digest-generator');
+    const { generateWeeklyDigest } = require('./lib/magic-actions/weekly-digest');
     logger.info('Weekly digest cron triggered');
-    generateWeeklyDigest().catch(err => logger.error('Weekly digest failed', { error: err.message }));
+    generateWeeklyDigest(null, cfg).catch(err => logger.error('Weekly digest failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  // 1st of month at 7 AM — monthly close report (after the 6 AM snapshot)
+  cron.schedule('0 7 1 * *', () => {
+    const { generateMonthlyClose } = require('./lib/magic-actions/monthly-close');
+    logger.info('Monthly close cron triggered');
+    generateMonthlyClose(null, cfg).catch(err => logger.error('Monthly close failed', { error: err.message }));
   }, { timezone: TZ });
 
   app.listen(PORT, '0.0.0.0', () => {

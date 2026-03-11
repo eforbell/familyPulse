@@ -104,7 +104,9 @@ async function renderDigest() {
   const panel = $('digest-panel');
   const content = $('digest-content');
   try {
-    const data = await api(`api/digest?period=${currentPeriod}`);
+    const member = JSON.parse(localStorage.getItem('fp_member') || 'null');
+    const memberQ = member ? `&member=${encodeURIComponent(member.name)}` : '';
+    const data = await api(`api/magic/digest?period=${currentPeriod}${memberQ}`);
     if (!data.digest) {
       panel.classList.add('hidden');
       return;

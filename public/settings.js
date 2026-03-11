@@ -7,10 +7,13 @@ let items = [];
 let familyMembers = [];
 let ownerTarget = null; // item id being assigned
 
+let currentMember = JSON.parse(localStorage.getItem('fp_member') || 'null');
+
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadItems(), loadMembers()]);
+  loadAIPrompts();
 });
 
 // ── Data fetching ────────────────────────────────────────────
@@ -255,4 +258,105 @@ async function api(url, opts) {
     throw new Error(err.error || res.statusText);
   }
   return res.json();
+}
+
+// ── AI Prompts ──────────────────────────────────────────────
+
+const PROMPT_LABELS = {
+  magic_prompt_weekly_digest: 'Weekly Digest Prompt',
+  magic_prompt_monthly_close: 'Monthly Close Prompt',
+  magic_prompt_on_demand: 'On-Demand Analysis Prompt',
+  magic_prompt_what_if: 'What-If Forecasting Prompt',
+  magic_rate_limit_daily: 'Daily Query Limit',
+  magic_disclaimer: 'AI Disclaimer Text'
+};
+
+const DEFAULT_PROMPTS = {};
+
+async function loadAIPrompts() {
+  if (!currentMember || currentMember.role !== 'parent') {
+    document.getElementById('ai-prompts-section').classList.add('hidden');
+    return;
+  }
+
+  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
+
+  try {
+    const data = await api(`api/magic/config${memberQ}`);
+    document.getElementById('ai-prompts-section').classList.remove('hidden');
+
+    // Usage stats
+    document.getElementById('usage-stats').innerHTML = `
+      <span><span class="label">Queries today</span> <span class="value">${data.usage.queries_today} / ${data.usage.daily_limit}</span></span>
+      <span><span class="label">Tokens this month</span> <span class="value">${data.usage.tokens_this_month.toLocaleString()}</span></span>
+    `;
+
+    // Build editors
+    const container = document.getElementById('prompt-editors');
+    container.innerHTML = data.config
+      .filter(c => PROMPT_LABELS[c.key])
+      .map(c => {
+        DEFAULT_PROMPTS[c.key] = c.value;
+        const isTextarea = c.key.startsWith('magic_prompt_');
+        const inputEl = isTextarea
+          ? `<textarea class="prompt-textarea" id="prompt-${c.key}">${esc(c.value)}</textarea>`
+          : `<input type="text" class="magic-input" id="prompt-${c.key}" value="${esc(c.value)}" style="width:100%">`;
+
+        return `
+          <div class="prompt-group">
+            <div class="prompt-header" onclick="togglePrompt('${c.key}')">
+              <span class="prompt-label">${PROMPT_LABELS[c.key]}</span>
+              <span class="prompt-toggle" id="toggle-${c.key}">+</span>
+            </div>
+            <div class="prompt-body hidden" id="body-${c.key}">
+              ${inputEl}
+              <div class="prompt-actions">
+                <button class="btn-primary" onclick="savePrompt('${c.key}')">Save</button>
+                <button class="btn-ghost" onclick="resetPrompt('${c.key}')">Reset to Default</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+  } catch (err) {
+    console.error('AI prompts load failed:', err);
+  }
+}
+
+function togglePrompt(key) {
+  const body = document.getElementById('body-' + key);
+  const toggle = document.getElementById('toggle-' + key);
+  const hidden = body.classList.toggle('hidden');
+  toggle.textContent = hidden ? '+' : '\u2212';
+}
+
+async function savePrompt(key) {
+  const el = document.getElementById('prompt-' + key);
+  const value = el.value;
+  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
+
+  try {
+    await api(`api/magic/config/${key}${memberQ}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value, member: currentMember.name })
+    });
+    DEFAULT_PROMPTS[key] = value;
+    el.style.borderColor = 'var(--green)';
+    setTimeout(() => { el.style.borderColor = ''; }, 1500);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  }
+}
+
+async function resetPrompt(key) {
+  // Re-seed the default by reading seed.sql defaults
+  // For simplicity, we reload from the server after resetting
+  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
+  // The seed.sql has ON CONFLICT DO UPDATE, so re-running seed would reset.
+  // Instead, we'll just reload defaults. User can re-run seed.
+  // For now, reload the current default from our stored copy.
+  const el = document.getElementById('prompt-' + key);
+  if (DEFAULT_PROMPTS[key] !== undefined) {
+    el.value = DEFAULT_PROMPTS[key];
+  }
 }

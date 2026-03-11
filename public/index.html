@@ -52,6 +52,64 @@
       </div>
     </a>
 
+    <!-- Pulse Intelligence — parents only -->
+    <section id="magic-section" class="hidden">
+      <h2 class="section-heading">Pulse Intelligence</h2>
+
+      <!-- Weekly Digest -->
+      <div id="magic-digest" class="magic-card hidden">
+        <div class="magic-card-header" onclick="toggleMagicCard('digest')">
+          <span class="magic-card-title">Weekly Digest</span>
+          <span class="magic-card-toggle" id="digest-toggle">+</span>
+        </div>
+        <div id="digest-body" class="magic-card-body hidden">
+          <div id="magic-digest-content" class="digest-content"></div>
+        </div>
+      </div>
+
+      <!-- Monthly Report -->
+      <div id="magic-monthly" class="magic-card hidden">
+        <div class="magic-card-header" onclick="toggleMagicCard('monthly')">
+          <span class="magic-card-title">Monthly Report</span>
+          <span class="magic-card-toggle" id="monthly-toggle">+</span>
+        </div>
+        <div id="monthly-body" class="magic-card-body hidden">
+          <div id="magic-monthly-content" class="digest-content"></div>
+        </div>
+      </div>
+
+      <!-- Ask Pulse -->
+      <div class="magic-card">
+        <div class="magic-card-header">
+          <span class="magic-card-title">Ask Pulse</span>
+        </div>
+        <div class="magic-card-body">
+          <div id="magic-presets" class="magic-presets"></div>
+          <div class="magic-input-row">
+            <input type="text" id="ask-input" class="magic-input" placeholder="Ask about your finances..." maxlength="500">
+            <button class="btn-primary" onclick="submitAsk()">Ask</button>
+          </div>
+          <div id="ask-result" class="magic-result hidden"></div>
+        </div>
+      </div>
+
+      <!-- What-If -->
+      <div class="magic-card">
+        <div class="magic-card-header">
+          <span class="magic-card-title">What-If</span>
+        </div>
+        <div class="magic-card-body">
+          <div class="magic-input-row">
+            <input type="text" id="whatif-input" class="magic-input" placeholder="What if we..." maxlength="500">
+            <button class="btn-primary" onclick="submitWhatIf()">Forecast</button>
+          </div>
+          <div id="whatif-result" class="magic-result hidden"></div>
+        </div>
+      </div>
+
+      <div id="magic-disclaimer" class="magic-disclaimer hidden"></div>
+    </section>
+
     <!-- Transaction Browser -->
     <section id="transactions-section">
       <h2 class="section-heading">Transactions</h2>

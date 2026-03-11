@@ -1137,6 +1137,228 @@ header h1 {
   body.app-has-nav { padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)); }
 }
 
+/* ── Magic / Pulse Intelligence ───────────────────────────── */
+
+.magic-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.magic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.magic-card-header:hover { background: var(--surface2); }
+
+.magic-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.magic-card-toggle {
+  font-size: 1.2rem;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.magic-card-body {
+  padding: 0 1rem 1rem;
+}
+
+.magic-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.magic-preset-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  transition: border-color 0.12s, color 0.12s;
+  cursor: pointer;
+  text-align: left;
+}
+.magic-preset-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.magic-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.magic-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+.magic-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.magic-result {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: var(--surface2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.magic-result p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+.magic-result p:last-child { margin-bottom: 0; }
+
+.magic-disclaimer {
+  font-size: 0.75rem;
+  color: var(--dim);
+  text-align: center;
+  padding: 0.5rem 0;
+  margin-top: 0.25rem;
+}
+
+/* Reports page */
+
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.report-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.report-card-header:hover { background: var(--surface2); }
+
+.report-type-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.5rem;
+}
+.report-type-badge.monthly {
+  background: rgba(16,185,129,0.15);
+  color: var(--accent);
+}
+.report-type-badge.weekly {
+  background: rgba(96,165,250,0.15);
+  color: var(--blue);
+}
+
+.report-period {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.report-date {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.report-card-body {
+  padding: 0 1rem 1rem;
+}
+
+/* Settings: AI Prompts */
+
+.prompt-editor-section {
+  margin-top: 1.5rem;
+}
+
+.prompt-group {
+  margin-bottom: 1rem;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 0.6rem 0;
+}
+
+.prompt-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.prompt-toggle {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.prompt-body {
+  margin-top: 0.25rem;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 100px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.65rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.prompt-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.usage-stats {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0.75rem 0;
+}
+.usage-stats .value { color: var(--text); font-weight: 600; }
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (min-width: 900px) {

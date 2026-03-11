@@ -19,12 +19,49 @@
       <div></div>
     </header>
 
-    <div class="empty-state" style="padding:4rem 1rem">
+    <!-- Non-parent fallback -->
+    <div id="reports-locked" class="empty-state hidden" style="padding:4rem 1rem">
       <div style="font-size:2rem;margin-bottom:0.75rem">Coming Soon</div>
-      <p style="color:var(--muted);font-size:0.9rem">Spending reports, income trends, and historical analysis will live here.</p>
+      <p style="color:var(--muted);font-size:0.9rem">Reports and AI analysis will be available here.</p>
+    </div>
+
+    <!-- Parent content -->
+    <div id="reports-content" class="hidden">
+
+      <!-- Monthly Close Reports -->
+      <section>
+        <h2 class="section-heading">Monthly Reports</h2>
+        <div id="monthly-reports-list" class="reports-list">
+          <div class="empty-state loading-pulse">Loading...</div>
+        </div>
+      </section>
+
+      <!-- Ask Pulse -->
+      <section style="margin-top:1.5rem">
+        <h2 class="section-heading">Ask Pulse</h2>
+        <div id="report-presets" class="magic-presets"></div>
+        <div class="magic-input-row">
+          <input type="text" id="report-ask-input" class="magic-input" placeholder="Ask about your finances..." maxlength="500">
+          <button class="btn-primary" onclick="submitReportAsk()">Ask</button>
+        </div>
+        <div id="report-ask-result" class="magic-result hidden"></div>
+      </section>
+
+      <!-- What-If -->
+      <section style="margin-top:1.5rem">
+        <h2 class="section-heading">What-If Forecasting</h2>
+        <div class="magic-input-row">
+          <input type="text" id="report-whatif-input" class="magic-input" placeholder="What if we..." maxlength="500">
+          <button class="btn-primary" onclick="submitReportWhatIf()">Forecast</button>
+        </div>
+        <div id="report-whatif-result" class="magic-result hidden"></div>
+      </section>
+
+      <div id="report-disclaimer" class="magic-disclaimer hidden"></div>
     </div>
   </div>
 
   <script src="nav.js"></script>
+  <script src="reports.js"></script>
 </body>
 </html>

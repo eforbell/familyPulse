@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadDashboard(), loadCategories()]);
   populateFilterDropdowns();
   await loadTransactions();
+  loadMagicPanel();
   if (!currentMember) setTimeout(openMemberPicker, 400);
 
   // Filter listeners
@@ -357,6 +358,7 @@ function selectMember(id) {
   // Reload everything with new member scope
   loadDashboard();
   resetAndLoad();
+  loadMagicPanel();
 }
 
 function updateWhoBtn() {
@@ -427,4 +429,124 @@ async function api(url, opts) {
     throw new Error(err.error || res.statusText);
   }
   return res.json();
+}
+
+// ── Magic Panel (Pulse Intelligence) ────────────────────────
+
+let magicDisclaimer = '';
+
+async function loadMagicPanel() {
+  // Only show for parents
+  if (!currentMember || currentMember.role !== 'parent') {
+    $('magic-section').classList.add('hidden');
+    return;
+  }
+  $('magic-section').classList.remove('hidden');
+
+  const params = memberParam();
+
+  // Load disclaimer
+  try {
+    const cfg = await api(`api/magic/config${params}`);
+    const disclaimerRow = cfg.config.find(c => c.key === 'magic_disclaimer');
+    magicDisclaimer = disclaimerRow ? disclaimerRow.value : '';
+  } catch { /* ignore */ }
+
+  // Load presets
+  try {
+    const data = await api(`api/magic/presets${params}`);
+    $('magic-presets').innerHTML = data.presets.map(q =>
+      `<button class="magic-preset-btn" onclick="askPreset(this)" data-q="${esc(q)}">${esc(q)}</button>`
+    ).join('');
+  } catch { /* ignore */ }
+
+  // Load digest
+  try {
+    const data = await api(`api/magic/digest${params}`);
+    if (data.digest) {
+      $('magic-digest').classList.remove('hidden');
+      $('magic-digest-content').innerHTML = renderMarkdown(data.digest);
+    }
+  } catch { /* ignore */ }
+
+  // Load monthly report
+  try {
+    const data = await api(`api/magic/monthly${params}`);
+    if (data.report) {
+      $('magic-monthly').classList.remove('hidden');
+      $('magic-monthly-content').innerHTML = renderMarkdown(data.report);
+    }
+  } catch { /* ignore */ }
+}
+
+function toggleMagicCard(id) {
+  const body = $(id + '-body');
+  const toggle = $(id + '-toggle');
+  const hidden = body.classList.toggle('hidden');
+  toggle.textContent = hidden ? '+' : '\u2212';
+}
+
+function askPreset(btn) {
+  $('ask-input').value = btn.dataset.q;
+  submitAsk();
+}
+
+async function submitAsk() {
+  const input = $('ask-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const result = $('ask-result');
+  result.classList.remove('hidden');
+  result.innerHTML = '<div class="loading-pulse" style="color:var(--muted)">Thinking...</div>';
+
+  try {
+    const data = await api('api/magic/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, member: currentMember?.name })
+    });
+    result.innerHTML = renderMarkdown(data.answer || 'No response.');
+    showDisclaimer();
+  } catch (err) {
+    result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
+  }
+}
+
+async function submitWhatIf() {
+  const input = $('whatif-input');
+  const scenario = input.value.trim();
+  if (!scenario) return;
+
+  const result = $('whatif-result');
+  result.classList.remove('hidden');
+  result.innerHTML = '<div class="loading-pulse" style="color:var(--muted)">Forecasting...</div>';
+
+  try {
+    const data = await api('api/magic/what-if', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario, member: currentMember?.name })
+    });
+    result.innerHTML = renderMarkdown(data.forecast || 'No response.');
+    showDisclaimer();
+  } catch (err) {
+    result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
+  }
+}
+
+function showDisclaimer() {
+  if (!magicDisclaimer) return;
+  const el = $('magic-disclaimer');
+  el.textContent = magicDisclaimer;
+  el.classList.remove('hidden');
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  return text
+    .split('\n')
+    .filter(p => p.trim())
+    .map(p => `<p>${esc(p)}</p>`)
+    .join('');
 }
