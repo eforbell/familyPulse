@@ -6,7 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test",
+    "test": "npm run test:prepare && node --require ./test/bootstrap.js --test",
+    "test:fast": "node --require ./test/bootstrap.js --test",
+    "test:prepare": "npm run test:db:reset && npm run test:db:migrate && npm run test:db:seed",
+    "test:db:reset": "node db/reset-test-db.js",
+    "test:db:migrate": "node -e \"process.env.NODE_ENV='test'; require('./db/migrate.js')\"",
+    "test:db:seed": "node db/seed.js",
+    "test:ci": "npm run test",
     "sync": "node lib/cli.js sync",
     "accounts": "node lib/cli.js accounts",
     "status": "node lib/cli.js status"
