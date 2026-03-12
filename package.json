@@ -13,6 +13,7 @@
     "test:db:migrate": "node -e \"process.env.NODE_ENV='test'; require('./db/migrate.js')\"",
     "test:db:seed": "node db/seed.js",
     "test:ci": "npm run test",
+    "db:clear-linked-data": "node db/clear-linked-data.js --yes",
     "sync": "node lib/cli.js sync",
     "accounts": "node lib/cli.js accounts",
     "status": "node lib/cli.js status"

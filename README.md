@@ -73,6 +73,41 @@ Default app URL:
 http://localhost:3003
 ```
 
+### Reset linked financial data
+
+If you previously linked sandbox institutions and want to start fresh before switching to production Plaid credentials, the safest path is usually to clear linked financial data from the database instead of trying to clean it up manually in the UI.
+
+This script preserves:
+- `family_members`
+- `sessions`
+- `app_config`
+- `categories`
+- `category_rules`
+- `schema_migrations`
+
+It clears:
+- `items`
+- `accounts` via cascade
+- `transactions` via cascade
+- `account_members` via cascade
+- `link_sessions`
+- `import_runs`
+- `anomalies`
+- `budget_snapshots`
+- `magic_actions_log`
+
+Run it intentionally:
+
+```sh
+npm run db:clear-linked-data
+```
+
+Or directly:
+
+```sh
+node db/clear-linked-data.js --yes
+```
+
 ## Authentication
 
 The app supports household member sessions with parent and kid roles.
