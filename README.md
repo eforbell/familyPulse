@@ -1,6 +1,88 @@
 # Family Pulse
 
-## Local Test Setup
+Family Pulse is a household finance dashboard for the Forbell family. It pulls account and transaction data from Plaid, organizes spending into household-friendly categories, tracks budget periods and snapshots, flags anomalies, and supports lightweight AI-generated summaries and planning prompts.
+
+The app is intentionally small and direct:
+- Express server with server-rendered static pages from `public/`
+- PostgreSQL for all application state
+- Plaid for account linking and transaction sync
+- optional OpenAI-powered digest and what-if features
+
+## Core Capabilities
+
+- link household financial institutions through Plaid
+- sync accounts and transactions into a local PostgreSQL database
+- review balances, transactions, budgets, and reports in a simple web UI
+- categorize spending with manual edits plus reusable rules
+- snapshot monthly budget state for historical reporting
+- detect unusual category spending
+- support parent/kid household access with session auth and account scoping
+- generate weekly digest, monthly close, and what-if style AI outputs
+
+## Project Layout
+
+- [server.js](/Volumes/DATA/workspace/homeApps/familyPulse/server.js): app bootstrap, middleware, route mounting, cron jobs
+- [lib/routes](/Volumes/DATA/workspace/homeApps/familyPulse/lib/routes): API route modules
+- [lib](/Volumes/DATA/workspace/homeApps/familyPulse/lib): business logic, sync, auth, budgeting, anomaly detection, AI helpers
+- [public](/Volumes/DATA/workspace/homeApps/familyPulse/public): frontend pages and browser JS
+- [db/migrations](/Volumes/DATA/workspace/homeApps/familyPulse/db/migrations): schema migrations
+- [db/seed.sql](/Volumes/DATA/workspace/homeApps/familyPulse/db/seed.sql): deterministic baseline seed data
+- [test](/Volumes/DATA/workspace/homeApps/familyPulse/test): unit and integration tests
+
+## Local Development
+
+### Prerequisites
+
+- Node.js
+- Docker with Docker Compose
+
+### Start the database
+
+```sh
+docker compose up -d db
+```
+
+The default Docker setup uses one Postgres container with two databases:
+- `familypulse` for normal development
+- `familypulse_test` for test runs
+
+### Environment files
+
+- use `.env` for normal app development
+- use `.env.test` for test execution
+- `.env.example` and `.env.test.example` provide templates
+
+Important variables:
+- `DATABASE_URL`
+- `PLAID_CLIENT_ID`
+- `PLAID_SECRET`
+- `PLAID_ENV`
+- `OPENAI_API_KEY`
+- `BOOTSTRAP_SECRET`
+
+### Run the app
+
+```sh
+npm install
+npm start
+```
+
+Default app URL:
+
+```text
+http://localhost:3003
+```
+
+## Authentication
+
+The app supports household member sessions with parent and kid roles.
+
+- when no passphrases are configured yet, initial setup is protected by `BOOTSTRAP_SECRET`
+- once passphrases exist, API and page access are session-gated
+- parent-only routes protect administrative and account-linking actions
+- kid access is scoped through `account_members`
+
+## Testing
 
 Tests are guarded to prevent accidental writes against a normal development or production database.
 
@@ -11,13 +93,9 @@ Tests are guarded to prevent accidental writes against a normal development or p
 3. Keep `.env` pointed at `familypulse`.
 4. Keep `.env.test` pointed at `familypulse_test`.
 
-The default Docker setup now creates two databases in one container:
-- `familypulse`
-- `familypulse_test`
-
-If your `db` container was initialized before this change, the second database will not appear automatically because Postgres init scripts only run on first boot of a fresh data volume. In that case either:
-- create `familypulse_test` manually once, or
-- recreate the Docker volume and reinitialize the container
+If your `db` container was initialized before the two-database setup existed, the second database will not appear automatically because Postgres init scripts only run on first boot of a fresh data volume. In that case either:
+- create `familypulse_test` manually once
+- or recreate the Docker volume and reinitialize the container
 
 ### Running tests
 
@@ -47,10 +125,6 @@ Command behavior:
 
 ## Docker Test Database Harness
 
-The default Docker setup uses one Postgres container with two databases:
-- `familypulse` for normal development
-- `familypulse_test` for test runs
-
 The second database is created by [db/initdb/01-create-test-db.sh](/Volumes/DATA/workspace/homeApps/familyPulse/db/initdb/01-create-test-db.sh), which is mounted through [docker-compose.yml](/Volumes/DATA/workspace/homeApps/familyPulse/docker-compose.yml).
 
 ### Important behavior
@@ -60,8 +134,6 @@ Postgres only runs `/docker-entrypoint-initdb.d/*` scripts when initializing a f
 - if the named volume still exists, the init script will be skipped on next start
 
 ### Normal startup
-
-Use:
 
 ```sh
 docker compose up -d db
