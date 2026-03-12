@@ -9,15 +9,48 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { app } = require('../server');
 let server;
 let baseUrl;
+let protectedCategoryId;
+let ruleCategoryId;
 
 before(async () => {
   server = app.listen(0);
   const port = server.address().port;
   baseUrl = `http://127.0.0.1:${port}`;
+
+  const { rows: [protectedCategory] } = await pool.query(`
+    INSERT INTO categories (name, color, icon)
+    VALUES ('Test Cat Protected', '#334155', '🧱')
+    RETURNING id
+  `);
+  protectedCategoryId = protectedCategory.id;
+
+  const { rows: [ruleCategory] } = await pool.query(
+    `SELECT id FROM categories WHERE name = 'Groceries'`
+  );
+  ruleCategoryId = ruleCategory.id;
+
+  const { rows: [item] } = await pool.query(`
+    INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+    VALUES ('test-token-categories', 'test-item-categories', 'ins_cat', 'Test Categories Bank', 'good')
+    RETURNING id
+  `);
+
+  const { rows: [account] } = await pool.query(`
+    INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance, owner)
+    VALUES ('acct-categories-test', $1, 'Categories Checking', 'depository', 'checking', '5555', 1200, 'Eric')
+    RETURNING id
+  `, [item.id]);
+
+  await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+    VALUES ('tx-categories-protected', $1, 42.50, '2026-03-02', 'Protected Merchant', 'Protected Transaction', false, false, 'test', $2)
+  `, [account.id, protectedCategoryId]);
 });
 
 after(async () => {
-  // Cleanup test categories
+  await pool.query("DELETE FROM transactions WHERE plaid_transaction_id = 'tx-categories-protected'");
+  await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-categories-test'");
+  await pool.query("DELETE FROM items WHERE item_id = 'test-item-categories'");
   await pool.query("DELETE FROM category_rules WHERE created_by = 'api-test'");
   await pool.query("DELETE FROM categories WHERE name LIKE 'Test Cat%'");
   server.close();
@@ -103,15 +136,8 @@ describe('DELETE /api/categories/:id', () => {
   });
 
   it('returns 409 when transactions are assigned', async () => {
-    // Find a category that has transactions (from seed)
-    const listRes = await fetch(`${baseUrl}/api/categories`);
-    const cats = await listRes.json();
-    const catWithTx = cats.find(c => c.transaction_count > 0);
-
-    if (catWithTx) {
-      const res = await fetch(`${baseUrl}/api/categories/${catWithTx.id}`, { method: 'DELETE' });
-      assert.equal(res.status, 409);
-    }
+    const res = await fetch(`${baseUrl}/api/categories/${protectedCategoryId}`, { method: 'DELETE' });
+    assert.equal(res.status, 409);
   });
 });
 
@@ -126,16 +152,12 @@ describe('Rules API', () => {
   });
 
   it('POST /api/rules creates a rule', async () => {
-    const catRes = await fetch(`${baseUrl}/api/categories`);
-    const cats = await catRes.json();
-    const catId = cats.find(c => !c.is_transfer_class)?.id;
-
     const res = await fetch(`${baseUrl}/api/rules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         merchant_pattern: 'test-api-pattern',
-        category_id: catId,
+        category_id: ruleCategoryId,
         match_type: 'contains'
       })
     });

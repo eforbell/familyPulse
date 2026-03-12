@@ -12,6 +12,21 @@ const { app } = require('../server');
 let server;
 let baseUrl;
 let testItemId;
+const LINK_ITEM_ID = 'test-item-link';
+const LINK_ACCOUNT_IDS = ['acct-link-1', 'acct-link-2'];
+const DELETE_ITEM_ID = 'test-item-del';
+const DELETE_ACCOUNT_ID = 'acct-del-1';
+const SESSION_TOKEN = 'test-lt-link-table';
+const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
+const OAUTH_STATE_ID = 'test-oauth-state-link';
+
+async function insertPendingLinkSession(linkToken, owner) {
+  const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  await pool.query(`
+    INSERT INTO link_sessions (link_token, status, owner, expires_at)
+    VALUES ($1, 'pending', $2, $3)
+  `, [linkToken, owner, expiresAt]);
+}
 
 before(async () => {
   server = app.listen(0);
@@ -21,25 +36,26 @@ before(async () => {
   // Seed a test item
   const { rows: [item] } = await pool.query(`
     INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
-    VALUES ('test-token-link', 'test-item-link', 'ins_link', 'Test Bank Link', 'good')
+    VALUES ('test-token-link', $1, 'ins_link', 'Test Bank Link', 'good')
     ON CONFLICT (item_id) DO UPDATE SET status = 'good'
     RETURNING id
-  `);
+  `, [LINK_ITEM_ID]);
   testItemId = item.id;
 
   // Seed accounts for that item
   await pool.query(`
     INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance, owner)
-    VALUES ('acct-link-1', $1, 'Link Checking', 'depository', 'checking', '1111', 1000, 'Eric'),
-           ('acct-link-2', $1, 'Link Savings', 'depository', 'savings', '2222', 5000, 'Eric')
+    VALUES ($2, $1, 'Link Checking', 'depository', 'checking', '1111', 1000, 'Eric'),
+           ($3, $1, 'Link Savings', 'depository', 'savings', '2222', 5000, 'Eric')
     ON CONFLICT (plaid_account_id) DO UPDATE SET name = EXCLUDED.name
-  `, [testItemId]);
+  `, [testItemId, LINK_ACCOUNT_IDS[0], LINK_ACCOUNT_IDS[1]]);
 });
 
 after(async () => {
-  await pool.query("DELETE FROM link_sessions WHERE link_token LIKE 'test-%'");
-  await pool.query("DELETE FROM accounts WHERE plaid_account_id LIKE 'acct-link-%'");
-  await pool.query("DELETE FROM items WHERE item_id = 'test-item-link'");
+  await pool.query('DELETE FROM link_sessions WHERE link_token IN ($1, $2)', [SESSION_TOKEN, OAUTH_SESSION_TOKEN]);
+  await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
+  await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
+  await pool.query('DELETE FROM items WHERE item_id = $1', [DELETE_ITEM_ID]);
   server.close();
   await pool.end();
 });
@@ -52,7 +68,7 @@ describe('GET /api/items', () => {
     assert.equal(res.status, 200);
     const items = await res.json();
     assert.ok(Array.isArray(items));
-    const testItem = items.find(i => i.item_id === 'test-item-link');
+    const testItem = items.find(i => i.item_id === LINK_ITEM_ID);
     assert.ok(testItem);
     assert.equal(testItem.institution_name, 'Test Bank Link');
     assert.equal(testItem.account_count, 2);
@@ -103,13 +119,13 @@ describe('DELETE /api/items/:id', () => {
     // Create a throwaway item to delete
     const { rows: [delItem] } = await pool.query(`
       INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
-      VALUES ('test-token-del', 'test-item-del', 'ins_del', 'Delete Me Bank', 'good')
+      VALUES ('test-token-del', $1, 'ins_del', 'Delete Me Bank', 'good')
       RETURNING id
-    `);
+    `, [DELETE_ITEM_ID]);
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
-      VALUES ('acct-del-1', $1, 'Del Account', 'depository', 'checking', '0000', 0)
-    `, [delItem.id]);
+      VALUES ($2, $1, 'Del Account', 'depository', 'checking', '0000', 0)
+    `, [delItem.id, DELETE_ACCOUNT_ID]);
 
     const res = await fetch(`${baseUrl}/api/items/${delItem.id}`, {
       method: 'DELETE'
@@ -120,7 +136,8 @@ describe('DELETE /api/items/:id', () => {
 
     // Verify cascade
     const { rows: accts } = await pool.query(
-      "SELECT id FROM accounts WHERE plaid_account_id = 'acct-del-1'"
+      'SELECT id FROM accounts WHERE plaid_account_id = $1',
+      [DELETE_ACCOUNT_ID]
     );
     assert.equal(accts.length, 0);
   });
@@ -137,21 +154,17 @@ describe('DELETE /api/items/:id', () => {
 
 describe('link_sessions table', () => {
   it('can store and query link sessions', async () => {
-    const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
-    await pool.query(`
-      INSERT INTO link_sessions (link_token, status, owner, expires_at)
-      VALUES ('test-lt-1', 'pending', 'Eric', $1)
-    `, [expiresAt]);
+    await insertPendingLinkSession(SESSION_TOKEN, 'Eric');
 
     const { rows } = await pool.query(
-      "SELECT * FROM link_sessions WHERE link_token = 'test-lt-1'"
+      'SELECT * FROM link_sessions WHERE link_token = $1',
+      [SESSION_TOKEN]
     );
     assert.equal(rows.length, 1);
     assert.equal(rows[0].status, 'pending');
     assert.equal(rows[0].owner, 'Eric');
 
-    // Keep this test isolated from oauth callback tests that rely on a single pending session.
-    await pool.query("DELETE FROM link_sessions WHERE link_token = 'test-lt-1'");
+    await pool.query('DELETE FROM link_sessions WHERE link_token = $1', [SESSION_TOKEN]);
   });
 });
 
@@ -164,26 +177,21 @@ describe('GET /oauth/callback', () => {
   });
 
   it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
-    // Ensure deterministic setup for findOrBindOauthSession (expects exactly one pending null-oauth session).
-    await pool.query("DELETE FROM link_sessions WHERE link_token LIKE 'test-lt-%'");
+    await pool.query('DELETE FROM link_sessions WHERE link_token IN ($1, $2)', [SESSION_TOKEN, OAUTH_SESSION_TOKEN]);
+    await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
 
-    const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
-    await pool.query(`
-      INSERT INTO link_sessions (link_token, status, owner, expires_at)
-      VALUES ('test-lt-oauth', 'pending', 'Eric', $1)
-    `, [expiresAt]);
-
-    const res = await fetch(`${baseUrl}/oauth/callback?oauth_state_id=test-oauth-state`);
+    const res = await fetch(`${baseUrl}/oauth/callback?oauth_state_id=${OAUTH_STATE_ID}`);
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.ok(text.includes('Completing bank connection'));
     assert.ok(text.includes('receivedRedirectUri'));
-    assert.ok(text.includes('test-lt-oauth'));
+    assert.ok(text.includes(OAUTH_SESSION_TOKEN));
 
     const { rows } = await pool.query(
-      "SELECT oauth_state_id FROM link_sessions WHERE link_token = 'test-lt-oauth'"
+      'SELECT oauth_state_id FROM link_sessions WHERE link_token = $1',
+      [OAUTH_SESSION_TOKEN]
     );
-    assert.equal(rows[0].oauth_state_id, 'test-oauth-state');
+    assert.equal(rows[0].oauth_state_id, OAUTH_STATE_ID);
   });
 });
 

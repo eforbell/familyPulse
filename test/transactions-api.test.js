@@ -11,6 +11,11 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { app } = require('../server');
 let server;
 let baseUrl;
+let accountId;
+let assignCategoryId;
+let familyMemberCount;
+let coffeeTransactionId;
+let bulkTransactionIds;
 
 before(async () => {
   server = app.listen(0);
@@ -31,6 +36,7 @@ before(async () => {
     ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'API Checking'
     RETURNING id
   `, [item.id]);
+  accountId = acct.id;
 
   // Seed some transactions
   for (let i = 1; i <= 5; i++) {
@@ -54,6 +60,29 @@ before(async () => {
     VALUES ('tx-api-transfer', $1, 200, '2026-03-01', 'Transfer Out', false, true, 'inter_account', 'test')
     ON CONFLICT (plaid_transaction_id) DO NOTHING
   `, [acct.id]);
+
+  const { rows: [category] } = await pool.query(
+    `SELECT id FROM categories WHERE name = 'Groceries'`
+  );
+  assignCategoryId = category.id;
+
+  const { rows: [coffeeTx] } = await pool.query(
+    `SELECT id FROM transactions WHERE plaid_transaction_id = 'tx-api-1'`
+  );
+  coffeeTransactionId = coffeeTx.id;
+
+  const { rows } = await pool.query(`
+    SELECT id
+    FROM transactions
+    WHERE plaid_transaction_id IN ('tx-api-1', 'tx-api-2', 'tx-api-3')
+    ORDER BY plaid_transaction_id
+  `);
+  bulkTransactionIds = rows.map(row => row.id);
+
+  const { rows: [familyStats] } = await pool.query(
+    'SELECT count(*)::int AS count FROM family_members'
+  );
+  familyMemberCount = familyStats.count;
 });
 
 after(async () => {
@@ -119,24 +148,20 @@ describe('GET /api/transactions', () => {
 
 describe('PUT /api/transactions/:id/category', () => {
   it('assigns a category', async () => {
-    // Get a transaction ID
-    const listRes = await fetch(`${baseUrl}/api/transactions?search=Coffee&limit=1`);
-    const listData = await listRes.json();
-    const txId = listData.transactions[0].id;
-
-    // Get a category ID
-    const catRes = await fetch(`${baseUrl}/api/categories`);
-    const cats = await catRes.json();
-    const catId = cats[0].id;
-
-    const res = await fetch(`${baseUrl}/api/transactions/${txId}/category`, {
+    const res = await fetch(`${baseUrl}/api/transactions/${coffeeTransactionId}/category`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_id: catId })
+      body: JSON.stringify({ category_id: assignCategoryId })
     });
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.success, true);
+
+    const { rows: [updated] } = await pool.query(
+      'SELECT category_id FROM transactions WHERE id = $1',
+      [coffeeTransactionId]
+    );
+    assert.equal(updated.category_id, assignCategoryId);
   });
 
   it('returns 404 for non-existent transaction', async () => {
@@ -151,22 +176,15 @@ describe('PUT /api/transactions/:id/category', () => {
 
 describe('POST /api/transactions/bulk-categorize', () => {
   it('assigns category to multiple transactions', async () => {
-    const listRes = await fetch(`${baseUrl}/api/transactions?limit=3`);
-    const listData = await listRes.json();
-    const ids = listData.transactions.map(t => t.id);
-
-    const catRes = await fetch(`${baseUrl}/api/categories`);
-    const cats = await catRes.json();
-
     const res = await fetch(`${baseUrl}/api/transactions/bulk-categorize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transaction_ids: ids, category_id: cats[0].id })
+      body: JSON.stringify({ transaction_ids: bulkTransactionIds, category_id: assignCategoryId })
     });
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.success, true);
-    assert.ok(data.updated > 0);
+    assert.equal(data.updated, bulkTransactionIds.length);
   });
 
   it('rejects empty array', async () => {
@@ -181,7 +199,7 @@ describe('POST /api/transactions/bulk-categorize', () => {
 
 describe('GET /api/accounts/dashboard', () => {
   it('returns grouped accounts with totals', async () => {
-    const res = await fetch(`${baseUrl}/api/accounts/dashboard`);
+    const res = await fetch(`${baseUrl}/api/accounts/dashboard?account_id=${accountId}`);
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.ok(data.groups);
@@ -197,7 +215,7 @@ describe('GET /api/family-members', () => {
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.ok(Array.isArray(data));
-    assert.ok(data.length >= 4);
+    assert.equal(data.length, familyMemberCount);
     assert.ok(data.some(m => m.name === 'Eric'));
   });
 });
