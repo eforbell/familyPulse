@@ -39,59 +39,35 @@ describe('budget-calculator', () => {
     testCatId = cat.id;
 
     const { rows: [inc] } = await pool.query(
-      `SELECT id FROM categories WHERE name = 'Income' LIMIT 1`
+      `SELECT id FROM categories WHERE name = 'Income'`
     );
-    incomeCatId = inc?.id;
-    if (!incomeCatId) {
-      const { rows: [newInc] } = await pool.query(
-        `INSERT INTO categories (name, color, is_income, is_transfer_class, icon)
-         VALUES ('Income', '#10b981', true, false, '💰')
-         ON CONFLICT (name) DO UPDATE SET is_income = true
-         RETURNING id`
-      );
-      incomeCatId = newInc.id;
-    }
+    incomeCatId = inc.id;
 
     const { rows: [xfer] } = await pool.query(
-      `SELECT id FROM categories WHERE name = 'Transfer' LIMIT 1`
+      `SELECT id FROM categories WHERE name = 'Transfer'`
     );
-    transferCatId = xfer?.id;
-    if (!transferCatId) {
-      const { rows: [newXfer] } = await pool.query(
-        `INSERT INTO categories (name, color, is_income, is_transfer_class, icon)
-         VALUES ('Transfer', '#9ca3af', false, true, '🔄')
-         ON CONFLICT (name) DO UPDATE SET is_transfer_class = true
-         RETURNING id`
-      );
-      transferCatId = newXfer.id;
-    }
+    transferCatId = xfer.id;
 
     const { rows: [unc] } = await pool.query(
-      `SELECT id FROM categories WHERE name = 'Uncategorized' LIMIT 1`
+      `SELECT id FROM categories WHERE name = 'Uncategorized'`
     );
-    uncatId = unc?.id;
+    uncatId = unc.id;
 
-    // Get or create a test account
-    const { rows: accounts } = await pool.query('SELECT id FROM accounts LIMIT 1');
-    if (accounts.length > 0) {
-      accountId = accounts[0].id;
-    } else {
-      // Create a minimal item + account for testing
-      const { rows: [item] } = await pool.query(
-        `INSERT INTO items (access_token, item_id, institution_name, status)
-         VALUES ('test-token', 'test-item-budget', 'Test Bank', 'good')
-         ON CONFLICT (item_id) DO UPDATE SET institution_name = 'Test Bank'
-         RETURNING id`
-      );
-      const { rows: [acct] } = await pool.query(
-        `INSERT INTO accounts (plaid_account_id, item_id, name, type, mask)
-         VALUES ('test-acct-budget', $1, 'Test Checking', 'depository', '1234')
-         ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Checking'
-         RETURNING id`,
-        [item.id]
-      );
-      accountId = acct.id;
-    }
+    // Create a suite-owned test account
+    const { rows: [item] } = await pool.query(
+      `INSERT INTO items (access_token, item_id, institution_name, status)
+       VALUES ('test-token', 'test-item-budget', 'Test Bank', 'good')
+       ON CONFLICT (item_id) DO UPDATE SET institution_name = 'Test Bank'
+       RETURNING id`
+    );
+    const { rows: [acct] } = await pool.query(
+      `INSERT INTO accounts (plaid_account_id, item_id, name, type, mask)
+       VALUES ('test-acct-budget', $1, 'Test Checking', 'depository', '1234')
+       ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Checking'
+       RETURNING id`,
+      [item.id]
+    );
+    accountId = acct.id;
 
     // Clean up test transactions
     await pool.query(
@@ -147,7 +123,8 @@ describe('budget-calculator', () => {
     await pool.query(`DELETE FROM transactions WHERE plaid_transaction_id LIKE 'test-budget-%'`);
     await pool.query(`DELETE FROM budget_snapshots WHERE category_id = $1`, [testCatId]);
     await pool.query(`DELETE FROM categories WHERE name = 'TestBudgetCat'`);
-    // Don't drop test items/accounts if they existed before
+    await pool.query(`DELETE FROM accounts WHERE plaid_account_id = 'test-acct-budget'`);
+    await pool.query(`DELETE FROM items WHERE item_id = 'test-item-budget'`);
   });
 
   it('getMonthlyBudgetSummary returns correct spending', async () => {

@@ -58,9 +58,10 @@ describe('digest-generator', () => {
 
     // Check that we can retrieve it
     const { rows } = await pool.query(
-      `SELECT output FROM magic_actions_log WHERE action_type = $1 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT output FROM magic_actions_log WHERE action_type = $1`,
       [actionType]
     );
+    assert.equal(rows.length, 1);
     assert.equal(rows[0].output, cachedDigest);
 
     await pool.query(`DELETE FROM magic_actions_log WHERE action_type = $1`, [actionType]);

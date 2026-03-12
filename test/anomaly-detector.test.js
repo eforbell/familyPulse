@@ -44,26 +44,21 @@ describe('anomaly-detector', () => {
     );
     smallCatId = small.id;
 
-    // Get or create test account
-    const { rows: accounts } = await pool.query('SELECT id FROM accounts LIMIT 1');
-    if (accounts.length > 0) {
-      accountId = accounts[0].id;
-    } else {
-      const { rows: [item] } = await pool.query(
-        `INSERT INTO items (access_token, item_id, institution_name, status)
-         VALUES ('test-token', 'test-item-anomaly', 'Test Bank', 'good')
-         ON CONFLICT (item_id) DO UPDATE SET institution_name = 'Test Bank'
-         RETURNING id`
-      );
-      const { rows: [acct] } = await pool.query(
-        `INSERT INTO accounts (plaid_account_id, item_id, name, type, mask)
-         VALUES ('test-acct-anomaly', $1, 'Test Checking', 'depository', '9999')
-         ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Checking'
-         RETURNING id`,
-        [item.id]
-      );
-      accountId = acct.id;
-    }
+    // Create a suite-owned test account
+    const { rows: [item] } = await pool.query(
+      `INSERT INTO items (access_token, item_id, institution_name, status)
+       VALUES ('test-token', 'test-item-anomaly', 'Test Bank', 'good')
+       ON CONFLICT (item_id) DO UPDATE SET institution_name = 'Test Bank'
+       RETURNING id`
+    );
+    const { rows: [acct] } = await pool.query(
+      `INSERT INTO accounts (plaid_account_id, item_id, name, type, mask)
+       VALUES ('test-acct-anomaly', $1, 'Test Checking', 'depository', '9999')
+       ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Checking'
+       RETURNING id`,
+      [item.id]
+    );
+    accountId = acct.id;
 
     // Clean up any prior test data
     await pool.query(`DELETE FROM transactions WHERE plaid_transaction_id LIKE 'test-anomaly-%'`);
@@ -90,6 +85,8 @@ describe('anomaly-detector', () => {
     await pool.query(`DELETE FROM anomalies WHERE category_id IN ($1, $2)`, [testCatId, smallCatId]);
     await pool.query(`DELETE FROM transactions WHERE plaid_transaction_id LIKE 'test-anomaly-%'`);
     await pool.query(`DELETE FROM categories WHERE name IN ('TestAnomalyCat', 'TestSmallCat')`);
+    await pool.query(`DELETE FROM accounts WHERE plaid_account_id = 'test-acct-anomaly'`);
+    await pool.query(`DELETE FROM items WHERE item_id = 'test-item-anomaly'`);
   });
 
   it('normal spending (100% of avg) produces no anomaly', async () => {
