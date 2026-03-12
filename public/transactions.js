@@ -12,6 +12,7 @@ let currentPage = 0;
 const PAGE_SIZE = 50;
 let selectedIds = new Set();
 let assignTarget = null; // { id, merchant } for single, null for bulk
+let dedupRunFilter = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('filter-to').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-search').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 300));
   $('filter-transfers').addEventListener('change', resetAndLoad);
+  $('filter-hidden').addEventListener('change', resetAndLoad);
+  $('btn-dedup').addEventListener('click', runDedup);
 });
 
 // ── URL params → filters ─────────────────────────────────────
@@ -64,6 +67,12 @@ function applyUrlParams() {
 
   const showTransfers = params.get('show_transfers');
   if (showTransfers === '1') $('filter-transfers').checked = true;
+
+  const showHidden = params.get('show_hidden');
+  if (showHidden === '1') $('filter-hidden').checked = true;
+
+  const dedupRunId = params.get('dedup_run_id');
+  if (dedupRunId) dedupRunFilter = dedupRunId;
 }
 
 function setBackLink() {
@@ -104,6 +113,10 @@ function updatePageTitle() {
     parts.push(`From ${formatDate(from)}`);
   } else if (to) {
     parts.push(`Until ${formatDate(to)}`);
+  }
+
+  if (dedupRunFilter) {
+    parts.push(`Dedup Run #${dedupRunFilter}`);
   }
 
   $('page-title').textContent = parts.length > 0 ? parts.join(' · ') : 'Transactions';
@@ -165,6 +178,15 @@ function renderTransactions() {
       : '<span class="cat-badge uncat">uncategorized</span>';
     const pendingClass = tx.pending ? ' pending' : '';
     const selectedClass = selectedIds.has(tx.id) ? ' selected' : '';
+    const sourceBadge = `<span class="cat-badge">${esc(tx.source || 'unknown')}</span>`;
+    const hiddenBadge = tx.is_hidden
+      ? `<span class="cat-badge uncat">suppressed${tx.hidden_reason ? `: ${esc(tx.hidden_reason)}` : ''}</span>`
+      : '';
+    const suppressButton = tx.is_hidden
+      ? `<button class="btn-ghost tx-inline-action" onclick="unhideTx(event, ${tx.id})" title="Restore">Restore</button>`
+      : (tx.source !== 'plaid'
+          ? `<button class="btn-ghost tx-inline-action" onclick="hideTx(event, ${tx.id})" title="Suppress duplicate">Suppress</button>`
+          : '');
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
       <input type="checkbox" class="tx-check" ${selectedIds.has(tx.id) ? 'checked' : ''} onclick="onCheckbox(event, ${tx.id})">
@@ -174,6 +196,9 @@ function renderTransactions() {
           <span>${formatDate(tx.date)}</span>
           <span>${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
           ${catBadge}
+          ${sourceBadge}
+          ${hiddenBadge}
+          ${suppressButton}
           ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
         </div>
       </div>
@@ -250,6 +275,8 @@ function buildFilterParams() {
   if (search) p.set('search', search);
 
   if ($('filter-transfers').checked) p.set('show_transfers', '1');
+  if ($('filter-hidden').checked) p.set('show_hidden', '1');
+  if (dedupRunFilter) p.set('dedup_run_id', dedupRunFilter);
 
   return p.toString();
 }
@@ -268,6 +295,7 @@ function nextPage() { currentPage++; loadTransactions(); }
 
 function onTxClick(event, id) {
   if (event.target.classList.contains('tx-check')) return;
+  if (event.target.closest('.tx-inline-action')) return;
   const tx = transactions.find(t => t.id === id);
   if (!tx) return;
   openCategoryOverlay(id, tx.merchant_name || tx.name);
@@ -381,6 +409,81 @@ function clearSelection() {
   selectedIds.clear();
   updateBulkBar();
   renderTransactions();
+}
+
+// ── Dedup workflow ───────────────────────────────────────────
+
+async function runDedup() {
+  try {
+    const dateFrom = $('filter-from').value || null;
+    const dateTo = $('filter-to').value || null;
+    const payload = {};
+    if (dateFrom) payload.date_from = dateFrom;
+    if (dateTo) payload.date_to = dateTo;
+
+    const preview = await api('api/transactions/dedup/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (preview.duplicates_found === 0) {
+      alert(`No import duplicates found.${preview.ambiguous_count ? ` Ambiguous matches: ${preview.ambiguous_count}` : ''}`);
+      return;
+    }
+
+    const scopeLabel = dateFrom || dateTo
+      ? ` for current date filters (${dateFrom || 'start'} to ${dateTo || 'end'})`
+      : '';
+
+    const shouldApply = window.confirm(
+      `Found ${preview.duplicates_found} duplicates${scopeLabel}.\n` +
+      `Plaid transactions will be kept; imported duplicates will be suppressed.\n` +
+      `${preview.ambiguous_count} ambiguous matches will be skipped.\n\n` +
+      'Apply now?'
+    );
+    if (!shouldApply) return;
+
+    const result = await api('api/transactions/dedup/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    alert(
+      `Done.\nSuppressed: ${result.hidden}\n` +
+      `Copied categories to Plaid: ${result.category_copied}\n` +
+      `Ambiguous skipped: ${result.ambiguous_count}`
+    );
+
+    await resetAndLoad();
+  } catch (err) {
+    alert(`Duplicate cleanup failed: ${err.message}`);
+  }
+}
+
+async function hideTx(event, id) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${id}/hide`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'manual_duplicate_suppress' })
+    });
+    await loadTransactions();
+  } catch (err) {
+    alert(`Suppress failed: ${err.message}`);
+  }
+}
+
+async function unhideTx(event, id) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${id}/unhide`, { method: 'PUT' });
+    await loadTransactions();
+  } catch (err) {
+    alert(`Restore failed: ${err.message}`);
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────

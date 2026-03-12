@@ -65,6 +65,17 @@
       <a href="import.html" class="btn-ghost">Monarch Money Import</a>
     </section>
 
+    <!-- Duplicate Cleanup History -->
+    <section id="dedup-history-section" style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h2 class="section-heading" style="margin:0">Duplicate Cleanup History</h2>
+        <button class="btn-ghost" onclick="loadDedupHistory()">Refresh</button>
+      </div>
+      <div id="dedup-history-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading...</div>
+      </div>
+    </section>
+
     <!-- Passphrase management — parents only -->
     <section id="passphrase-section" class="hidden" style="margin-top:1.5rem">
       <h2 class="section-heading">Family Passphrases</h2>

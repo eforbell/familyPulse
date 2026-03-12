@@ -119,6 +119,13 @@ The app supports household member sessions with parent and kid roles.
 - parent-only routes protect administrative and account-linking actions
 - kid access is scoped through `account_members`
 
+## Backup Restore Drill
+
+Run a monthly restore drill to prove backups are fully recoverable:
+- [planning/restore-drill.md](/home/forbell/workspace/homeApps/familyPulse/planning/restore-drill.md)
+
+The runbook is written for `pg_dump -Fc` backups and `pg_restore` validation into an isolated drill database.
+
 ## Testing
 
 Tests are guarded to prevent accidental writes against a normal development or production database.

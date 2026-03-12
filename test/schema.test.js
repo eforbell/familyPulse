@@ -16,7 +16,7 @@ describe('database schema', () => {
   const expectedTables = [
     'items', 'accounts', 'transactions', 'categories', 'category_rules',
     'budget_snapshots', 'planning_goals', 'savings_signals',
-    'magic_actions_log', 'anomalies', 'import_runs', 'family_members', 'app_config',
+    'magic_actions_log', 'anomalies', 'import_runs', 'dedup_runs', 'family_members', 'app_config',
     'schema_migrations'
   ];
 

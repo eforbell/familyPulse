@@ -16,6 +16,10 @@ let assignCategoryId;
 let familyMemberCount;
 let coffeeTransactionId;
 let bulkTransactionIds;
+let dedupPlaidTxId;
+let dedupImportTxId;
+let dedupImportTxId2;
+let dedupHiddenImportTxId;
 
 before(async () => {
   server = app.listen(0);
@@ -79,6 +83,30 @@ before(async () => {
   `);
   bulkTransactionIds = rows.map(row => row.id);
 
+  const { rows: [plaidDup] } = await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+    VALUES ('tx-api-dedup-plaid', $1, 42.10, '2026-02-10', 'Coffee Shop', 'Coffee Shop', false, false, 'plaid', NULL)
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET amount = EXCLUDED.amount
+    RETURNING id
+  `, [acct.id]);
+  dedupPlaidTxId = plaidDup.id;
+
+  const { rows: [importDup] } = await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+    VALUES ('tx-api-dedup-import', $1, 42.10, '2026-02-11', 'Coffee Shop', 'Coffee Shop', false, false, 'monarch', $2)
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET amount = EXCLUDED.amount
+    RETURNING id
+  `, [acct.id, assignCategoryId]);
+  dedupImportTxId = importDup.id;
+
+  const { rows: [importDup2] } = await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+    VALUES ('tx-api-dedup-import-2', $1, 42.10, '2026-02-11', 'Coffee Shop', 'Coffee Shop', false, false, 'monarch', $2)
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET amount = EXCLUDED.amount
+    RETURNING id
+  `, [acct.id, assignCategoryId]);
+  dedupImportTxId2 = importDup2.id;
+
   const { rows: [familyStats] } = await pool.query(
     'SELECT count(*)::int AS count FROM family_members'
   );
@@ -87,6 +115,7 @@ before(async () => {
 
 after(async () => {
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE 'tx-api-%'");
+  await pool.query("DELETE FROM dedup_runs WHERE created_by = 'test-runner'");
   await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-api-test'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-api'");
   server.close();
@@ -143,6 +172,105 @@ describe('GET /api/transactions', () => {
     const res2 = await fetch(`${baseUrl}/api/transactions?limit=2&offset=2`);
     const data2 = await res2.json();
     assert.ok(data1.transactions[0].id !== data2.transactions[0].id);
+  });
+
+  it('hides suppressed transactions by default and shows when show_hidden=1', async () => {
+    await pool.query(
+      `UPDATE transactions SET is_hidden = true, hidden_reason = 'test-hide' WHERE id = $1`,
+      [dedupImportTxId]
+    );
+
+    const resDefault = await fetch(`${baseUrl}/api/transactions?limit=200`);
+    const dataDefault = await resDefault.json();
+    assert.equal(dataDefault.transactions.some(t => t.id === dedupImportTxId), false);
+
+    const resShown = await fetch(`${baseUrl}/api/transactions?limit=200&show_hidden=1`);
+    const dataShown = await resShown.json();
+    assert.equal(dataShown.transactions.some(t => t.id === dedupImportTxId), true);
+
+    await pool.query(
+      `UPDATE transactions SET is_hidden = false, hidden_reason = NULL WHERE id = $1`,
+      [dedupImportTxId]
+    );
+  });
+});
+
+describe('Dedup endpoints', () => {
+  it('previews duplicates between plaid and imported rows', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions/dedup/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_from: '2026-02-01', date_to: '2026-02-28' })
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(typeof data.duplicates_found === 'number');
+    assert.ok(data.duplicates_found >= 1);
+  });
+
+  it('applies dedup by hiding imported tx and preserving plaid tx', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions/dedup/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_from: '2026-02-01', date_to: '2026-02-28' })
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.hidden >= 1);
+
+    const { rows: importRows } = await pool.query(
+      `SELECT id, is_hidden, hidden_reason, duplicate_of_transaction_id, dedup_run_id
+       FROM transactions
+       WHERE id = ANY($1::int[])
+       ORDER BY id`,
+      [[dedupImportTxId, dedupImportTxId2]]
+    );
+    const hiddenRows = importRows.filter(r => r.is_hidden);
+    const visibleRows = importRows.filter(r => !r.is_hidden);
+    assert.equal(hiddenRows.length, 1, 'Only one imported txn should match a single Plaid txn');
+    assert.equal(visibleRows.length, 1, 'Second imported txn should remain visible');
+    assert.equal(hiddenRows[0].hidden_reason, 'duplicate_prefer_plaid');
+    assert.equal(hiddenRows[0].duplicate_of_transaction_id, dedupPlaidTxId);
+    assert.ok(hiddenRows[0].dedup_run_id);
+    dedupHiddenImportTxId = hiddenRows[0].id;
+
+    const { rows: [plaidRow] } = await pool.query(
+      `SELECT is_hidden, category_id FROM transactions WHERE id = $1`,
+      [dedupPlaidTxId]
+    );
+    assert.equal(plaidRow.is_hidden, false);
+    assert.equal(plaidRow.category_id, assignCategoryId, 'should copy category from imported row when plaid is uncategorized');
+
+    await pool.query(
+      `UPDATE dedup_runs SET created_by = 'test-runner' WHERE id = $1`,
+      [hiddenRows[0].dedup_run_id]
+    );
+  });
+
+  it('unhide clears dedup metadata', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions/${dedupHiddenImportTxId}/unhide`, {
+      method: 'PUT'
+    });
+    assert.equal(res.status, 200);
+
+    const { rows: [row] } = await pool.query(
+      `SELECT is_hidden, hidden_reason, duplicate_of_transaction_id, dedup_run_id
+       FROM transactions WHERE id = $1`,
+      [dedupHiddenImportTxId]
+    );
+    assert.equal(row.is_hidden, false);
+    assert.equal(row.hidden_reason, null);
+    assert.equal(row.duplicate_of_transaction_id, null);
+    assert.equal(row.dedup_run_id, null);
+  });
+
+  it('lists dedup run history', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions/dedup/runs?limit=5`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(Array.isArray(data));
+    assert.ok(data.length >= 1);
+    assert.ok(data.some(r => Number(r.txns_hidden) >= 1));
   });
 });
 

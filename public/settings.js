@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
-  await Promise.all([loadItems(), loadMembers()]);
+  await Promise.all([loadItems(), loadMembers(), loadDedupHistory()]);
   loadAIPrompts();
   loadPassphraseManager();
 });
@@ -51,6 +51,47 @@ async function loadMembers() {
     familyMembers = await api('api/family-members');
   } catch (err) {
     console.error('Members load failed:', err);
+  }
+}
+
+async function loadDedupHistory() {
+  const section = document.getElementById('dedup-history-section');
+  const list = document.getElementById('dedup-history-list');
+  if (!section || !list) return;
+
+  if (currentMember && currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  try {
+    const runs = await api('api/transactions/dedup/runs?limit=20');
+    if (!Array.isArray(runs) || runs.length === 0) {
+      list.innerHTML = '<div class="empty-state">No duplicate cleanup runs yet.</div>';
+      return;
+    }
+
+    list.innerHTML = runs.map(r => `
+      <div class="admin-row">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+            <strong>Run #${r.id}</strong>
+            <span class="status-good">${esc(r.strategy || 'prefer_plaid')}</span>
+          </div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
+            ${fmtDateTime(r.created_at)} · by ${esc(r.created_by || 'system')}
+          </div>
+        </div>
+        <div style="text-align:right;font-size:0.8rem;color:var(--muted)">
+          <div><span class="label">Suppressed</span> <strong>${r.txns_hidden}</strong></div>
+          <div><span class="label">Category copied</span> <strong>${r.category_copied}</strong></div>
+          <div><span class="label">Ambiguous skipped</span> <strong>${r.ambiguous_count}</strong></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state">Error loading history: ${esc(err.message)}</div>`;
   }
 }
 
@@ -370,6 +411,18 @@ function timeAgo(dateStr) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function fmtDateTime(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'Unknown time';
+  return d.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 }
 
 async function api(url, opts) {
