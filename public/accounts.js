@@ -38,7 +38,7 @@ function renderDashboard(data) {
   netEl.classList.remove('loading-pulse');
 
   document.getElementById('balance-breakdown').innerHTML = `
-    <span><span class="label">Liquid</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
+    <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
     <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
   `;

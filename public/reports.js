@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   $('reports-locked').classList.add('hidden');
   $('reports-content').classList.remove('hidden');
+  bindReportInputShortcuts();
   loadReports();
 });
 
@@ -44,48 +45,76 @@ async function loadReports() {
   // Load history
   try {
     const data = await api('api/magic/history');
-    renderHistory(data.reports);
+    renderHistory(data.reports || [], data.queries || []);
   } catch (err) {
     $('monthly-reports-list').innerHTML = '<div class="empty-state">Error loading reports</div>';
+    $('query-history-list').innerHTML = '<div class="empty-state">Error loading history</div>';
   }
 }
 
 // ── Render ───────────────────────────────────────────────────
 
-function renderHistory(reports) {
+function renderHistory(reports, queries) {
   const list = $('monthly-reports-list');
+  const queryList = $('query-history-list');
 
   const monthly = reports.filter(r => r.type === 'monthly');
   const weekly = reports.filter(r => r.type === 'weekly');
 
   if (monthly.length === 0 && weekly.length === 0) {
     list.innerHTML = '<div class="empty-state">No reports generated yet. Reports are created automatically at the start of each month.</div>';
-    return;
+  } else {
+    const all = [...monthly, ...weekly].sort((a, b) =>
+      new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    list.innerHTML = all.map(r => {
+      const typeLabel = r.type === 'monthly' ? 'Monthly Close' : 'Weekly Digest';
+      const date = new Date(r.created_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      return `
+        <div class="report-card">
+          <div class="report-card-header" onclick="toggleReport(this)">
+            <div>
+              <span class="report-type-badge ${r.type}">${typeLabel}</span>
+              <span class="report-period">${formatPeriod(r.period)}</span>
+            </div>
+            <span class="report-date">${date}</span>
+          </div>
+          <div class="report-card-body hidden">
+            <div class="digest-content">${renderMarkdown(r.content)}</div>
+          </div>
+        </div>`;
+    }).join('');
   }
 
-  const all = [...monthly, ...weekly].sort((a, b) =>
-    new Date(b.created_at) - new Date(a.created_at)
-  );
+  if (!queries.length) {
+    queryList.innerHTML = '<div class="empty-state">No Ask Pulse or What-If history yet.</div>';
+  } else {
+    queryList.innerHTML = queries.map(q => {
+      const date = new Date(q.created_at).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      const typeLabel = q.type === 'ask' ? 'Ask Pulse' : 'What-If';
+      const badgeClass = q.type === 'ask' ? 'ask' : 'whatif';
 
-  list.innerHTML = all.map(r => {
-    const typeLabel = r.type === 'monthly' ? 'Monthly Close' : 'Weekly Digest';
-    const date = new Date(r.created_at).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric'
-    });
-    return `
-      <div class="report-card">
-        <div class="report-card-header" onclick="toggleReport(this)">
-          <div>
-            <span class="report-type-badge ${r.type}">${typeLabel}</span>
-            <span class="report-period">${formatPeriod(r.period)}</span>
+      return `
+        <div class="report-card">
+          <div class="report-card-header" onclick="toggleReport(this)">
+            <div>
+              <span class="report-type-badge ${badgeClass}">${typeLabel}</span>
+              <span class="report-period">${esc(q.prompt)}</span>
+            </div>
+            <span class="report-date">${date}</span>
           </div>
-          <span class="report-date">${date}</span>
-        </div>
-        <div class="report-card-body hidden">
-          <div class="digest-content">${renderMarkdown(r.content)}</div>
-        </div>
-      </div>`;
-  }).join('');
+          <div class="report-card-body hidden">
+            <div class="report-date" style="margin-bottom:0.75rem">${esc(q.prompt)}</div>
+            <div class="digest-content">${renderMarkdown(q.content)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
 }
 
 function toggleReport(header) {
@@ -107,6 +136,11 @@ function reportAskPreset(btn) {
   submitReportAsk();
 }
 
+function bindReportInputShortcuts() {
+  bindEnterSubmit('report-ask-input', submitReportAsk);
+  bindEnterSubmit('report-whatif-input', submitReportWhatIf);
+}
+
 async function submitReportAsk() {
   const input = $('report-ask-input');
   const question = input.value.trim();
@@ -124,6 +158,7 @@ async function submitReportAsk() {
     });
     result.innerHTML = renderMarkdown(data.answer || 'No response.');
     showDisclaimer();
+    loadReports();
   } catch (err) {
     result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
   }
@@ -148,6 +183,7 @@ async function submitReportWhatIf() {
     });
     result.innerHTML = renderMarkdown(data.forecast || 'No response.');
     showDisclaimer();
+    loadReports();
   } catch (err) {
     result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
   }
@@ -179,6 +215,17 @@ function renderMarkdown(text) {
     .filter(p => p.trim())
     .map(p => `<p>${esc(p)}</p>`)
     .join('');
+}
+
+function bindEnterSubmit(id, handler) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    event.preventDefault();
+    handler();
+  });
 }
 
 async function api(url, opts) {

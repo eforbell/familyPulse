@@ -790,7 +790,7 @@ header h1 {
 }
 
 .budget-summary {
-  background: linear-gradient(145deg, #1a1a1a 0%, #0d2818 100%);
+  background: linear-gradient(145deg, var(--hero-from) 0%, var(--hero-to) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.5rem;
@@ -802,7 +802,7 @@ header h1 {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 80% 20%, rgba(16,185,129,.07) 0%, transparent 60%);
+  background: radial-gradient(circle at 80% 20%, var(--hero-glow) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -1372,10 +1372,23 @@ header h1 {
   background: rgba(96,165,250,0.15);
   color: var(--blue);
 }
+.report-type-badge.ask {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.report-type-badge.whatif {
+  background: rgba(234,179,8,0.15);
+  color: var(--yellow);
+}
 
 .report-period {
   font-weight: 500;
   font-size: 0.9rem;
+  display: inline-block;
+  max-width: min(34rem, 55vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .report-date {

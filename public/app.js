@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   populateFilterDropdowns();
   await loadTransactions();
   loadMagicPanel();
+  bindMagicInputShortcuts();
 
   // Filter listeners
   $('filter-account').addEventListener('change', resetAndLoad);
@@ -92,7 +93,7 @@ function renderDashboard(data) {
   $('net-amount').classList.remove('loading-pulse');
 
   $('balance-breakdown').innerHTML = `
-    <span><span class="label">Liquid</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
+    <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
     <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
   `;
@@ -408,6 +409,17 @@ function debounce(fn, ms) {
   };
 }
 
+function bindEnterSubmit(id, handler) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    event.preventDefault();
+    handler();
+  });
+}
+
 async function api(url, opts) {
   const res = await fetch(url, opts);
   if (res.status === 401) {
@@ -477,6 +489,11 @@ function toggleMagicCard(id) {
 function askPreset(btn) {
   $('ask-input').value = btn.dataset.q;
   submitAsk();
+}
+
+function bindMagicInputShortcuts() {
+  bindEnterSubmit('ask-input', submitAsk);
+  bindEnterSubmit('whatif-input', submitWhatIf);
 }
 
 async function submitAsk() {
