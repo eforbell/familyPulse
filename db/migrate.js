@@ -11,10 +11,14 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const { ensureTestDatabaseEnvironment } = require('./test-env');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 async function migrate() {
+  if (process.env.NODE_ENV === 'test') {
+    ensureTestDatabaseEnvironment();
+  }
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {

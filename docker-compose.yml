@@ -6,10 +6,12 @@ services:
       POSTGRES_USER: familypulse
       POSTGRES_PASSWORD: familypulse
       POSTGRES_DB: familypulse
+      POSTGRES_TEST_DB: familypulse_test
     ports:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./db/initdb:/docker-entrypoint-initdb.d
 
 volumes:
   pgdata:
