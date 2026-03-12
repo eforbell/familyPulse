@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pulse — Login</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100dvh; }
+    .login-box {
+      width: 100%; max-width: 380px; padding: 2rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .login-box h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .login-box p { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .login-members { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .login-member {
+      display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+      padding: 1rem; background: var(--surface2); border: 2px solid var(--border);
+      border-radius: var(--radius); color: var(--text); font-size: 0.95rem;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .login-member:hover { border-color: var(--accent); background: rgba(16,185,129,0.06); }
+    .login-member.selected { border-color: var(--accent); background: rgba(16,185,129,0.1); }
+    .login-member .emoji { font-size: 2rem; }
+    .login-form { display: none; flex-direction: column; gap: 0.75rem; }
+    .login-form.visible { display: flex; }
+    .login-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); padding: 0.6rem 0.75rem; font-size: 0.95rem;
+    }
+    .login-input:focus { outline: none; border-color: var(--accent); }
+    .login-error { color: var(--red); font-size: 0.85rem; min-height: 1.2em; }
+    .login-back { font-size: 0.85rem; text-align: center; margin-top: 0.5rem; }
+    .login-back a { color: var(--muted); cursor: pointer; }
+    .login-back a:hover { color: var(--accent); }
+    .no-auth-note { color: var(--dim); font-size: 0.8rem; text-align: center; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>Pulse</h1>
+    <p>Who are you?</p>
+
+    <div id="member-grid" class="login-members"></div>
+
+    <div id="passphrase-form" class="login-form">
+      <input type="password" id="passphrase-input" class="login-input"
+             placeholder="Enter passphrase" autocomplete="current-password">
+      <button id="login-btn" class="btn-primary" style="width:100%;padding:0.65rem">Sign In</button>
+      <div id="login-error" class="login-error"></div>
+      <div class="login-back"><a onclick="backToMembers()">Choose different person</a></div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    let members = [];
+    let selectedId = null;
+
+    async function boot() {
+      // Check if already authenticated
+      try {
+        const res = await fetch('api/auth/me');
+        if (res.ok) { window.location.replace('./'); return; }
+      } catch {}
+
+      // Load members
+      try {
+        const res = await fetch('api/auth/members');
+        if (!res.ok) throw new Error('Failed to load');
+        members = await res.json();
+        renderMembers();
+      } catch (err) {
+        document.getElementById('member-grid').innerHTML =
+          '<div style="grid-column:1/-1;color:var(--red);text-align:center">Failed to load members</div>';
+      }
+    }
+
+    function esc(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderMembers() {
+      const grid = document.getElementById('member-grid');
+      grid.innerHTML = members.map(m =>
+        `<button class="login-member" data-id="${m.id}" onclick="pickMember(${m.id})">
+          <span class="emoji">${m.avatar_emoji || '\u{1F464}'}</span>
+          <span>${esc(m.name)}</span>
+        </button>`
+      ).join('');
+    }
+
+    function pickMember(id) {
+      const member = members.find(m => m.id === id);
+      if (!member) return;
+      selectedId = id;
+
+      const anyAuthEnabled = members.some(m => m.has_passphrase);
+
+      if (!anyAuthEnabled) {
+        // No passphrases set at all — just log in directly (pre-auth member picker)
+        doLoginWithoutPassphrase(id);
+        return;
+      }
+
+      if (!member.has_passphrase) {
+        document.getElementById('login-error').textContent = 'No passphrase set. Ask a parent to set one in Settings.';
+        document.getElementById('passphrase-input').style.display = 'none';
+        document.getElementById('login-btn').style.display = 'none';
+      } else {
+        document.getElementById('login-error').textContent = '';
+        document.getElementById('passphrase-input').style.display = '';
+        document.getElementById('login-btn').style.display = '';
+      }
+
+      // Highlight selected
+      document.querySelectorAll('.login-member').forEach(btn => {
+        btn.classList.toggle('selected', parseInt(btn.dataset.id) === id);
+      });
+
+      document.getElementById('passphrase-form').classList.add('visible');
+      const input = document.getElementById('passphrase-input');
+      input.value = '';
+      if (member.has_passphrase) input.focus();
+    }
+
+    async function doLoginWithoutPassphrase(id) {
+      try {
+        const res = await fetch('api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_id: id })
+        });
+        if (!res.ok) throw new Error('Login failed');
+        window.location.replace('./');
+      } catch (err) {
+        document.getElementById('login-error').textContent = err.message;
+      }
+    }
+
+    function backToMembers() {
+      selectedId = null;
+      document.getElementById('passphrase-form').classList.remove('visible');
+      document.querySelectorAll('.login-member').forEach(b => b.classList.remove('selected'));
+    }
+
+    async function doLogin() {
+      if (!selectedId) return;
+      const passphrase = document.getElementById('passphrase-input').value;
+      if (!passphrase) {
+        document.getElementById('login-error').textContent = 'Enter your passphrase';
+        return;
+      }
+
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+      document.getElementById('login-error').textContent = '';
+
+      try {
+        const res = await fetch('api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ member_id: selectedId, passphrase })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Login failed');
+        }
+        window.location.replace('./');
+      } catch (err) {
+        document.getElementById('login-error').textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', doLogin);
+    document.getElementById('passphrase-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    boot();
+  </script>
+</body>
+</html>

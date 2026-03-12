@@ -1,12 +1,18 @@
 /* eslint-disable no-unused-vars */
 'use strict';
 
-let currentMember = JSON.parse(localStorage.getItem('fp_member') || 'null');
+let currentMember = null;
 let magicDisclaimer = '';
 
 // ── Boot ─────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('api/auth/me');
+    if (res.ok) { currentMember = await res.json(); }
+    else { window.location.replace('login.html'); return; }
+  } catch { window.location.replace('login.html'); return; }
+
   if (!currentMember || currentMember.role !== 'parent') {
     $('reports-locked').classList.remove('hidden');
     $('reports-content').classList.add('hidden');
@@ -20,18 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Data ─────────────────────────────────────────────────────
 
 async function loadReports() {
-  const params = memberParam();
-
   // Load disclaimer
   try {
-    const cfg = await api(`api/magic/config${params}`);
+    const cfg = await api('api/magic/config');
     const row = cfg.config.find(c => c.key === 'magic_disclaimer');
     magicDisclaimer = row ? row.value : '';
   } catch { /* ignore */ }
 
   // Load presets
   try {
-    const data = await api(`api/magic/presets${params}`);
+    const data = await api('api/magic/presets');
     $('report-presets').innerHTML = data.presets.map(q =>
       `<button class="magic-preset-btn" onclick="reportAskPreset(this)" data-q="${esc(q)}">${esc(q)}</button>`
     ).join('');
@@ -39,7 +43,7 @@ async function loadReports() {
 
   // Load history
   try {
-    const data = await api(`api/magic/history${params}`);
+    const data = await api('api/magic/history');
     renderHistory(data.reports);
   } catch (err) {
     $('monthly-reports-list').innerHTML = '<div class="empty-state">Error loading reports</div>';
@@ -116,7 +120,7 @@ async function submitReportAsk() {
     const data = await api('api/magic/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, member: currentMember?.name })
+      body: JSON.stringify({ question })
     });
     result.innerHTML = renderMarkdown(data.answer || 'No response.');
     showDisclaimer();
@@ -140,7 +144,7 @@ async function submitReportWhatIf() {
     const data = await api('api/magic/what-if', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario, member: currentMember?.name })
+      body: JSON.stringify({ scenario })
     });
     result.innerHTML = renderMarkdown(data.forecast || 'No response.');
     showDisclaimer();
@@ -168,11 +172,6 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-function memberParam() {
-  if (!currentMember) return '';
-  return `?member=${encodeURIComponent(currentMember.name)}`;
-}
-
 function renderMarkdown(text) {
   if (!text) return '';
   return text
@@ -184,6 +183,10 @@ function renderMarkdown(text) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);

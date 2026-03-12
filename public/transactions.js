@@ -434,6 +434,10 @@ function debounce(fn, ms) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);

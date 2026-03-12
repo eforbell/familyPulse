@@ -19,3 +19,32 @@
   - Budget page links: uncategorized card + "View all" in category detail overlay
   - Dashboard account cards deep-link to transactions filtered by account
 - Feature 5 (Hot Spots & Anomaly Detection) up next.
+
+2026-03-10 (cont.)
+- Feature 5 (Hot Spots & Anomaly Detection) complete and merged to main.
+  - Anomaly detector engine: current month vs 3-month rolling avg, 130% threshold
+  - Small-dollar exclusion (<$25/mo categories filtered out)
+  - Hot spots panel on dashboard
+  - Migration 005: anomaly detection tables
+- Feature 6 (Kids View) skipped — not needed at this stage.
+- Feature 7 (Magic Actions / LLM Layer) complete and merged to main.
+  - Context assembler for rich financial context to LLM prompts
+  - Weekly digest generator (OpenAI-powered narrative summaries)
+  - Monthly close analysis
+  - What-if scenario analysis
+  - On-demand natural language queries
+  - Magic actions API routes + reports page UI
+  - Settings page OpenAI configuration
+  - 3 new test files (context-assembler, magic-actions, what-if)
+- Navigation system: left sidebar (desktop) + bottom bar (mobile)
+- Deep-link account cards to transactions page
+
+2026-03-10–11 (fixes & enhancements)
+- Plaid OAuth callback resume flow fixed
+- Plaid production readiness: startup validation, sync error handling
+- Plaid category fallback mappings (plaid-category-mapper.js)
+- Transfer category manual assignment from dashboard and transactions page
+
+2026-03-11
+- Project status: Features 1–5 and 7 complete. Feature 6 skipped.
+- Remaining: Feature 8 (MCP Server), Feature 9 (Planning & Goals).

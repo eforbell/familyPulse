@@ -5,10 +5,16 @@
 
 let currentPeriod = getCurrentPeriod();
 let summaryData = null;
+let currentMember = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('api/auth/me');
+    if (res.ok) { currentMember = await res.json(); }
+    else { window.location.replace('login.html'); return; }
+  } catch { window.location.replace('login.html'); return; }
   loadBudget();
 });
 
@@ -104,9 +110,7 @@ async function renderDigest() {
   const panel = $('digest-panel');
   const content = $('digest-content');
   try {
-    const member = JSON.parse(localStorage.getItem('fp_member') || 'null');
-    const memberQ = member ? `&member=${encodeURIComponent(member.name)}` : '';
-    const data = await api(`api/magic/digest?period=${currentPeriod}${memberQ}`);
+    const data = await api(`api/magic/digest?period=${currentPeriod}`);
     if (!data.digest) {
       panel.classList.add('hidden');
       return;
@@ -283,6 +287,10 @@ function formatDate(dateStr) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);

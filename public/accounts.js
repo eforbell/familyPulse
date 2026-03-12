@@ -1,23 +1,27 @@
 /* accounts.js — Accounts page: net position + account grid */
 'use strict';
 
-let currentMember = JSON.parse(localStorage.getItem('fp_member') || 'null');
-let membersCache = [];
+let currentMember = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Get current member from session — redirect to login if none
+  try {
+    const res = await fetch('api/auth/me');
+    if (res.ok) { currentMember = await res.json(); }
+    else { window.location.replace('login.html'); return; }
+  } catch { window.location.replace('login.html'); return; }
+
   updateWhoBtn();
   await loadAccounts();
-  if (!currentMember) setTimeout(openMemberPicker, 400);
 });
 
 // ── Data ─────────────────────────────────────────────────────
 
 async function loadAccounts() {
   try {
-    const params = currentMember ? `?member=${encodeURIComponent(currentMember.name)}` : '';
-    const data = await api(`api/accounts/dashboard${params}`);
+    const data = await api('api/accounts/dashboard');
     renderDashboard(data);
   } catch (err) {
     document.getElementById('net-amount').textContent = 'Error loading';
@@ -64,34 +68,19 @@ function renderDashboard(data) {
   }
 }
 
-// ── Member picker ────────────────────────────────────────────
+// ── Auth actions ─────────────────────────────────────────────
 
-async function openMemberPicker() {
-  try {
-    membersCache = await api('api/family-members');
-    const list = document.getElementById('member-list');
-    list.innerHTML = membersCache.map(m => `
-      <button class="member-btn" onclick="selectMember(${m.id})">
-        <span class="emoji">${m.avatar_emoji || '👤'}</span>
-        <span>${esc(m.name)}</span>
-      </button>
-    `).join('');
-    document.getElementById('member-overlay').classList.remove('hidden');
-  } catch (err) {
-    console.error('Failed to load members:', err);
-  }
-}
-
-function selectMember(id) {
-  currentMember = membersCache.find(m => m.id === id);
-  localStorage.setItem('fp_member', JSON.stringify(currentMember));
-  updateWhoBtn();
-  document.getElementById('member-overlay').classList.add('hidden');
-  loadAccounts();
+async function doLogout() {
+  try { await fetch('api/auth/logout', { method: 'POST' }); } catch {}
+  window.location.replace('login.html');
 }
 
 function updateWhoBtn() {
-  document.getElementById('who-btn').textContent = currentMember ? (currentMember.avatar_emoji || '👤') : '👤';
+  const btn = document.getElementById('who-btn');
+  if (!btn) return;
+  btn.textContent = currentMember ? (currentMember.avatar_emoji || '\u{1F464}') : '\u{1F464}';
+  btn.onclick = currentMember ? doLogout : null;
+  btn.title = currentMember ? 'Sign out' : '';
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -112,6 +101,10 @@ function fmtMoney(amount) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);

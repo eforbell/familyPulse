@@ -149,6 +149,9 @@ describe('link_sessions table', () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0].status, 'pending');
     assert.equal(rows[0].owner, 'Eric');
+
+    // Keep this test isolated from oauth callback tests that rely on a single pending session.
+    await pool.query("DELETE FROM link_sessions WHERE link_token = 'test-lt-1'");
   });
 });
 
@@ -161,6 +164,9 @@ describe('GET /oauth/callback', () => {
   });
 
   it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
+    // Ensure deterministic setup for findOrBindOauthSession (expects exactly one pending null-oauth session).
+    await pool.query("DELETE FROM link_sessions WHERE link_token LIKE 'test-lt-%'");
+
     const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
     await pool.query(`
       INSERT INTO link_sessions (link_token, status, owner, expires_at)

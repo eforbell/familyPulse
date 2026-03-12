@@ -5,11 +5,11 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { pool } = require('../lib/db');
 
-// Use a fixed test period
-const TEST_PERIOD = '2025-06';
-const PRIOR_PERIOD = '2025-05';
-const TWO_AGO = '2025-04';
-const THREE_AGO = '2025-03';
+// Use an isolated far-future period to avoid collisions with real household data.
+const TEST_PERIOD = '2099-06';
+const PRIOR_PERIOD = '2099-05';
+const TWO_AGO = '2099-04';
+const THREE_AGO = '2099-03';
 
 describe('budget-calculator', () => {
   let testCatId, incomeCatId, transferCatId, uncatId, accountId;
@@ -102,44 +102,44 @@ describe('budget-calculator', () => {
     await pool.query(`
       INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
       VALUES
-        ('test-budget-1', $1, 120.00, '2025-06-05', 'Grocery Store', $2, false),
-        ('test-budget-2', $1, 80.00,  '2025-06-15', 'Gas Station', $2, false),
-        ('test-budget-3', $1, 50.00,  '2025-06-20', 'Test Merchant', $2, false)
-    `, [accountId, testCatId]);
+        ('test-budget-1', $1, 120.00, $3::date, 'Grocery Store', $2, false),
+        ('test-budget-2', $1, 80.00,  $4::date, 'Gas Station', $2, false),
+        ('test-budget-3', $1, 50.00,  $5::date, 'Test Merchant', $2, false)
+    `, [accountId, testCatId, `${TEST_PERIOD}-05`, `${TEST_PERIOD}-15`, `${TEST_PERIOD}-20`]);
 
     // Insert income (negative amounts in Plaid = credits)
     await pool.query(`
       INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
-      VALUES ('test-budget-income-1', $1, -5000.00, '2025-06-01', 'Employer', $2, false)
-    `, [accountId, incomeCatId]);
+      VALUES ('test-budget-income-1', $1, -5000.00, $3::date, 'Employer', $2, false)
+    `, [accountId, incomeCatId, `${TEST_PERIOD}-01`]);
 
     // Insert transfer (should be excluded)
     await pool.query(`
       INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
-      VALUES ('test-budget-xfer-1', $1, 1000.00, '2025-06-10', 'Transfer Out', $2, true)
-    `, [accountId, transferCatId]);
+      VALUES ('test-budget-xfer-1', $1, 1000.00, $3::date, 'Transfer Out', $2, true)
+    `, [accountId, transferCatId, `${TEST_PERIOD}-10`]);
 
     // Insert prior month spending for rolling avg
     await pool.query(`
       INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
       VALUES
-        ('test-budget-prior-1', $1, 200.00, '2025-05-10', 'Prior Month', $2, false),
-        ('test-budget-prior-2', $1, 150.00, '2025-04-10', 'Two Months Ago', $2, false),
-        ('test-budget-prior-3', $1, 300.00, '2025-03-10', 'Three Months Ago', $2, false)
-    `, [accountId, testCatId]);
+        ('test-budget-prior-1', $1, 200.00, $3::date, 'Prior Month', $2, false),
+        ('test-budget-prior-2', $1, 150.00, $4::date, 'Two Months Ago', $2, false),
+        ('test-budget-prior-3', $1, 300.00, $5::date, 'Three Months Ago', $2, false)
+    `, [accountId, testCatId, `${PRIOR_PERIOD}-10`, `${TWO_AGO}-10`, `${THREE_AGO}-10`]);
 
     // Insert prior month income
     await pool.query(`
       INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
-      VALUES ('test-budget-income-prior', $1, -4500.00, '2025-05-01', 'Employer', $2, false)
-    `, [accountId, incomeCatId]);
+      VALUES ('test-budget-income-prior', $1, -4500.00, $3::date, 'Employer', $2, false)
+    `, [accountId, incomeCatId, `${PRIOR_PERIOD}-01`]);
 
     // Insert uncategorized
     if (uncatId) {
       await pool.query(`
         INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, category_id, is_transfer)
-        VALUES ('test-budget-uncat-1', $1, 25.00, '2025-06-18', 'Random Store', $2, false)
-      `, [accountId, uncatId]);
+        VALUES ('test-budget-uncat-1', $1, 25.00, $3::date, 'Random Store', $2, false)
+      `, [accountId, uncatId, `${TEST_PERIOD}-18`]);
     }
   });
 

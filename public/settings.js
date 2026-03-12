@@ -6,14 +6,31 @@
 let items = [];
 let familyMembers = [];
 let ownerTarget = null; // item id being assigned
-
-let currentMember = JSON.parse(localStorage.getItem('fp_member') || 'null');
+let currentMember = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Get current member from session
+  try {
+    const res = await fetch('api/auth/me');
+    if (res.ok) {
+      currentMember = await res.json();
+    } else if (res.status === 401) {
+      const membersRes = await fetch('api/auth/members');
+      if (membersRes.ok) {
+        const members = await membersRes.json();
+        if (members.some(m => m.has_passphrase)) {
+          window.location.replace('login.html');
+          return;
+        }
+      }
+    }
+  } catch {}
+
   await Promise.all([loadItems(), loadMembers()]);
   loadAIPrompts();
+  loadPassphraseManager();
 });
 
 // ── Data fetching ────────────────────────────────────────────
@@ -250,6 +267,90 @@ async function triggerFullSync() {
   }
 }
 
+// ── Passphrase management (parents only) ────────────────────
+
+async function loadPassphraseManager() {
+  const section = document.getElementById('passphrase-section');
+  if (!section) return;
+
+  // Show if: no auth enabled yet (so Eric can set first passphrase), or current user is parent
+  const isBootstrap = currentMember == null;
+  if (!isBootstrap && currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  try {
+    const members = await api('api/auth/members');
+    const container = document.getElementById('passphrase-list');
+
+    // In bootstrap mode, show bootstrap secret input
+    const bootstrapHtml = isBootstrap ? `
+      <div class="admin-row" style="background:var(--surface-hover);margin-bottom:0.5rem">
+        <div style="flex:1;min-width:0">
+          <strong>Bootstrap Secret</strong>
+          <div style="font-size:0.8rem;color:var(--muted)">Required for initial setup (from BOOTSTRAP_SECRET env var)</div>
+        </div>
+        <div style="flex-shrink:0">
+          <input type="password" id="bootstrap-secret-input" placeholder="Bootstrap secret" class="login-input" style="width:180px;padding:0.4rem 0.5rem;font-size:0.8rem">
+        </div>
+      </div>
+    ` : '';
+
+    container.innerHTML = bootstrapHtml + members.map(m => `
+      <div class="admin-row" data-member-id="${m.id}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <span>${m.avatar_emoji || '\u{1F464}'}</span>
+            <strong>${esc(m.name)}</strong>
+            <span class="role-badge">${esc(m.role)}</span>
+            ${m.has_passphrase ? '<span class="status-good">Set</span>' : '<span class="status-error">Not set</span>'}
+          </div>
+        </div>
+        <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+          <input type="password" id="pass-${m.id}" placeholder="New passphrase" class="login-input" style="width:150px;padding:0.4rem 0.5rem;font-size:0.8rem">
+          <button class="btn-primary" onclick="setPassphrase(${m.id})" style="padding:0.4rem 0.75rem;font-size:0.8rem">Set</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Passphrase manager load failed:', err);
+  }
+}
+
+async function setPassphrase(memberId) {
+  const input = document.getElementById('pass-' + memberId);
+  const passphrase = input.value.trim();
+  if (!passphrase) { alert('Enter a passphrase'); return; }
+  if (passphrase.length < 4) { alert('Passphrase must be at least 4 characters'); return; }
+
+  const body = { member_id: memberId, passphrase };
+  const headers = { 'Content-Type': 'application/json' };
+
+  // In bootstrap mode, include the bootstrap secret
+  const bootstrapInput = document.getElementById('bootstrap-secret-input');
+  if (bootstrapInput) {
+    const secret = bootstrapInput.value.trim();
+    if (!secret) { alert('Enter the bootstrap secret'); return; }
+    headers['X-Bootstrap-Secret'] = secret;
+  }
+
+  try {
+    await api('api/auth/passphrase', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(body)
+    });
+    input.value = '';
+    input.style.borderColor = 'var(--green)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    await loadPassphraseManager();
+  } catch (err) {
+    alert('Failed to set passphrase: ' + err.message);
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function esc(str) {
@@ -273,6 +374,10 @@ function timeAgo(dateStr) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
@@ -299,10 +404,8 @@ async function loadAIPrompts() {
     return;
   }
 
-  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
-
   try {
-    const data = await api(`api/magic/config${memberQ}`);
+    const data = await api('api/magic/config');
     document.getElementById('ai-prompts-section').classList.remove('hidden');
 
     // Usage stats
@@ -352,13 +455,12 @@ function togglePrompt(key) {
 async function savePrompt(key) {
   const el = document.getElementById('prompt-' + key);
   const value = el.value;
-  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
 
   try {
-    await api(`api/magic/config/${key}${memberQ}`, {
+    await api(`api/magic/config/${key}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value, member: currentMember.name })
+      body: JSON.stringify({ value })
     });
     DEFAULT_PROMPTS[key] = value;
     el.style.borderColor = 'var(--green)';
@@ -371,9 +473,6 @@ async function savePrompt(key) {
 async function resetPrompt(key) {
   // Re-seed the default by reading seed.sql defaults
   // For simplicity, we reload from the server after resetting
-  const memberQ = `?member=${encodeURIComponent(currentMember.name)}`;
-  // The seed.sql has ON CONFLICT DO UPDATE, so re-running seed would reset.
-  // Instead, we'll just reload defaults. User can re-run seed.
   // For now, reload the current default from our stored copy.
   const el = document.getElementById('prompt-' + key);
   if (DEFAULT_PROMPTS[key] !== undefined) {

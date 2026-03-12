@@ -1,0 +1,165 @@
+{
+  "branchName": "feature/household-auth",
+  "projectName": "Household Authentication",
+  "description": "Simple passphrase-based authentication with persistent sessions and parent/kid role scoping. Passphrases set by Eric (admin) and distributed via 1Password. Parents see everything; kids see only their linked accounts. Replaces the current localStorage member picker with server-enforced identity.",
+  "timing": {
+    "draftedOn": "2026-03-11",
+    "plannedEarliestExecution": "after Feature 7",
+    "gatingCondition": "Feature 7 complete. Prerequisite for Feature 6 (Kids View)."
+  },
+  "principles": [
+    "Auth should be invisible day-to-day — 30-day sessions, no constant re-login",
+    "Passphrases set by admin (Eric) and pushed via 1Password — no self-service password flow",
+    "Two roles only: parent (full access) and kid (scoped access) — no RBAC complexity",
+    "Server-side enforcement — role checks in middleware, not UI hiding",
+    "SECRETS INVARIANT — passphrase hashes never appear in API responses, logs, or client code"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL (sessions table, passphrase_hash on family_members)",
+    "crypto": "Node built-in crypto.scryptSync for hashing, crypto.randomUUID for session tokens",
+    "testing": "node:test for auth logic, middleware, and role scoping"
+  },
+  "userStories": [
+    {
+      "id": "AUTH-001",
+      "title": "Passphrase hashing and session management",
+      "acceptanceCriteria": [
+        "lib/auth.js: hashPassphrase(plain) → scrypt hash with random salt",
+        "lib/auth.js: verifyPassphrase(plain, hash) → boolean",
+        "lib/auth.js: createSession(memberId) → generates crypto.randomUUID token, stores in sessions table with 30-day expiry",
+        "lib/auth.js: validateSession(token) → returns member record or null",
+        "lib/auth.js: destroySession(token) → deletes from sessions table",
+        "Expired sessions cleaned up periodically (daily cron or on-access)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "Unit tests: hash round-trip, session create/validate/expire/destroy. Verify passphrase_hash never returned from any query.",
+      "passes": false
+    },
+    {
+      "id": "AUTH-002",
+      "title": "Auth middleware and role enforcement",
+      "acceptanceCriteria": [
+        "Express middleware reads session token from HttpOnly cookie (fp_session)",
+        "Valid session: attaches req.member (id, name, role) to request",
+        "Invalid/missing session: returns 401 JSON for API routes",
+        "GET requests to static files and /api/health bypass auth",
+        "POST /api/auth/login and GET /login.html bypass auth",
+        "Role middleware: requireParent() rejects kid role with 403",
+        "Admin routes (settings, link, import) require parent role",
+        "Kid-accessible routes: dashboard (scoped), transactions (scoped), budget (scoped)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-30",
+      "testStrategy": "Middleware unit tests: valid session, expired session, missing cookie, parent-only route with kid session. Integration test for full request cycle.",
+      "passes": false
+    },
+    {
+      "id": "AUTH-003",
+      "title": "Auth API routes",
+      "acceptanceCriteria": [
+        "POST /api/auth/login — accepts { member_id, passphrase }, returns session cookie + member info",
+        "POST /api/auth/logout — clears session cookie, destroys session in DB",
+        "GET /api/auth/me — returns current authenticated member (id, name, role, avatar_emoji)",
+        "PUT /api/auth/passphrase — parent-only, sets passphrase for any member (admin distributes via 1Password)",
+        "Login route returns 401 on wrong passphrase, no timing information leakage",
+        "Members without a passphrase_hash cannot log in (setup required first)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "API tests: successful login, wrong passphrase, missing passphrase, logout clears session, /me returns correct member, passphrase set by parent only.",
+      "passes": false
+    },
+    {
+      "id": "AUTH-004",
+      "title": "Login page UI",
+      "acceptanceCriteria": [
+        "public/login.html — standalone page, same dark theme and emerald accent",
+        "Member picker: shows family member buttons (avatar + name)",
+        "Passphrase input field with submit",
+        "Error message on failed login",
+        "On success: redirect to index.html (dashboard)",
+        "If already authenticated (valid session), skip login and go to dashboard"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-0",
+      "testStrategy": "Manual UI testing. Verify redirect on valid session. Verify error display on bad passphrase.",
+      "passes": false
+    },
+    {
+      "id": "AUTH-005",
+      "title": "Frontend auth integration",
+      "acceptanceCriteria": [
+        "Remove localStorage fp_member usage — identity comes from session",
+        "app.js: on load, call GET /api/auth/me to get current member",
+        "If 401: redirect to login.html",
+        "Remove member picker overlay — member is set by login, not manual selection",
+        "Parents get 'Switch user' option (logout + re-login) in nav/settings",
+        "All api() fetch calls: 401 response triggers redirect to login",
+        "Kid role: hide nav links to settings, admin, import, link pages"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-80",
+      "testStrategy": "Manual UI testing across member roles. Verify kids cannot navigate to restricted pages.",
+      "passes": false
+    },
+    {
+      "id": "AUTH-006",
+      "title": "Data scoping for kid role",
+      "acceptanceCriteria": [
+        "account_members join table: links accounts to family members",
+        "Parent setup UI in settings: assign accounts to kids",
+        "API queries for kid role automatically filter to their linked accounts only",
+        "Kid cannot see other members' transactions, balances, or budget data",
+        "Kid cannot access anomaly detection, magic actions, or admin features",
+        "Scoping enforced at query level, not UI level"
+      ],
+      "priority": 2,
+      "estimatedLines": "+150/-20",
+      "testStrategy": "Unit tests: kid query returns only linked account data. Integration test: kid session cannot access parent account data. Verify no cross-account leakage.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Passphrase hashes must never appear in API responses or logs — extend secrets-guard to cover passphrase_hash column"
+    ],
+    "medium": [
+      "Session cookie security: HttpOnly + SameSite=Strict. No Secure flag needed (Tailscale, no public internet)",
+      "Migration must handle existing family_members rows gracefully — passphrase_hash starts NULL, login disabled until set"
+    ],
+    "low": [
+      "30-day session expiry may be annoying on rarely-used devices — configurable via app_config if needed"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm: no self-service password set/reset — Eric sets all passphrases and pushes via 1Password",
+    "Confirm: two roles only (parent, kid) — no guest or read-only role",
+    "Confirm: 30-day session lifetime default",
+    "Confirm: kids see only linked accounts (account_members mapping set by parent in settings)"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+660/-130",
+    "storiesCount": 6,
+    "filesCreated": [
+      "db/migrations/006-authentication.sql",
+      "lib/auth.js",
+      "lib/routes/auth.js",
+      "public/login.html",
+      "test/auth.test.js",
+      "test/auth-middleware.test.js"
+    ],
+    "filesModified": [
+      "server.js",
+      "public/app.js",
+      "public/settings.html",
+      "public/settings.js",
+      "lib/routes/transactions.js",
+      "lib/routes/accounts.js",
+      "lib/routes/budget.js",
+      "db/seed.sql"
+    ]
+  }
+}

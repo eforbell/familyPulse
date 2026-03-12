@@ -6,13 +6,125 @@ const { pool } = require('./lib/db');
 const { syncAll } = require('./lib/sync');
 const logger = require('./lib/logger');
 const { validateStartupConfig } = require('./lib/startup-validation');
+const { validateSession, authEnabled, parseCookie, cleanExpiredSessions } = require('./lib/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
 const TZ = process.env.HOUSEHOLD_TIMEZONE || 'America/New_York';
 
+const { requireAuth, requireParent } = require('./lib/auth');
+
 app.use(express.json());
+
+// ── Session middleware ───────────────────────────────────────
+// Attaches req.member if a valid session cookie exists.
+
+app.use(async (req, res, next) => {
+  try {
+    const token = parseCookie(req.headers.cookie, 'fp_session');
+    if (token) {
+      const session = await validateSession(token);
+      if (session) {
+        req.member = { id: session.id, name: session.name, role: session.role, avatar_emoji: session.avatar_emoji };
+      }
+    }
+  } catch (err) {
+    logger.error('Session validation error', { error: err.message });
+  }
+  next();
+});
+
+// ── Auth-gated page serving ──────────────────────────────────
+// When auth is enabled, unauthenticated HTML requests redirect to login.
+// Runs BEFORE express.static so pages can't be served without auth.
+
+const HTML_PAGES = new Set([
+  '/', '/index.html', '/accounts.html', '/transactions.html',
+  '/budget.html', '/reports.html', '/admin.html', '/settings.html', '/import.html'
+]);
+
+const PARENT_ONLY_PAGES = new Set([
+  '/settings.html', '/admin.html', '/import.html'
+]);
+
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const urlPath = req.path;
+  if (!HTML_PAGES.has(urlPath)) return next();
+
+  try {
+    const isAuthOn = await authEnabled();
+    if (!isAuthOn) return next();
+
+    if (!req.member) {
+      return res.redirect('login.html');
+    }
+
+    if (req.member.role === 'kid' && PARENT_ONLY_PAGES.has(urlPath)) {
+      return res.redirect('./');
+    }
+  } catch (err) {
+    logger.error('Auth gate error', { error: err.message });
+  }
+  next();
+});
+
+// Static files — AFTER auth gate so HTML pages are protected
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── API auth enforcement ─────────────────────────────────────
+// Blanket auth gate for /api/ routes. Public routes are exempted.
+// Parent-only routes get an additional role check.
+
+const API_PUBLIC = new Set([
+  '/api/health',
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/members'
+]);
+
+const API_PARENT_ONLY_PREFIXES = [
+  '/api/sync', '/api/link', '/api/import', '/api/items',
+  '/api/magic', '/api/anomalies'
+];
+
+const API_PARENT_ONLY_WRITES = [
+  '/api/categories', '/api/rules',
+  '/api/budget/snapshot', '/api/budget/backfill'
+];
+
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+
+  // Always public
+  if (API_PUBLIC.has(req.path)) return next();
+
+  // Bootstrap passphrase endpoint handled by its own guard
+  if (req.path === '/api/auth/passphrase') return next();
+
+  try {
+    const isAuthOn = await authEnabled();
+    if (!isAuthOn) return next();
+  } catch (err) {
+    logger.error('Auth check error', { error: err.message });
+    return next();
+  }
+
+  // Require valid session for all other API routes
+  if (!req.member) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // Parent-only: certain prefixes always, certain paths on write methods
+  const isParentPrefix = API_PARENT_ONLY_PREFIXES.some(p => req.path.startsWith(p));
+  const isParentWrite = API_PARENT_ONLY_WRITES.some(p => req.path.startsWith(p)) && req.method !== 'GET';
+
+  if ((isParentPrefix || isParentWrite) && req.member.role !== 'parent') {
+    return res.status(403).json({ error: 'Parent access required' });
+  }
+
+  next();
+});
 
 // ── Config helpers ───────────────────────────────────────────
 
@@ -30,6 +142,7 @@ async function setCfg(key, value) {
 
 // ── Route modules ────────────────────────────────────────────
 
+app.use(require('./lib/routes/auth'));
 app.use(require('./lib/routes/accounts'));
 app.use(require('./lib/routes/transactions'));
 app.use(require('./lib/routes/categories'));
@@ -120,6 +233,13 @@ if (require.main === module) {
     const { generateMonthlyClose } = require('./lib/magic-actions/monthly-close');
     logger.info('Monthly close cron triggered');
     generateMonthlyClose(null, cfg).catch(err => logger.error('Monthly close failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  // Daily at midnight — clean expired sessions
+  cron.schedule('0 0 * * *', () => {
+    cleanExpiredSessions()
+      .then(n => { if (n > 0) logger.info('Cleaned expired sessions', { count: n }); })
+      .catch(err => logger.error('Session cleanup failed', { error: err.message }));
   }, { timezone: TZ });
 
   app.listen(PORT, '0.0.0.0', () => {

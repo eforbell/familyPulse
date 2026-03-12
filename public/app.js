@@ -3,8 +3,7 @@
 
 // ── State ────────────────────────────────────────────────────
 
-let currentMember = JSON.parse(localStorage.getItem('fp_member') || 'null');
-let membersCache = [];
+let currentMember = null;
 let accounts = [];
 let categories = [];
 let transactions = [];
@@ -18,12 +17,25 @@ let assignTarget = null; // { id, merchant } for single, null for bulk
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Authenticate — redirect to login if no valid session
+  try {
+    const meRes = await fetch('api/auth/me');
+    if (meRes.ok) {
+      currentMember = await meRes.json();
+    } else {
+      window.location.replace('login.html');
+      return;
+    }
+  } catch {
+    window.location.replace('login.html');
+    return;
+  }
+
   updateWhoBtn();
   await Promise.all([loadDashboard(), loadCategories()]);
   populateFilterDropdowns();
   await loadTransactions();
   loadMagicPanel();
-  if (!currentMember) setTimeout(openMemberPicker, 400);
 
   // Filter listeners
   $('filter-account').addEventListener('change', resetAndLoad);
@@ -38,8 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadDashboard() {
   try {
-    const params = memberParam();
-    const data = await api(`api/accounts/dashboard${params}`);
+    const data = await api('api/accounts/dashboard');
     accounts = [];
     Object.values(data.groups).forEach(g => accounts.push(...g));
     renderDashboard(data);
@@ -192,9 +203,6 @@ function buildFilterParams() {
 
   if ($('filter-transfers').checked) p.set('show_transfers', '1');
 
-  // Member scoping
-  if (currentMember) p.set('member', currentMember.name);
-
   return p.toString();
 }
 
@@ -331,37 +339,21 @@ function clearSelection() {
   renderTransactions();
 }
 
-// ── Member picker ────────────────────────────────────────────
+// ── Auth actions ─────────────────────────────────────────────
 
-async function openMemberPicker() {
+async function doLogout() {
   try {
-    membersCache = await api('api/family-members');
-    const list = $('member-list');
-    list.innerHTML = membersCache.map(m => `
-      <button class="member-btn" onclick="selectMember(${m.id})">
-        <span class="emoji">${m.avatar_emoji || '👤'}</span>
-        <span>${esc(m.name)}</span>
-      </button>
-    `).join('');
-    $('member-overlay').classList.remove('hidden');
-  } catch (err) {
-    console.error('Failed to load members:', err);
-  }
-}
-
-function selectMember(id) {
-  currentMember = membersCache.find(m => m.id === id);
-  localStorage.setItem('fp_member', JSON.stringify(currentMember));
-  updateWhoBtn();
-  $('member-overlay').classList.add('hidden');
-  // Reload everything with new member scope
-  loadDashboard();
-  resetAndLoad();
-  loadMagicPanel();
+    await fetch('api/auth/logout', { method: 'POST' });
+  } catch {}
+  window.location.replace('login.html');
 }
 
 function updateWhoBtn() {
-  $('who-btn').textContent = currentMember ? (currentMember.avatar_emoji || '👤') : '👤';
+  const btn = $('who-btn');
+  if (!btn) return;
+  btn.textContent = currentMember ? (currentMember.avatar_emoji || '\u{1F464}') : '\u{1F464}';
+  btn.onclick = currentMember ? doLogout : null;
+  btn.title = currentMember ? 'Sign out' : '';
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -408,11 +400,6 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function memberParam() {
-  if (!currentMember) return '';
-  return `?member=${encodeURIComponent(currentMember.name)}`;
-}
-
 function debounce(fn, ms) {
   let timer;
   return (...args) => {
@@ -423,6 +410,10 @@ function debounce(fn, ms) {
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);
@@ -442,18 +433,16 @@ async function loadMagicPanel() {
   }
   $('magic-section').classList.remove('hidden');
 
-  const params = memberParam();
-
   // Load disclaimer
   try {
-    const cfg = await api(`api/magic/config${params}`);
+    const cfg = await api('api/magic/config');
     const disclaimerRow = cfg.config.find(c => c.key === 'magic_disclaimer');
     magicDisclaimer = disclaimerRow ? disclaimerRow.value : '';
   } catch { /* ignore */ }
 
   // Load presets
   try {
-    const data = await api(`api/magic/presets${params}`);
+    const data = await api('api/magic/presets');
     $('magic-presets').innerHTML = data.presets.map(q =>
       `<button class="magic-preset-btn" onclick="askPreset(this)" data-q="${esc(q)}">${esc(q)}</button>`
     ).join('');
@@ -461,7 +450,7 @@ async function loadMagicPanel() {
 
   // Load digest
   try {
-    const data = await api(`api/magic/digest${params}`);
+    const data = await api('api/magic/digest');
     if (data.digest) {
       $('magic-digest').classList.remove('hidden');
       $('magic-digest-content').innerHTML = renderMarkdown(data.digest);
@@ -470,7 +459,7 @@ async function loadMagicPanel() {
 
   // Load monthly report
   try {
-    const data = await api(`api/magic/monthly${params}`);
+    const data = await api('api/magic/monthly');
     if (data.report) {
       $('magic-monthly').classList.remove('hidden');
       $('magic-monthly-content').innerHTML = renderMarkdown(data.report);
@@ -503,7 +492,7 @@ async function submitAsk() {
     const data = await api('api/magic/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, member: currentMember?.name })
+      body: JSON.stringify({ question })
     });
     result.innerHTML = renderMarkdown(data.answer || 'No response.');
     showDisclaimer();
@@ -525,7 +514,7 @@ async function submitWhatIf() {
     const data = await api('api/magic/what-if', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario, member: currentMember?.name })
+      body: JSON.stringify({ scenario })
     });
     result.innerHTML = renderMarkdown(data.forecast || 'No response.');
     showDisclaimer();
