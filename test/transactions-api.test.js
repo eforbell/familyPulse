@@ -20,6 +20,8 @@ let dedupPlaidTxId;
 let dedupImportTxId;
 let dedupImportTxId2;
 let dedupHiddenImportTxId;
+let uncategorizedCategoryId;
+let explicitUncategorizedTxId;
 
 before(async () => {
   server = app.listen(0);
@@ -69,6 +71,19 @@ before(async () => {
     `SELECT id FROM categories WHERE name = 'Groceries'`
   );
   assignCategoryId = category.id;
+
+  const { rows: [uncategorizedCategory] } = await pool.query(
+    `SELECT id FROM categories WHERE name = 'Uncategorized'`
+  );
+  uncategorizedCategoryId = uncategorizedCategory.id;
+
+  const { rows: [explicitUncategorizedTx] } = await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+    VALUES ('tx-api-uncat-explicit', $1, 18.75, '2026-03-06', 'Unknown Merchant', 'Unknown Merchant', false, false, 'test', $2)
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET category_id = EXCLUDED.category_id
+    RETURNING id
+  `, [acct.id, uncategorizedCategoryId]);
+  explicitUncategorizedTxId = explicitUncategorizedTx.id;
 
   const { rows: [coffeeTx] } = await pool.query(
     `SELECT id FROM transactions WHERE plaid_transaction_id = 'tx-api-1'`
@@ -159,9 +174,10 @@ describe('GET /api/transactions', () => {
   });
 
   it('filters uncategorized with category_id=0', async () => {
-    const res = await fetch(`${baseUrl}/api/transactions?category_id=0&limit=10`);
+    const res = await fetch(`${baseUrl}/api/transactions?category_id=0&limit=50`);
     const data = await res.json();
-    assert.ok(data.transactions.every(t => t.category_id === null));
+    assert.ok(data.transactions.every(t => t.category_id === null || t.category_id === uncategorizedCategoryId));
+    assert.ok(data.transactions.some(t => t.id === explicitUncategorizedTxId));
   });
 
   it('respects pagination', async () => {
