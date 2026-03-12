@@ -120,7 +120,7 @@ function updatePageTitle() {
   }
 
   $('page-title').textContent = parts.length > 0 ? parts.join(' · ') : 'Transactions';
-  document.title = `Pulse — ${$('page-title').textContent}`;
+  document.title = `Family Pulse | ${$('page-title').textContent}`;
 }
 
 // ── Data fetching ────────────────────────────────────────────

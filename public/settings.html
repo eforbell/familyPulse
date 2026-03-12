@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Pulse — Settings</title>
+  <title>Family Pulse | Settings</title>
   <link rel="icon" type="image/png" href="icon-32.png">
-  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-nav-page="settings">
@@ -57,6 +59,14 @@
       <h2 class="section-heading">Sync</h2>
       <button class="btn-ghost" onclick="triggerFullSync()">Sync All Now</button>
       <div id="sync-result" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
+    </section>
+
+    <section style="margin-top:1.5rem">
+      <h2 class="section-heading">Theme</h2>
+      <div class="theme-card">
+        <p class="theme-card-copy">Pick the look for this device. System follows the phone's appearance setting.</p>
+        <div id="theme-switch" class="theme-switch"></div>
+      </div>
     </section>
 
     <!-- Data Import -->

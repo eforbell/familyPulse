@@ -72,9 +72,9 @@
 
   // More button — active if current page is in moreItems
   const moreActive = moreItems.some(m => m.id === activePage) ? ' active' : '';
-  const moreBtn = `<button class="nav-item${moreActive}" id="more-nav-btn" aria-label="More">
-    <span class="nav-icon">${icons.more}</span>
-    <span class="nav-label">More</span>
+  const moreBtn = `<button class="nav-item nav-brand-mobile${moreActive}" id="more-nav-btn" aria-label="Pulse menu">
+    <span class="nav-brand-mark"><img src="icon-32.png" alt="" width="18" height="18"></span>
+    <span class="nav-label">Pulse</span>
   </button>`;
 
   bottomBar.innerHTML = mobileHTML + moreBtn;
@@ -86,6 +86,13 @@
   moreSheet.innerHTML = `
     <div class="more-sheet-backdrop"></div>
     <div class="more-sheet-panel">
+      <div class="more-sheet-brand">
+        <img src="icon-32.png" alt="Pulse" width="34" height="34">
+        <div>
+          <div class="more-sheet-brand-title">Family Pulse</div>
+          <div class="more-sheet-brand-copy">Reports, categories, settings</div>
+        </div>
+      </div>
       ${moreItems.map(item => {
         const active = item.id === activePage ? ' active' : '';
         return `<a href="${item.href}" class="more-sheet-item${active}">

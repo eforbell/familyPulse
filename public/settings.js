@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch {}
 
   await Promise.all([loadItems(), loadMembers(), loadDedupHistory()]);
+  loadThemeControls();
   loadAIPrompts();
   loadPassphraseManager();
 });
@@ -93,6 +94,36 @@ async function loadDedupHistory() {
   } catch (err) {
     list.innerHTML = `<div class="empty-state">Error loading history: ${esc(err.message)}</div>`;
   }
+}
+
+function loadThemeControls() {
+  const el = document.getElementById('theme-switch');
+  if (!el || !window.PulseTheme) return;
+
+  const preference = window.PulseTheme.getPreference();
+  const options = [
+    { id: 'system', label: 'System', icon: 'Auto' },
+    { id: 'light', label: 'Light', icon: 'Sun' },
+    { id: 'dark', label: 'Dark', icon: 'Night' }
+  ];
+
+  el.innerHTML = options.map(option => `
+    <button
+      type="button"
+      class="theme-option${preference === option.id ? ' active' : ''}"
+      data-theme-pref="${option.id}"
+      onclick="setThemePreference('${option.id}')"
+    >
+      <span>${esc(option.icon)}</span>
+      <span>${esc(option.label)}</span>
+    </button>
+  `).join('');
+}
+
+function setThemePreference(preference) {
+  if (!window.PulseTheme) return;
+  window.PulseTheme.setPreference(preference);
+  loadThemeControls();
 }
 
 // ── Render ───────────────────────────────────────────────────
