@@ -86,7 +86,7 @@ This script preserves:
 - `schema_migrations`
 
 It clears:
-- `items`
+- Plaid-linked `items`
 - `accounts` via cascade
 - `transactions` via cascade
 - `account_members` via cascade
@@ -95,6 +95,8 @@ It clears:
 - `anomalies`
 - `budget_snapshots`
 - `magic_actions_log`
+
+It preserves the `monarch-import` sentinel item so historical Monarch CSV import continues to work after the reset.
 
 Run it intentionally:
 

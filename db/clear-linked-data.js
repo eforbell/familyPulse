@@ -42,6 +42,9 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const dbName = databaseNameFromUrl(process.env.DATABASE_URL);
 
+  // Preserve the Monarch import sentinel so historical import remains available.
+  const sentinelItemId = 'monarch-import';
+
   // Keep the wipe constrained to synced financial data and derivative tables.
   const statements = [
     { table: 'magic_actions_log', sql: 'DELETE FROM magic_actions_log' },
@@ -49,7 +52,25 @@ async function main() {
     { table: 'anomalies', sql: 'DELETE FROM anomalies' },
     { table: 'import_runs', sql: 'DELETE FROM import_runs' },
     { table: 'link_sessions', sql: 'DELETE FROM link_sessions' },
-    { table: 'items', sql: 'DELETE FROM items' }
+    {
+      table: 'monarch_import_accounts',
+      sql: 'DELETE FROM accounts WHERE item_id IN (SELECT id FROM items WHERE item_id = $1)',
+      params: [sentinelItemId]
+    },
+    {
+      table: 'items',
+      sql: 'DELETE FROM items WHERE item_id != $1',
+      params: [sentinelItemId]
+    },
+    {
+      table: 'monarch_import_sentinel',
+      sql: `
+        INSERT INTO items (access_token, item_id, institution_name, status)
+        VALUES ('n/a', $1, 'Monarch Money (Import)', 'import')
+        ON CONFLICT (item_id) DO NOTHING
+      `,
+      params: [sentinelItemId]
+    }
   ];
 
   try {
@@ -59,7 +80,7 @@ async function main() {
       const results = [];
 
       for (const step of statements) {
-        const result = await client.query(step.sql);
+        const result = await client.query(step.sql, step.params || []);
         results.push({ table: step.table, deleted: result.rowCount || 0 });
       }
 
@@ -69,7 +90,7 @@ async function main() {
       for (const result of results) {
         console.log(`- ${result.table}: ${result.deleted}`);
       }
-      console.log('Preserved categories, rules, family members, sessions, app_config, and schema migrations.');
+      console.log('Preserved categories, rules, family members, sessions, app_config, schema migrations, and the Monarch import sentinel item.');
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
