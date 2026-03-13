@@ -1,0 +1,99 @@
+{
+  "branchName": "feature/split-liability-onboarding",
+  "projectName": "Split Liability Onboarding From Default Bank Link",
+  "description": "Separate standard bank onboarding from liability-specific onboarding. Default Plaid Link should request transactions only, while Settings should expose a second intentional flow for credit and loan accounts that requests transactions plus liabilities.",
+  "timing": {
+    "draftedOn": "2026-03-13",
+    "plannedEarliestExecution": "immediate",
+    "gatingCondition": "Production Plaid onboarding feedback confirms NO_LIABILITY_ACCOUNTS friction in default flow."
+  },
+  "principles": [
+    "Optimize the default flow for successful household bank onboarding",
+    "Do not break or mutate existing linked Items",
+    "Credit and loan accounts remain first-class, but their onboarding should be intentional",
+    "Keep liability support available without making it mandatory for every institution",
+    "Preserve server-side secrets invariant — no Plaid tokens or internal product state leak to clients"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "plaid": "Plaid Link token creation with product-specific requests",
+    "testing": "node:test integration coverage for link token creation and settings flows"
+  },
+  "userStories": [
+    {
+      "id": "LINK-011-001",
+      "title": "Default bank onboarding requests transactions only",
+      "acceptanceCriteria": [
+        "Default POST /api/link/create-token path requests only the Plaid Transactions product",
+        "Existing Item update mode remains supported",
+        "No existing linked Item is modified when this change ships",
+        "Default checking/savings onboarding no longer requires liability account consent"
+      ],
+      "priority": 1,
+      "estimatedLines": "+10/-10",
+      "testStrategy": "Route-level integration test verifying default link token request omits liabilities by default. Manual production verification with institution containing mixed depository and liability accounts.",
+      "passes": false
+    },
+    {
+      "id": "LINK-011-002",
+      "title": "Dedicated credit and loan onboarding flow",
+      "acceptanceCriteria": [
+        "Settings page exposes a second button for linking credit / loan accounts",
+        "New server route creates a Plaid Link token with products ['transactions', 'liabilities']",
+        "Default and liability-specific onboarding flows are clearly labeled",
+        "Liability-specific flow reuses existing exchange and sync logic after successful link"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-5",
+      "testStrategy": "Manual UI verification in Settings. Route test confirming liability-specific token includes liabilities. Smoke test that linked credit account still appears under normal account views after exchange.",
+      "passes": false
+    },
+    {
+      "id": "LINK-011-003",
+      "title": "Documentation and launch guidance",
+      "acceptanceCriteria": [
+        "README or operator docs explain why default link is transactions-only",
+        "Docs explain when to use the credit / loan link path",
+        "Docs note that existing Items linked with liabilities remain unchanged",
+        "Future enhancement note added for account_filters if institution-specific tuning becomes necessary"
+      ],
+      "priority": 2,
+      "estimatedLines": "+20/-0",
+      "testStrategy": "Docs review only.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Default flow change could accidentally remove needed credit-card onboarding if the liability-specific replacement is not shipped promptly"
+    ],
+    "medium": [
+      "Institution-specific behavior may still require account_filters or update-mode tuning later",
+      "Users may not understand which of the two link buttons to choose without clear labeling"
+    ],
+    "low": [
+      "Existing backend liabilities code may remain underused until the dedicated flow is exercised"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm default onboarding should optimize for depository success over liability completeness",
+    "Confirm credit-card transaction visibility still matters even when liability metadata is optional",
+    "Confirm existing linked Items must remain untouched"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+90/-15",
+    "storiesCount": 3,
+    "filesCreated": [
+      "planning/features/feature-11-prd.json",
+      "planning/features/feature-11-summary.md"
+    ],
+    "filesModified": [
+      "lib/routes/link.js",
+      "public/settings.html",
+      "public/settings.js",
+      "README.md",
+      "test/link-api.test.js"
+    ]
+  }
+}

@@ -19,6 +19,8 @@ const DELETE_ACCOUNT_ID = 'acct-del-1';
 const SESSION_TOKEN = 'test-lt-link-table';
 const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
 const OAUTH_STATE_ID = 'test-oauth-state-link';
+const DEFAULT_LINK_TOKEN = 'test-link-token-default';
+const LIABILITY_LINK_TOKEN = 'test-link-token-liability';
 
 async function insertPendingLinkSession(linkToken, owner) {
   const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
@@ -52,7 +54,10 @@ before(async () => {
 });
 
 after(async () => {
-  await pool.query('DELETE FROM link_sessions WHERE link_token IN ($1, $2)', [SESSION_TOKEN, OAUTH_SESSION_TOKEN]);
+  await pool.query(
+    'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
+    [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, LIABILITY_LINK_TOKEN]]
+  );
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [DELETE_ITEM_ID]);
@@ -73,6 +78,52 @@ describe('GET /api/items', () => {
     assert.equal(testItem.institution_name, 'Test Bank Link');
     assert.equal(testItem.account_count, 2);
     assert.equal(testItem.status, 'good');
+  });
+});
+
+describe('Plaid link token routes', () => {
+  const originalCreateLinkToken = require('../lib/plaid-client').createLinkToken;
+
+  after(() => {
+    require('../lib/plaid-client').createLinkToken = originalCreateLinkToken;
+  });
+
+  it('default link flow requests transactions only', async () => {
+    let requestedProducts = null;
+    require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
+      requestedProducts = opts.products;
+      return {
+        link_token: DEFAULT_LINK_TOKEN,
+        expiration: '2099-01-01T00:00:00Z'
+      };
+    };
+
+    const res = await fetch(`${baseUrl}/api/link/create-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(requestedProducts, ['transactions']);
+  });
+
+  it('liability link flow requests transactions and liabilities', async () => {
+    let requestedProducts = null;
+    require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
+      requestedProducts = opts.products;
+      return {
+        link_token: LIABILITY_LINK_TOKEN,
+        expiration: '2099-01-01T00:00:00Z'
+      };
+    };
+
+    const res = await fetch(`${baseUrl}/api/link/create-liability-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(requestedProducts, ['transactions', 'liabilities']);
   });
 });
 
@@ -177,7 +228,10 @@ describe('GET /oauth/callback', () => {
   });
 
   it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
-    await pool.query('DELETE FROM link_sessions WHERE link_token IN ($1, $2)', [SESSION_TOKEN, OAUTH_SESSION_TOKEN]);
+    await pool.query(
+      'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
+      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, LIABILITY_LINK_TOKEN]]
+    );
     await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
 
     const res = await fetch(`${baseUrl}/oauth/callback?oauth_state_id=${OAUTH_STATE_ID}`);

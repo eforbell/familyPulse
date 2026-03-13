@@ -131,7 +131,7 @@ function setThemePreference(preference) {
 function renderItems() {
   const el = document.getElementById('items-list');
   if (items.length === 0) {
-    el.innerHTML = '<div class="empty-state">No linked institutions yet. Tap "+ Link Account" to connect your first bank.</div>';
+    el.innerHTML = '<div class="empty-state">No linked institutions yet. Tap "+ Link Bank Account" to connect your first bank.</div>';
     return;
   }
 
@@ -155,7 +155,7 @@ function renderItems() {
             ${statusBadge}
           </div>
           <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
-            ${item.account_count} account${item.account_count !== 1 ? 's' : ''} · ${syncText}
+            ${item.account_count} account${item.account_count !== 1 ? 's' : ''}${item.owner ? ` · ${esc(item.owner)}` : ''} · ${syncText}
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
@@ -171,21 +171,43 @@ function renderItems() {
 // ── Plaid Link ───────────────────────────────────────────────
 
 async function startLink() {
-  const btn = document.getElementById('link-btn');
+  await startLinkFlow({
+    buttonId: 'link-btn',
+    label: '+ Link Bank Account',
+    loadingLabel: 'Loading...',
+    connectingLabel: 'Connecting...',
+    route: 'api/link/create-token',
+    failurePrefix: 'Failed to link bank account'
+  });
+}
+
+async function startLiabilityLink() {
+  await startLinkFlow({
+    buttonId: 'credit-link-btn',
+    label: '+ Link Credit / Loan',
+    loadingLabel: 'Loading...',
+    connectingLabel: 'Connecting...',
+    route: 'api/link/create-liability-token',
+    failurePrefix: 'Failed to link credit / loan account'
+  });
+}
+
+async function startLinkFlow(config) {
+  const btn = document.getElementById(config.buttonId);
   btn.disabled = true;
-  btn.textContent = 'Loading...';
+  btn.textContent = config.loadingLabel;
 
   try {
-    const data = await api('api/link/create-token', {
+    const data = await api(config.route, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ owner: currentMember?.name })
     });
 
     const handler = Plaid.create({
       token: data.link_token,
       onSuccess: async (publicToken, metadata) => {
-        btn.textContent = 'Connecting...';
+        btn.textContent = config.connectingLabel;
         try {
           await api('api/link/exchange', {
             method: 'POST',
@@ -197,22 +219,22 @@ async function startLink() {
           });
           await loadItems();
         } catch (err) {
-          alert('Failed to link account: ' + err.message);
+          alert(`${config.failurePrefix}: ` + err.message);
         }
         btn.disabled = false;
-        btn.textContent = '+ Link Account';
+        btn.textContent = config.label;
       },
       onExit: (err) => {
         if (err) console.warn('Plaid Link exit with error:', err);
         btn.disabled = false;
-        btn.textContent = '+ Link Account';
+        btn.textContent = config.label;
       }
     });
     handler.open();
   } catch (err) {
-    alert('Failed to start Link: ' + err.message);
+    alert(`${config.failurePrefix}: ` + err.message);
     btn.disabled = false;
-    btn.textContent = '+ Link Account';
+    btn.textContent = config.label;
   }
 }
 
@@ -281,6 +303,7 @@ async function assignOwner(name) {
       body: JSON.stringify({ owner: name })
     });
     closeOwnerOverlay();
+    await loadItems();
   } catch (err) {
     alert('Failed to assign owner: ' + err.message);
   }
