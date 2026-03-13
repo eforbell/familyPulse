@@ -60,7 +60,7 @@ describe('coverage-calculator — healthy scenario', () => {
   it('returns healthy status when checking covers obligations', async () => {
     const result = await getCoverage();
     assert.equal(result.status, 'healthy');
-    assert.equal(result.checking_total, 10000);
+    assert.equal(result.depository_total, 10000);
     assert.equal(result.obligation_total, 2000);
     assert.equal(result.ratio, 5);
     assert.equal(result.cards.length, 1);

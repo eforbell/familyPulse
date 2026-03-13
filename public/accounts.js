@@ -108,7 +108,7 @@ function renderCoverage(data) {
         <div class="coverage-banner-title">Statement Coverage</div>
         <div class="coverage-banner-ratio" style="color:${color}">${ratioLabel}</div>
         <div class="coverage-banner-detail">
-          <span>Checking: ${fmtMoney(data.checking_total)}</span>
+          <span>Cash: ${fmtMoney(data.depository_total)}</span>
           <span>Statements: ${fmtMoney(data.obligation_total)}</span>
         </div>
       </div>
