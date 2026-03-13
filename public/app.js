@@ -74,7 +74,7 @@ async function loadCoverageIndicator() {
     const color = colorMap[data.status] || 'var(--muted)';
     const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
     el.innerHTML = `<a href="accounts.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Statement Coverage: <strong style="color:${color}">${ratioLabel}</strong></span>
+      <span>Liability Coverage: <strong style="color:${color}">${ratioLabel}</strong></span>
       <span style="color:var(--muted)">${fmtMoney(data.obligation_total)} due</span>
     </a>`;
     el.classList.remove('hidden');

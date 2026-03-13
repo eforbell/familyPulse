@@ -63,7 +63,8 @@ function renderDashboard(data) {
     for (const a of accts) {
       const bal = parseFloat(a.current_balance) || 0;
       const isCredit = a.type === 'credit';
-      const liabilityLine = isCredit ? buildLiabilityLine(a) : '';
+      const isLoan = a.type === 'loan';
+      const liabilityLine = (isCredit || isLoan) ? buildLiabilityLine(a) : '';
       group.innerHTML += `
         <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
           <div class="acct-info">
@@ -71,7 +72,7 @@ function renderDashboard(data) {
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
             ${liabilityLine}
           </div>
-          <div class="acct-balance ${isCredit ? 'credit' : ''}">${fmtMoney(bal)}</div>
+          <div class="acct-balance ${(isCredit || isLoan) ? 'credit' : ''}">${fmtMoney(bal)}</div>
         </div>`;
     }
 
@@ -105,11 +106,11 @@ function renderCoverage(data) {
   banner.innerHTML = `
     <div class="coverage-banner-inner" style="border-left: 4px solid ${color}">
       <div class="coverage-banner-summary">
-        <div class="coverage-banner-title">Statement Coverage</div>
+        <div class="coverage-banner-title">Liability Coverage</div>
         <div class="coverage-banner-ratio" style="color:${color}">${ratioLabel}</div>
         <div class="coverage-banner-detail">
           <span>Cash: ${fmtMoney(data.depository_total)}</span>
-          <span>Statements: ${fmtMoney(data.obligation_total)}</span>
+          <span>Obligations: ${fmtMoney(data.obligation_total)}</span>
         </div>
       </div>
       ${cardsHtml ? '<div class="coverage-card-lines">' + cardsHtml + '</div>' : ''}

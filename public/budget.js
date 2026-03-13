@@ -70,7 +70,7 @@ async function renderObligations() {
     const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
     card.innerHTML = `
       <div class="obligations-card-inner">
-        <span>Upcoming statements: <strong>${fmtMoney(data.obligation_total)}</strong></span>
+        <span>Upcoming obligations: <strong>${fmtMoney(data.obligation_total)}</strong></span>
         <span style="color:${color};font-weight:600">${ratioLabel} checking coverage</span>
       </div>`;
     card.classList.remove('hidden');
