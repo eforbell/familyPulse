@@ -410,6 +410,13 @@ header h1 {
   gap: 0.5rem;
   font-size: 0.78rem;
   color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.tx-inline-action {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
 }
 
 .tx-amount {
@@ -1523,11 +1530,11 @@ header h1 {
   padding: 1rem 1.25rem;
 }
 
-.coverage-banner-summary {
+.coverage-banner-header {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
 }
 
 .coverage-banner-title {
@@ -1543,16 +1550,15 @@ header h1 {
   letter-spacing: -0.02em;
 }
 
-.coverage-banner-detail {
+.coverage-banner-totals {
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
   font-size: 0.8rem;
   color: var(--muted);
-  margin-left: auto;
+  margin-bottom: 0.5rem;
 }
 
 .coverage-card-lines {
-  margin-top: 0.75rem;
   border-top: 1px solid var(--border);
   padding-top: 0.5rem;
 }
@@ -1560,11 +1566,38 @@ header h1 {
 .coverage-card-line {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   font-size: 0.8rem;
   color: var(--muted);
-  padding: 0.25rem 0;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
 }
+.coverage-card-line:last-child { border-bottom: none; }
+
+.coverage-card-name {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.coverage-card-mask { color: var(--muted); font-weight: 400; }
+
+.coverage-card-details {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  text-align: right;
+}
+.coverage-card-amount { font-weight: 600; color: var(--text); }
+.coverage-card-due { color: var(--muted); }
+.coverage-card-min { color: var(--muted); }
+.coverage-overdue { color: var(--red); font-weight: 600; }
 
 .coverage-indicator {
   background: var(--surface);
@@ -1580,6 +1613,19 @@ header h1 {
   color: var(--dim);
   margin-top: 0.1rem;
 }
+
+.acct-rename-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.account-card:hover .acct-rename-btn { opacity: 1; }
+@media (pointer: coarse) { .acct-rename-btn { opacity: 0.5; } }
 
 .obligations-card {
   background: var(--surface);
@@ -1615,4 +1661,15 @@ header h1 {
   .budget-grid { grid-template-columns: 1fr; }
   .summary-row { flex-direction: column; gap: 0.75rem; }
   .theme-switch { grid-template-columns: 1fr; }
+
+  /* Hide account name on mobile tx rows — saves horizontal space */
+  .tx-account { display: none; }
+
+  /* Coverage card: stack name and details vertically */
+  .coverage-card-line { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+  .coverage-card-details { justify-content: flex-start; }
+  .coverage-banner-totals { flex-direction: column; gap: 0.25rem; }
+
+  /* Obligations card: stack on narrow screens */
+  .obligations-card-inner { flex-direction: column; gap: 0.25rem; align-items: flex-start; }
 }

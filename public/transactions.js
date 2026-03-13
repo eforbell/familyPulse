@@ -194,7 +194,7 @@ function renderTransactions() {
         <div class="tx-merchant">${esc(merchant)}</div>
         <div class="tx-detail">
           <span>${formatDate(tx.date)}</span>
-          <span>${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
+          <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
           ${catBadge}
           ${sourceBadge}
           ${hiddenBadge}
@@ -236,7 +236,7 @@ function populateFilterDropdowns() {
   for (const a of accounts) {
     const opt = document.createElement('option');
     opt.value = a.id;
-    opt.textContent = `${a.name} ···${a.mask || ''}`;
+    opt.textContent = `${a.display_name || a.name} ···${a.mask || ''}`;
     acctSelect.appendChild(opt);
   }
 
