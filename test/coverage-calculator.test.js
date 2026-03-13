@@ -72,17 +72,17 @@ describe('coverage-calculator — healthy scenario', () => {
 
 describe('coverage-calculator — warning scenario', () => {
   before(async () => {
-    // Reduce checking to $3000, add another card with $1500 statement
+    // Reduce checking to $4000, add another card with $1000 statement
     await pool.query(`
-      UPDATE accounts SET current_balance = 3000.00 WHERE plaid_account_id = 'acct-cov-chk1'
+      UPDATE accounts SET current_balance = 4000.00 WHERE plaid_account_id = 'acct-cov-chk1'
     `);
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance,
                             last_statement_balance, next_payment_due_date)
       VALUES ('acct-cov-cc2', $1, 'Amex Card', 'credit', 'credit card', '2222', 1500.00,
-              1500.00, CURRENT_DATE + 14)
+              1000.00, CURRENT_DATE + 14)
       ON CONFLICT (plaid_account_id) DO UPDATE SET
-        current_balance = 1500.00, last_statement_balance = 1500.00,
+        current_balance = 1500.00, last_statement_balance = 1000.00,
         next_payment_due_date = CURRENT_DATE + 14,
         type = 'credit', subtype = 'credit card'
     `, [testItemId]);
@@ -90,10 +90,10 @@ describe('coverage-calculator — warning scenario', () => {
 
   it('returns warning when obligations consume >=70% of checking', async () => {
     const result = await getCoverage();
-    // 3500 / 3000 > 1 → this is actually danger (obligations exceed checking)
-    // Let's check: obligations = 2000 + 1500 = 3500, checking = 3000
-    assert.equal(result.status, 'danger');
-    assert.equal(result.obligation_total, 3500);
+    assert.equal(result.status, 'warning');
+    assert.equal(result.depository_total, 4000);
+    assert.equal(result.obligation_total, 3000);
+    assert.equal(result.ratio, 1.33);
   });
 
   it('orders cards by due date ascending', async () => {
@@ -123,6 +123,58 @@ describe('coverage-calculator — danger scenario', () => {
 
   after(async () => {
     await pool.query(`UPDATE accounts SET current_balance = 10000.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
+  });
+});
+
+describe('coverage-calculator — loan obligations', () => {
+  before(async () => {
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance,
+                            last_statement_balance, minimum_payment_amount, next_payment_due_date)
+      VALUES ('acct-cov-mtg1', $1, 'Home Mortgage', 'loan', 'mortgage', '3333', 250000.00,
+              1800.00, 1800.00, CURRENT_DATE + 10)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET
+        current_balance = 250000.00, last_statement_balance = 1800.00,
+        minimum_payment_amount = 1800.00, next_payment_due_date = CURRENT_DATE + 10,
+        type = 'loan', subtype = 'mortgage'
+    `, [testItemId]);
+  });
+
+  it('uses monthly payment for loan obligations instead of principal balance', async () => {
+    const result = await getCoverage();
+    const mortgage = result.cards.find(c => c.name === 'Home Mortgage');
+    assert.ok(mortgage);
+    assert.equal(mortgage.obligation, 1800);
+    assert.equal(mortgage.minimum_payment, 1800);
+  });
+
+  after(async () => {
+    await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-cov-mtg1'");
+  });
+});
+
+describe('coverage-calculator — loans without liability data', () => {
+  before(async () => {
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+      VALUES ('acct-cov-loan-raw', $1, 'Mortgage Without Liability Data', 'loan', 'mortgage', '4444', 325000.00)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET
+        current_balance = 325000.00,
+        last_statement_balance = NULL,
+        minimum_payment_amount = NULL,
+        next_payment_due_date = NULL,
+        type = 'loan', subtype = 'mortgage'
+    `, [testItemId]);
+  });
+
+  it('does not treat loan principal as an immediate obligation when liability data is missing', async () => {
+    const result = await getCoverage();
+    assert.equal(result.obligation_total, 2000);
+    assert.equal(result.cards.some(c => c.name === 'Mortgage Without Liability Data'), false);
+  });
+
+  after(async () => {
+    await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-cov-loan-raw'");
   });
 });
 
