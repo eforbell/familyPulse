@@ -33,6 +33,17 @@ npm test               # node --test (all test/*.test.js)
 
 Copy `.env.example` to `.env` and fill in values.
 
+## PR Creation Note
+
+When creating or editing GitHub PRs with `gh`, do not inline a markdown-heavy body directly in the shell command if it contains backticks, parentheses, or other shell-significant characters.
+
+Preferred pattern:
+
+1. write the PR body to a temporary file
+2. use `gh pr create --body-file <file>` or `gh pr edit --body-file <file>`
+
+This avoids shell mangling and accidental command substitution in PR descriptions.
+
 ## Architecture
 
 Single-process Node.js/Express. No build step. Vanilla HTML/CSS/JS frontend (when added).
