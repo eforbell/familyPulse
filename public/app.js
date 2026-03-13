@@ -33,18 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   updateWhoBtn();
   await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator()]);
-  populateFilterDropdowns();
   await loadTransactions();
   loadMagicPanel();
   bindMagicInputShortcuts();
-
-  // Filter listeners
-  $('filter-account').addEventListener('change', resetAndLoad);
-  $('filter-category').addEventListener('change', resetAndLoad);
-  $('filter-from').addEventListener('change', resetAndLoad);
-  $('filter-to').addEventListener('change', resetAndLoad);
-  $('filter-search').addEventListener('input', debounce(resetAndLoad, 300));
-  $('filter-transfers').addEventListener('change', resetAndLoad);
 });
 
 // ── Data fetching ────────────────────────────────────────────
@@ -93,7 +84,7 @@ async function loadCategories() {
 
 async function loadTransactions() {
   try {
-    const params = buildFilterParams();
+    const params = buildRecentTransactionParams();
     const data = await api(`api/transactions?${params}`);
     transactions = data.transactions;
     txTotal = data.total;
@@ -146,7 +137,7 @@ function renderTransactions() {
         <div class="tx-merchant">${esc(merchant)}</div>
         <div class="tx-detail">
           <span>${formatDate(tx.date)}</span>
-          <span>${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
+          <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
           ${catBadge}
           ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
         </div>
@@ -175,64 +166,19 @@ function renderPagination() {
   $('next-btn').disabled = currentPage >= totalPages - 1;
 }
 
-// ── Filters ──────────────────────────────────────────────────
+// ── Recent transactions query ────────────────────────────────
 
-function populateFilterDropdowns() {
-  // Account dropdown
-  const acctSelect = $('filter-account');
-  const existing = acctSelect.querySelectorAll('option:not(:first-child)');
-  existing.forEach(o => o.remove());
-  for (const a of accounts) {
-    const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = `${a.name} ···${a.mask || ''}`;
-    acctSelect.appendChild(opt);
-  }
-
-  // Category dropdown
-  const catSelect = $('filter-category');
-  const existingCats = catSelect.querySelectorAll('option[data-dynamic]');
-  existingCats.forEach(o => o.remove());
-  for (const c of categories) {
-    if (c.is_transfer_class) continue;
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = `${c.icon || ''} ${c.name}`;
-    opt.dataset.dynamic = '1';
-    catSelect.appendChild(opt);
-  }
-}
-
-function buildFilterParams() {
+function buildRecentTransactionParams() {
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const p = new URLSearchParams();
   p.set('limit', PAGE_SIZE);
   p.set('offset', currentPage * PAGE_SIZE);
-
-  const acct = $('filter-account').value;
-  if (acct) p.set('account_id', acct);
-
-  const cat = $('filter-category').value;
-  if (cat !== '') p.set('category_id', cat);
-
-  const from = $('filter-from').value;
-  if (from) p.set('date_from', from);
-
-  const to = $('filter-to').value;
-  if (to) p.set('date_to', to);
-
-  const search = $('filter-search').value.trim();
-  if (search) p.set('search', search);
-
-  if ($('filter-transfers').checked) p.set('show_transfers', '1');
-
+  p.set('date_from', fmt(weekAgo));
+  p.set('date_to', fmt(now));
   return p.toString();
-}
-
-function resetAndLoad() {
-  currentPage = 0;
-  selectedIds.clear();
-  updateBulkBar();
-  loadTransactions();
 }
 
 function prevPage() { if (currentPage > 0) { currentPage--; loadTransactions(); } }
