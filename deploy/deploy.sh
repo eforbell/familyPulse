@@ -92,6 +92,9 @@ echo "==> Installing production dependencies"
 cd "$APP_DIR"
 npm ci --omit=dev
 
+echo "==> Running database migrations"
+node db/migrate.js
+
 echo "==> Restarting $SERVICE"
 sudo systemctl restart "$SERVICE"
 sudo systemctl status  "$SERVICE" --no-pager -l
