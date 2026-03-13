@@ -90,6 +90,22 @@ Runs after each sync. Detects:
 - 529 contributions (merchant pattern)
 - BTC/crypto savings (merchant pattern: Coinbase, Swan, Strike, etc.)
 
+### Account Onboarding & Liability Coverage
+Two separate Plaid Link flows exist in Settings (see Feature 11):
+- **Link Bank Account** — requests `transactions` only. Use for checking/savings.
+- **Link Credit / Loan Account** — requests `transactions` + `liabilities`. Use for
+  credit cards, mortgages, and student loans.
+
+This matters because the Liability Coverage system (Feature 12) depends on Plaid's
+Liabilities product to get statement balances, due dates, and minimum payments. If a
+mortgage or credit card is linked through the default transactions-only flow, the app
+will only see the total outstanding balance — not the monthly payment amount. This
+causes the coverage indicator to report the entire note balance as an obligation
+instead of the monthly payment, producing wildly inaccurate coverage ratios.
+
+**Rule of thumb**: always use the credit/loan flow for any account that carries a
+recurring payment obligation.
+
 ### Nginx subpath compatible
 All fetch() calls use relative paths: `fetch('api/health')` — never `fetch('/api/...')`.
 The app runs at its own root on port 3003; nginx maps `/pulse/ → http://127.0.0.1:3003/`.
