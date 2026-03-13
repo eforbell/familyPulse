@@ -48,6 +48,31 @@
     <!-- Coverage indicator -->
     <div id="coverage-indicator" class="coverage-indicator hidden"></div>
 
+    <!-- Transaction Browser -->
+    <section id="transactions-section">
+      <h2 class="section-heading">Recent Transactions</h2>
+
+      <!-- Bulk action bar -->
+      <div id="bulk-bar" class="bulk-bar hidden">
+        <span id="bulk-count">0 selected</span>
+        <button class="btn-primary" onclick="bulkAssignCategory()">Assign Category</button>
+        <button class="btn-ghost" onclick="clearSelection()">Clear</button>
+      </div>
+
+      <!-- Stats row -->
+      <div id="tx-stats" class="tx-stats"></div>
+
+      <!-- Transaction list -->
+      <div id="tx-list" class="tx-list"></div>
+
+      <!-- Pagination -->
+      <div id="pagination" class="pagination hidden">
+        <button id="prev-btn" class="btn-ghost" onclick="prevPage()" disabled>Previous</button>
+        <span id="page-info"></span>
+        <button id="next-btn" class="btn-ghost" onclick="nextPage()">Next</button>
+      </div>
+    </section>
+
     <!-- Pulse Intelligence — parents only -->
     <section id="magic-section" class="hidden">
       <h2 class="section-heading">Pulse Intelligence</h2>
@@ -104,43 +129,6 @@
       </div>
 
       <div id="magic-disclaimer" class="magic-disclaimer hidden"></div>
-    </section>
-
-    <!-- Transaction Browser -->
-    <section id="transactions-section">
-      <h2 class="section-heading">Transactions</h2>
-
-      <!-- Filter bar -->
-      <div id="filter-bar" class="filter-bar">
-        <select id="filter-account"><option value="">All Accounts</option></select>
-        <select id="filter-category"><option value="">All Categories</option><option value="0">Uncategorized</option></select>
-        <input type="date" id="filter-from">
-        <input type="date" id="filter-to">
-        <input type="text" id="filter-search" placeholder="Search merchant...">
-        <label class="toggle-label">
-          <input type="checkbox" id="filter-transfers"> Show transfers
-        </label>
-      </div>
-
-      <!-- Bulk action bar -->
-      <div id="bulk-bar" class="bulk-bar hidden">
-        <span id="bulk-count">0 selected</span>
-        <button class="btn-primary" onclick="bulkAssignCategory()">Assign Category</button>
-        <button class="btn-ghost" onclick="clearSelection()">Clear</button>
-      </div>
-
-      <!-- Stats row -->
-      <div id="tx-stats" class="tx-stats"></div>
-
-      <!-- Transaction list -->
-      <div id="tx-list" class="tx-list"></div>
-
-      <!-- Pagination -->
-      <div id="pagination" class="pagination hidden">
-        <button id="prev-btn" class="btn-ghost" onclick="prevPage()" disabled>Previous</button>
-        <span id="page-info"></span>
-        <button id="next-btn" class="btn-ghost" onclick="nextPage()">Next</button>
-      </div>
     </section>
 
   </div>

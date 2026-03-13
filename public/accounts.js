@@ -2,6 +2,7 @@
 'use strict';
 
 let currentMember = null;
+let renameTarget = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -65,10 +66,14 @@ function renderDashboard(data) {
       const isCredit = a.type === 'credit';
       const isLoan = a.type === 'loan';
       const liabilityLine = (isCredit || isLoan) ? buildLiabilityLine(a) : '';
+      const displayName = a.display_name || a.name;
       group.innerHTML += `
         <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
           <div class="acct-info">
-            <div class="acct-name">${esc(a.name)}</div>
+            <div class="acct-name">
+              ${esc(displayName)}
+              <button class="acct-rename-btn" onclick="openRename(event, ${a.id}, '${esc(displayName).replace(/'/g, "\\'")}' )" title="Rename">&#9998;</button>
+            </div>
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
             ${liabilityLine}
           </div>
@@ -94,24 +99,29 @@ function renderCoverage(data) {
   const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
 
   let cardsHtml = data.cards.map(c => {
-    const due = c.due_date ? formatShortDate(c.due_date) : 'no date';
-    const overdue = c.is_overdue ? ' <span style="color:var(--red);font-weight:600">OVERDUE</span>' : '';
-    const minPay = c.minimum_payment !== null ? `Min ${fmtMoney(c.minimum_payment)}` : '';
+    const due = c.due_date ? formatShortDate(c.due_date) : null;
+    const overdue = c.is_overdue ? '<span class="coverage-overdue">OVERDUE</span>' : '';
+    const minPay = c.minimum_payment !== null ? fmtMoney(c.minimum_payment) : null;
     return `<div class="coverage-card-line">
-      <span>${esc(c.name)} ${c.mask ? '···' + esc(c.mask) : ''}</span>
-      <span>${fmtMoney(c.obligation)} · due ${due}${overdue}${minPay ? ' · ' + minPay : ''}</span>
+      <div class="coverage-card-name">${esc(c.name)} ${c.mask ? '<span class="coverage-card-mask">···' + esc(c.mask) + '</span>' : ''}</div>
+      <div class="coverage-card-details">
+        <span class="coverage-card-amount">${fmtMoney(c.obligation)}</span>
+        ${due ? `<span class="coverage-card-due">due ${due}</span>` : ''}
+        ${minPay ? `<span class="coverage-card-min">min ${minPay}</span>` : ''}
+        ${overdue}
+      </div>
     </div>`;
   }).join('');
 
   banner.innerHTML = `
     <div class="coverage-banner-inner" style="border-left: 4px solid ${color}">
-      <div class="coverage-banner-summary">
+      <div class="coverage-banner-header">
         <div class="coverage-banner-title">Liability Coverage</div>
         <div class="coverage-banner-ratio" style="color:${color}">${ratioLabel}</div>
-        <div class="coverage-banner-detail">
-          <span>Cash: ${fmtMoney(data.depository_total)}</span>
-          <span>Obligations: ${fmtMoney(data.obligation_total)}</span>
-        </div>
+      </div>
+      <div class="coverage-banner-totals">
+        <span>Cash: <strong>${fmtMoney(data.depository_total)}</strong></span>
+        <span>Obligations: <strong>${fmtMoney(data.obligation_total)}</strong></span>
       </div>
       ${cardsHtml ? '<div class="coverage-card-lines">' + cardsHtml + '</div>' : ''}
     </div>`;
@@ -141,6 +151,55 @@ function formatShortDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// ── Account rename ───────────────────────────────────────
+
+function openRename(event, accountId, currentName) {
+  event.stopPropagation();
+  event.preventDefault();
+  renameTarget = { id: accountId };
+  const input = $('rename-input');
+  input.value = currentName || '';
+  $('rename-overlay').classList.remove('hidden');
+  setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
+}
+
+async function renameAccount(id, customName) {
+  try {
+    await api(`api/accounts/${id}/name`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_name: customName })
+    });
+    await loadAccounts();
+    return true;
+  } catch (err) {
+    alert(`Rename failed: ${err.message}`);
+    return false;
+  }
+}
+
+function closeRenameOverlay() {
+  renameTarget = null;
+  $('rename-overlay').classList.add('hidden');
+}
+
+function resetRename() {
+  if (!renameTarget) return;
+  renameAccount(renameTarget.id, '').then(ok => {
+    if (ok) closeRenameOverlay();
+  });
+}
+
+function submitRename() {
+  if (!renameTarget) return;
+  renameAccount(renameTarget.id, $('rename-input').value).then(ok => {
+    if (ok) closeRenameOverlay();
+  });
+}
+
 // ── Auth actions ─────────────────────────────────────────────
 
 async function doLogout() {
@@ -157,6 +216,8 @@ function updateWhoBtn() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
 
 function esc(str) {
   return String(str)
@@ -184,3 +245,10 @@ async function api(url, opts) {
   }
   return res.json();
 }
+
+document.addEventListener('keydown', event => {
+  const overlay = $('rename-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.key === 'Escape') closeRenameOverlay();
+  if (event.key === 'Enter' && event.target === $('rename-input')) submitRename();
+});
