@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   updateWhoBtn();
-  await Promise.all([loadDashboard(), loadCategories()]);
+  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator()]);
   populateFilterDropdowns();
   await loadTransactions();
   loadMagicPanel();
@@ -59,6 +59,27 @@ async function loadDashboard() {
     $('net-amount').textContent = 'Error loading';
     $('net-amount').classList.remove('loading-pulse');
     console.error('Dashboard load failed:', err);
+  }
+}
+
+async function loadCoverageIndicator() {
+  try {
+    const data = await api('api/accounts/coverage');
+    const el = $('coverage-indicator');
+    if (!data || data.status === 'clear') {
+      el.classList.add('hidden');
+      return;
+    }
+    const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
+    const color = colorMap[data.status] || 'var(--muted)';
+    const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
+    el.innerHTML = `<a href="accounts.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
+      <span>Liability Coverage: <strong style="color:${color}">${ratioLabel}</strong></span>
+      <span style="color:var(--muted)">${fmtMoney(data.obligation_total)} due</span>
+    </a>`;
+    el.classList.remove('hidden');
+  } catch (err) {
+    console.error('Coverage indicator failed:', err);
   }
 }
 

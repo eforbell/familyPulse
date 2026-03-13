@@ -1,0 +1,124 @@
+{
+  "branchName": "feature/12-liability-coverage",
+  "projectName": "Liability Coverage",
+  "description": "Store all Plaid liability fields during sync for credit cards, mortgages, and student loans. Calculate coverage from depository balances, surface across accounts/dashboard/budget pages, and enrich LLM context.",
+  "timing": {
+    "draftedOn": "2026-03-13",
+    "plannedEarliestExecution": "immediate",
+    "gatingCondition": "Feature 11 (split liability onboarding) ships first so liability accounts are onboarded intentionally."
+  },
+  "principles": [
+    "Coverage base is all depository accounts — checking, savings, money market, CD",
+    "Obligations sourced from all liability types — credit cards, mortgages, student loans",
+    "Credit card obligation = statement balance; mortgage/loan obligation = next monthly payment",
+    "All liability fields nullable — gracefully handle sparse Plaid responses",
+    "Coverage data enriches LLM context for smarter financial advice",
+    "Configurable alert threshold via app_config (default 70%)"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL with NUMERIC(12,2) and JSONB columns",
+    "testing": "node:test integration tests against live database"
+  },
+  "userStories": [
+    {
+      "id": "COV-012-001",
+      "title": "Store all Plaid liability fields during sync",
+      "acceptanceCriteria": [
+        "Migration adds 8 liability columns to accounts table",
+        "Sync stores liability fields for credit cards (liabilities.credit)",
+        "Sync stores liability fields for mortgages (liabilities.mortgage)",
+        "Sync stores liability fields for student loans (liabilities.student)",
+        "All fields nullable — no failures on sparse Plaid responses",
+        "Existing balance update behavior preserved"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-10",
+      "testStrategy": "Integration test verifying liability fields persist after sync upsert.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-002",
+      "title": "Coverage calculator and API endpoint",
+      "acceptanceCriteria": [
+        "GET /api/accounts/coverage returns depository_total, obligation_total, ratio, status, obligation breakdown",
+        "Obligations include credit cards (type=credit) and loans (type=loan)",
+        "Status tiers: clear/healthy/warning/danger based on configurable threshold",
+        "Obligations ordered by due date ascending",
+        "Credit card obligation falls back to current_balance when no statement balance"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "Integration tests for healthy/warning/danger/clear scenarios plus fallback behavior.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-003",
+      "title": "Frontend coverage surfaces on 3 pages",
+      "acceptanceCriteria": [
+        "Accounts page: coverage banner with per-obligation breakdown and due dates",
+        "Dashboard: compact single-line coverage indicator",
+        "Budget: obligations card with total and coverage ratio",
+        "Credit and loan account cards show statement/payment balance, due date, minimum payment"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-5",
+      "testStrategy": "Manual UI verification on all three pages.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-004",
+      "title": "LLM context enrichment with liability coverage",
+      "acceptanceCriteria": [
+        "All four context assemblers include liability_coverage block",
+        "Financial snapshot includes statement_obligations and coverage_ratio",
+        "Liability account objects in query/snapshot contexts include statement_balance and due_date"
+      ],
+      "priority": 2,
+      "estimatedLines": "+60/-10",
+      "testStrategy": "Manual verification via Ask Pulse queries about liability coverage.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Plaid may return sparse liability data for some institutions — all fields are nullable to handle this",
+      "Mortgage next_monthly_payment may not include escrow at all institutions"
+    ],
+    "low": [
+      "Coverage calculation assumes statement_balance is the obligation for credit cards — may not match exact payment for zero-balance-transfer accounts"
+    ]
+  },
+  "preFlightChecklist": [
+    "Feature 11 ships first (liability onboarding separated from default flow)",
+    "Migration 008 applied to production database",
+    "At least one liability account linked via liability-aware onboarding to verify data flows end-to-end"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+400/-30",
+    "storiesCount": 4,
+    "filesCreated": [
+      "db/migrations/008-liability-coverage.sql",
+      "lib/coverage-calculator.js",
+      "test/coverage-calculator.test.js",
+      "planning/features/feature-12-prd.json",
+      "planning/features/feature-12-summary.md"
+    ],
+    "filesModified": [
+      "db/seed.sql",
+      "lib/sync.js",
+      "lib/routes/accounts.js",
+      "public/accounts.html",
+      "public/accounts.js",
+      "public/index.html",
+      "public/app.js",
+      "public/budget.html",
+      "public/budget.js",
+      "public/style.css",
+      "lib/magic-actions/context-assembler.js",
+      "test/sync.test.js"
+    ]
+  }
+}

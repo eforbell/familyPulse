@@ -1510,6 +1510,93 @@ header h1 {
 }
 .usage-stats .value { color: var(--text); font-weight: 600; }
 
+/* ── Coverage components ──────────────────────────────────── */
+
+.coverage-banner {
+  margin-bottom: 1.25rem;
+}
+
+.coverage-banner-inner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+
+.coverage-banner-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.coverage-banner-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.coverage-banner-ratio {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.coverage-banner-detail {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.coverage-card-lines {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.coverage-card-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 0.25rem 0;
+}
+
+.coverage-indicator {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.acct-liability {
+  font-size: 0.75rem;
+  color: var(--dim);
+  margin-top: 0.1rem;
+}
+
+.obligations-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.obligations-card-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (min-width: 900px) {
