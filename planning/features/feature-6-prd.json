@@ -1,40 +1,50 @@
 {
   "branchName": "feature/kids-view",
   "projectName": "Kids View",
-  "description": "Age-appropriate financial dashboards for Jordan and Casey, scoped to their individual Capital One Money accounts. Simple balance, spending breakdown, and a monthly LLM-generated 'Money Report Card.' Also adds parental side-by-side view of both kids' accounts.",
+  "description": "Age-appropriate financial dashboards for Jordan and Casey, scoped to their individual Capital One Money accounts via the existing RBAC system. Kids log in with their own passphrase and see only their linked accounts. Parents see kids' accounts on the normal accounts screen, broken out like any other family member. Kids' balances are excluded from household coverage/liquidity calculations. Monthly LLM-generated 'Money Report Card' provides encouraging financial narrative.",
   "timing": {
     "draftedOn": "2026-03-08",
-    "plannedEarliestExecution": "after Feature 4",
-    "gatingCondition": "Feature 4 complete (budget framework + category cards). Can be developed in parallel with Feature 5."
+    "revisedOn": "2026-03-13",
+    "plannedEarliestExecution": "now — gating conditions met (auth, budgets, categories all shipped)",
+    "gatingCondition": "None — Features 4 (budgets/categories), 6-auth (RBAC with parent/kid roles), and 12 (coverage/liquidity) are all complete."
   },
   "principles": [
-    "Kids see ONLY their own account — no household financial data visible",
+    "HARD DATA ISOLATION — kid sessions are denied at the API layer from accessing any data outside their account_members-linked accounts. All parent routes use requireParent middleware. This is enforced server-side, not just UI hiding.",
+    "Kid login must NEVER provide access to parent accounts, household finances, settings, Plaid Link, or magic actions",
+    "Use existing household categories — no kid-specific category taxonomy. Parents manage categories and category_rules; kids' transactions categorize through the same pipeline.",
+    "Kids' account balances are excluded from household coverage/liquidity calculations — their money does not cover parent liabilities",
     "Keep it simple — teenagers need clarity, not complexity",
     "Money Report Card should feel encouraging, not judgmental",
-    "Parent view provides oversight without separate login/permission system",
     "SECRETS INVARIANT — Money Report Card LLM prompts contain only the kid's first name, transaction amounts, merchant names, and categories. Never access tokens, account numbers, .env values, or household financial data. Enforced by secrets-guard."
   ],
+  "existingInfrastructure": {
+    "auth": "family_members.role (parent/kid), requireParent middleware, requireAuth middleware, session carries role — all shipped in Feature auth (migration 006)",
+    "accountScoping": "account_members table links accounts to family members — parent assigns kids' accounts via PUT /api/auth/account-members",
+    "categories": "Household category system with category_rules for auto-categorization — no changes needed, kids use same categories",
+    "coverage": "coverage-calculator.js queries all depository accounts — needs filter to exclude kid-owned accounts"
+  },
   "techStack": {
     "language": "Node.js + vanilla JS",
     "runtime": "Express.js",
-    "database": "PostgreSQL (existing schema, filtered by account)",
-    "testing": "Jest for data scoping tests, Playwright for UI isolation verification",
+    "database": "PostgreSQL (existing schema, scoped via account_members join)",
+    "testing": "node:test for data scoping and budget tests, manual testing on 2 dev boxes",
     "llmProvider": "OpenAI API (gpt-5-nano) for Money Report Card"
   },
   "userStories": [
     {
       "id": "KID-001",
-      "title": "Kids dashboard route and data scoping",
+      "title": "Kid dashboard route and API-enforced data scoping",
       "acceptanceCriteria": [
-        "Routes: /pulse/kids/jordan and /pulse/kids/casey",
-        "Each route shows ONLY the data for that kid's Capital One Money account",
-        "No navigation links to household dashboard, budget, or other accounts",
-        "Account linked to kid via configuration (admin assigns account_id to kid profile)",
-        "API endpoints for kids data enforce account scoping at query level"
+        "Express routes: /kids/:name serves kid dashboard (e.g., /kids/jordan, /kids/casey)",
+        "Kid API endpoints scope all queries through account_members for req.member.id",
+        "Kid session cannot access any parent route — all parent routes use requireParent middleware",
+        "Kid session cannot access sibling's data — scoped to own account_members only",
+        "No navigation to household dashboard, settings, Plaid Link, magic actions, or coverage",
+        "Audit all existing API routes to confirm requireParent or requireAuth + role check where needed"
       ],
       "priority": 1,
       "estimatedLines": "+200/-0",
-      "testStrategy": "API scoping test: /kids/jordan endpoint returns ONLY Jordan's transactions (zero from other accounts). Negative test: household data not accessible from kids routes.",
+      "testStrategy": "API scoping test: kid session returns ONLY their account_members-linked transactions. Negative tests: kid cannot reach /api/accounts, /api/coverage, /api/settings, /api/magic-actions. Kid cannot access sibling data.",
       "passes": false
     },
     {
@@ -43,27 +53,28 @@
       "acceptanceCriteria": [
         "Current account balance displayed prominently",
         "Recent transactions list (last 30 days, most recent first)",
-        "Each transaction: date, merchant, amount",
+        "Each transaction: date, merchant, amount, category",
         "Monthly spending total for current month",
         "Simple, clean design appropriate for teenage users"
       ],
       "priority": 1,
       "estimatedLines": "+200/-0",
-      "testStrategy": "UI test: page loads with correct balance and transactions. Monthly total calculation test.",
+      "testStrategy": "Page loads with correct balance and transactions for kid's linked account only. Monthly total calculation test.",
       "passes": false
     },
     {
       "id": "KID-003",
       "title": "Kids category breakdown",
       "acceptanceCriteria": [
-        "Simple pie or bar chart: spending by category for current month",
-        "Categories simplified for kids: Food & Drinks, Entertainment, Shopping, Personal Care, Other",
+        "Spending by category for current month using existing household categories",
+        "No kid-specific category mapping — uses same categories as parent views (Dining Out, Fast Food, Entertainment, Shopping, etc.)",
+        "Parents can add categories as needed (e.g., Home Entertainment for Roblox/PlayStation)",
         "Chart.js visualization (CDN)",
         "Category totals displayed alongside chart"
       ],
       "priority": 2,
       "estimatedLines": "+150/-0",
-      "testStrategy": "Category aggregation test with known transaction data. Chart renders without errors.",
+      "testStrategy": "Category aggregation test scoped to kid's account. Categories match household taxonomy.",
       "passes": false
     },
     {
@@ -90,8 +101,8 @@
         "Content: total spent, top categories, biggest purchase, comparison to budget",
         "Example: 'You spent $47 this month. $22 went to food and drinks, $18 to entertainment. Your biggest single purchase was $12 at GameStop.'",
         "Generated on 1st of month, cached in magic_actions_log",
-        "Displayed on kids dashboard as a 'card' or collapsible section",
-        "No household financial data included in prompt"
+        "Displayed on kids dashboard as a card or collapsible section",
+        "No household financial data included in LLM prompt — only kid's first name, their transaction amounts, merchant names, and categories"
       ],
       "priority": 2,
       "estimatedLines": "+200/-0",
@@ -100,40 +111,56 @@
     },
     {
       "id": "KID-006",
-      "title": "Parental kids overview",
+      "title": "Kids accounts visible on parent accounts screen",
       "acceptanceCriteria": [
-        "Section on parent dashboard showing both kids' accounts side-by-side",
-        "Per kid: balance, monthly spend, budget status, recent transactions (top 5)",
-        "Link to full kids dashboard for each child",
-        "Only visible on household dashboard (not on kids routes)"
+        "Jordan and Casey's accounts appear on the existing accounts page, broken out like Eric/Alex accounts",
+        "Clicking into a kid's account shows their transactions (same drill-down as any other account)",
+        "Kids accounts are NOT separate widgets or dashboard sections — they are normal accounts on the accounts screen",
+        "Only visible when logged in as a parent"
       ],
       "priority": 2,
-      "estimatedLines": "+150/-0",
-      "testStrategy": "UI test: parental view shows both kids. Data accuracy test: balances match individual kid views.",
+      "estimatedLines": "+50/-20",
+      "testStrategy": "Parent session sees kids' accounts on accounts page. Kid session does not see parent accounts.",
+      "passes": false
+    },
+    {
+      "id": "KID-007",
+      "title": "Exclude kids from coverage/liquidity calculations",
+      "acceptanceCriteria": [
+        "coverage-calculator.js filters out accounts linked to kid-role family members via account_members",
+        "Kids' depository balances do not inflate household depository_total",
+        "Kids have no credit cards or loans — no liability-side changes needed",
+        "Coverage API response unchanged for parent sessions; kids don't have access to coverage endpoint"
+      ],
+      "priority": 1,
+      "estimatedLines": "+20/-5",
+      "testStrategy": "Coverage calculation test: kid accounts excluded from depository total. Regression test: parent coverage unchanged when kid accounts exist.",
       "passes": false
     }
   ],
   "riskAssessment": {
     "high": [
-      "Data scoping failure = kids see household financial data — must have test coverage on data isolation"
+      "Data isolation failure = kids see parent financial data — must have test coverage on API-level enforcement, not just UI hiding"
     ],
     "medium": [
       "Kids may not engage if the UI feels like a 'parent monitoring tool' — design for empowerment, not surveillance",
-      "LLM tone for teenagers requires careful prompt engineering — too formal = ignored, too casual = not useful"
+      "LLM tone for teenagers requires careful prompt engineering — too formal = ignored, too casual = not useful",
+      "Existing routes audit: any route missing requireParent is a potential data leak to kid sessions"
     ],
     "low": [
-      "Capital One Money accounts may have limited transaction categorization from Plaid"
+      "Capital One Money accounts may have limited transaction categorization from Plaid — mitigated by parent-managed category_rules"
     ]
   },
   "preFlightChecklist": [
-    "Confirm Jordan and Casey's Capital One Money account IDs in Plaid",
+    "Onboard Jordan and Casey's Capital One Money accounts via Plaid Link (Eric does this)",
+    "Assign accounts to kids via PUT /api/auth/account-members",
+    "Set kids' passphrases via parent session",
     "Decide: kids budget amounts (Eric to set initial values)",
-    "Decide: simplified category list for kids or reuse household categories?",
-    "Review: should kids routes have any access control, or Tailscale trust = sufficient?"
+    "Audit all existing API routes for requireParent coverage"
   ],
   "metrics": {
-    "estimatedTotalLines": "+1050/-0",
-    "storiesCount": 6,
+    "estimatedTotalLines": "+970/-25",
+    "storiesCount": 7,
     "filesCreated": [
       "lib/routes/kids.js",
       "lib/kids-report-card.js",
@@ -142,6 +169,10 @@
       "test/kids-data-scoping.test.js",
       "test/kids-report-card.test.js",
       "test/kids-budget.test.js"
+    ],
+    "filesModified": [
+      "lib/coverage-calculator.js",
+      "lib/routes/accounts.js"
     ]
   }
 }
