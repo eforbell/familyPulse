@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch { window.location.replace('login.html'); return; }
 
   updateWhoBtn();
-  await loadAccounts();
+  await Promise.all([loadAccounts(), loadCoverage()]);
 });
 
 // ── Data ─────────────────────────────────────────────────────
@@ -27,6 +27,15 @@ async function loadAccounts() {
     document.getElementById('net-amount').textContent = 'Error loading';
     document.getElementById('net-amount').classList.remove('loading-pulse');
     console.error('Accounts load failed:', err);
+  }
+}
+
+async function loadCoverage() {
+  try {
+    const data = await api('api/accounts/coverage');
+    renderCoverage(data);
+  } catch (err) {
+    console.error('Coverage load failed:', err);
   }
 }
 
@@ -54,11 +63,13 @@ function renderDashboard(data) {
     for (const a of accts) {
       const bal = parseFloat(a.current_balance) || 0;
       const isCredit = a.type === 'credit';
+      const liabilityLine = isCredit ? buildLiabilityLine(a) : '';
       group.innerHTML += `
         <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
           <div class="acct-info">
             <div class="acct-name">${esc(a.name)}</div>
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
+            ${liabilityLine}
           </div>
           <div class="acct-balance ${isCredit ? 'credit' : ''}">${fmtMoney(bal)}</div>
         </div>`;
@@ -66,6 +77,67 @@ function renderDashboard(data) {
 
     grid.appendChild(group);
   }
+}
+
+// ── Coverage ─────────────────────────────────────────────────
+
+function renderCoverage(data) {
+  const banner = document.getElementById('coverage-banner');
+  if (!data || data.status === 'clear') {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
+  const color = colorMap[data.status] || 'var(--muted)';
+  const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
+
+  let cardsHtml = data.cards.map(c => {
+    const due = c.due_date ? formatShortDate(c.due_date) : 'no date';
+    const overdue = c.is_overdue ? ' <span style="color:var(--red);font-weight:600">OVERDUE</span>' : '';
+    const minPay = c.minimum_payment !== null ? `Min ${fmtMoney(c.minimum_payment)}` : '';
+    return `<div class="coverage-card-line">
+      <span>${esc(c.name)} ${c.mask ? '···' + esc(c.mask) : ''}</span>
+      <span>${fmtMoney(c.obligation)} · due ${due}${overdue}${minPay ? ' · ' + minPay : ''}</span>
+    </div>`;
+  }).join('');
+
+  banner.innerHTML = `
+    <div class="coverage-banner-inner" style="border-left: 4px solid ${color}">
+      <div class="coverage-banner-summary">
+        <div class="coverage-banner-title">Statement Coverage</div>
+        <div class="coverage-banner-ratio" style="color:${color}">${ratioLabel}</div>
+        <div class="coverage-banner-detail">
+          <span>Checking: ${fmtMoney(data.checking_total)}</span>
+          <span>Statements: ${fmtMoney(data.obligation_total)}</span>
+        </div>
+      </div>
+      ${cardsHtml ? '<div class="coverage-card-lines">' + cardsHtml + '</div>' : ''}
+    </div>`;
+  banner.classList.remove('hidden');
+}
+
+function buildLiabilityLine(acct) {
+  const parts = [];
+  if (acct.last_statement_balance != null) {
+    parts.push(`Stmt ${fmtMoney(acct.last_statement_balance)}`);
+  }
+  if (acct.next_payment_due_date) {
+    parts.push(`due ${formatShortDate(acct.next_payment_due_date)}`);
+  }
+  if (acct.minimum_payment_amount != null) {
+    parts.push(`min ${fmtMoney(acct.minimum_payment_amount)}`);
+  }
+  if (parts.length === 0) return '';
+  return `<div class="acct-liability">${parts.join(' · ')}</div>`;
+}
+
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
+  const str = String(dateStr);
+  const d = str.length === 10 ? new Date(str + 'T00:00:00') : new Date(str);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ── Auth actions ─────────────────────────────────────────────

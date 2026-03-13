@@ -56,5 +56,6 @@ INSERT INTO app_config (key, value) VALUES
   ('magic_prompt_on_demand', 'You are a family finance assistant for the Forbell household (Eric, Alex, Jordan, Casey). Answer the user''s financial question using only the data provided. Be specific with dollar amounts and percentages. If the data is insufficient to answer fully, say so. Do not make up numbers. Keep the response concise and helpful.'),
   ('magic_prompt_what_if', 'You are a family finance planner for the Forbell household (Eric, Alex, Jordan, Casey). Given the household''s current financial snapshot, project the impact of the described scenario over 3, 6, and 12 months. Clearly communicate uncertainty — use ranges rather than exact numbers. Include caveats about assumptions. Be helpful but honest about limitations.'),
   ('magic_rate_limit_daily', '10'),
-  ('magic_disclaimer', 'AI-generated analysis — not financial advice.')
+  ('magic_disclaimer', 'AI-generated analysis — not financial advice.'),
+  ('coverage_alert_threshold', '0.70')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

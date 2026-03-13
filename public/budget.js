@@ -25,6 +25,7 @@ async function loadBudget() {
   try {
     summaryData = await api(`api/budget/summary?period=${currentPeriod}`);
     renderSummary();
+    renderObligations();
     renderHotSpots();
     renderUncategorized();
     renderGrid();
@@ -52,6 +53,30 @@ function renderSummary() {
   $('summary-net').textContent = fmtMoney(net);
   $('summary-net').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
   $('summary-net-prior').textContent = `Prior: ${fmtMoney(d.net_cash_flow.prior)}`;
+}
+
+// ── Render: Obligations ──────────────────────────────────────
+
+async function renderObligations() {
+  const card = $('obligations-card');
+  try {
+    const data = await api('api/accounts/coverage');
+    if (!data || data.status === 'clear') {
+      card.classList.add('hidden');
+      return;
+    }
+    const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
+    const color = colorMap[data.status] || 'var(--muted)';
+    const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
+    card.innerHTML = `
+      <div class="obligations-card-inner">
+        <span>Upcoming statements: <strong>${fmtMoney(data.obligation_total)}</strong></span>
+        <span style="color:${color};font-weight:600">${ratioLabel} checking coverage</span>
+      </div>`;
+    card.classList.remove('hidden');
+  } catch {
+    card.classList.add('hidden');
+  }
 }
 
 // ── Render: Hot spots ────────────────────────────────────────

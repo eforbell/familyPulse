@@ -1,0 +1,119 @@
+{
+  "branchName": "feature/12-liability-coverage",
+  "projectName": "Credit Card Liability Coverage",
+  "description": "Store all Plaid liability fields during sync, calculate statement coverage from checking balances, surface coverage data across accounts/dashboard/budget pages, and enrich LLM context with liability information.",
+  "timing": {
+    "draftedOn": "2026-03-13",
+    "plannedEarliestExecution": "immediate",
+    "gatingCondition": "Feature 11 (split liability onboarding) ships first so credit cards are onboarded intentionally."
+  },
+  "principles": [
+    "Coverage base is checking accounts only — needing savings to cover cards is crazy town",
+    "Statement balance is the obligation, not current balance (falls back to current if no statement yet)",
+    "All liability fields nullable — gracefully handle sparse Plaid responses",
+    "Coverage data enriches LLM context for smarter financial advice",
+    "Configurable alert threshold via app_config (default 70%)"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL with NUMERIC(12,2) and JSONB columns",
+    "testing": "node:test integration tests against live database"
+  },
+  "userStories": [
+    {
+      "id": "COV-012-001",
+      "title": "Store all Plaid liability fields during sync",
+      "acceptanceCriteria": [
+        "Migration adds 8 liability columns to accounts table",
+        "Sync stores statement_balance, due_date, minimum_payment, APR data, overdue status",
+        "All fields nullable — no failures on sparse Plaid responses",
+        "Existing balance update behavior preserved"
+      ],
+      "priority": 1,
+      "estimatedLines": "+30/-10",
+      "testStrategy": "Integration test verifying liability fields persist after sync upsert.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-002",
+      "title": "Coverage calculator and API endpoint",
+      "acceptanceCriteria": [
+        "GET /api/accounts/coverage returns checking_total, obligation_total, ratio, status, card breakdown",
+        "Status tiers: clear/healthy/warning/danger based on configurable threshold",
+        "Cards ordered by due date ascending",
+        "Obligation falls back to current_balance when no statement balance"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "Integration tests for healthy/warning/danger/clear scenarios plus fallback behavior.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-003",
+      "title": "Frontend coverage surfaces on 3 pages",
+      "acceptanceCriteria": [
+        "Accounts page: coverage banner with per-card breakdown and due dates",
+        "Dashboard: compact single-line coverage indicator",
+        "Budget: obligations card with statement total and coverage ratio",
+        "Credit account cards show statement balance, due date, minimum payment"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-5",
+      "testStrategy": "Manual UI verification on all three pages.",
+      "passes": false
+    },
+    {
+      "id": "COV-012-004",
+      "title": "LLM context enrichment with liability coverage",
+      "acceptanceCriteria": [
+        "All four context assemblers include liability_coverage block",
+        "Financial snapshot includes checking_balance, statement_obligations, coverage_ratio",
+        "Account objects in query/snapshot contexts include statement_balance and due_date for credit accounts"
+      ],
+      "priority": 2,
+      "estimatedLines": "+60/-10",
+      "testStrategy": "Manual verification via Ask Pulse queries about credit card coverage.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Plaid may return sparse liability data for some institutions — all fields are nullable to handle this"
+    ],
+    "low": [
+      "Coverage calculation assumes statement_balance is the obligation — may not match exact payment for zero-balance-transfer accounts"
+    ]
+  },
+  "preFlightChecklist": [
+    "Feature 11 ships first (liability onboarding separated from default flow)",
+    "Migration 008 applied to production database",
+    "At least one credit card linked via liability-aware onboarding to verify data flows end-to-end"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+340/-25",
+    "storiesCount": 4,
+    "filesCreated": [
+      "db/migrations/008-liability-coverage.sql",
+      "lib/coverage-calculator.js",
+      "test/coverage-calculator.test.js",
+      "planning/features/feature-12-prd.json",
+      "planning/features/feature-12-summary.md"
+    ],
+    "filesModified": [
+      "db/seed.sql",
+      "lib/sync.js",
+      "lib/routes/accounts.js",
+      "public/accounts.html",
+      "public/accounts.js",
+      "public/index.html",
+      "public/app.js",
+      "public/budget.html",
+      "public/budget.js",
+      "public/style.css",
+      "lib/magic-actions/context-assembler.js",
+      "test/sync.test.js"
+    ]
+  }
+}

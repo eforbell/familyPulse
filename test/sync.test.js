@@ -133,6 +133,61 @@ describe('sync — upsert logic', () => {
   });
 });
 
+describe('sync — liability field persistence', () => {
+  let liabItemId;
+
+  before(async () => {
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-liab', 'test-item-liab', 'ins_liab', 'Liab Test Bank', 'good')
+      ON CONFLICT (item_id) DO UPDATE SET status = 'good'
+      RETURNING id
+    `);
+    liabItemId = item.id;
+
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+      VALUES ('acct-liab-cc', $1, 'Test Credit Card', 'credit', 'credit card', '9999', 500.00)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Credit Card'
+    `, [liabItemId]);
+  });
+
+  it('stores all liability fields on credit account', async () => {
+    await pool.query(`
+      UPDATE accounts SET
+        last_statement_balance = 450.00,
+        last_statement_issue_date = '2026-03-01',
+        minimum_payment_amount = 25.00,
+        next_payment_due_date = '2026-03-25',
+        last_payment_amount = 500.00,
+        last_payment_date = '2026-02-20',
+        is_overdue = false,
+        apr_data = $1
+      WHERE plaid_account_id = 'acct-liab-cc'
+    `, [JSON.stringify([{ apr_percentage: 22.99, apr_type: 'purchase_apr' }])]);
+
+    const { rows: [acct] } = await pool.query(
+      `SELECT last_statement_balance, last_statement_issue_date,
+              minimum_payment_amount, next_payment_due_date,
+              last_payment_amount, last_payment_date,
+              is_overdue, apr_data
+       FROM accounts WHERE plaid_account_id = 'acct-liab-cc'`
+    );
+
+    assert.equal(parseFloat(acct.last_statement_balance), 450);
+    assert.equal(parseFloat(acct.minimum_payment_amount), 25);
+    assert.equal(parseFloat(acct.last_payment_amount), 500);
+    assert.equal(acct.is_overdue, false);
+    assert.ok(acct.apr_data);
+    assert.equal(acct.apr_data[0].apr_type, 'purchase_apr');
+  });
+
+  after(async () => {
+    await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-liab-cc'");
+    await pool.query("DELETE FROM items WHERE item_id = 'test-item-liab'");
+  });
+});
+
 describe('sync — item failure classification', () => {
   it('marks ITEM_LOGIN_REQUIRED as needs_reauth', () => {
     const result = classifyItemFailure({ code: 'ITEM_LOGIN_REQUIRED' });
