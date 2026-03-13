@@ -2,6 +2,7 @@
 'use strict';
 
 let currentMember = null;
+let renameTarget = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -155,9 +156,14 @@ function formatShortDate(dateStr) {
 function openRename(event, accountId, currentName) {
   event.stopPropagation();
   event.preventDefault();
-  const newName = prompt('Enter custom name (leave blank to reset to Plaid name):', currentName);
-  if (newName === null) return; // cancelled
-  renameAccount(accountId, newName);
+  renameTarget = { id: accountId };
+  const input = $('rename-input');
+  input.value = currentName || '';
+  $('rename-overlay').classList.remove('hidden');
+  setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
 }
 
 async function renameAccount(id, customName) {
@@ -168,9 +174,30 @@ async function renameAccount(id, customName) {
       body: JSON.stringify({ custom_name: customName })
     });
     await loadAccounts();
+    return true;
   } catch (err) {
     alert(`Rename failed: ${err.message}`);
+    return false;
   }
+}
+
+function closeRenameOverlay() {
+  renameTarget = null;
+  $('rename-overlay').classList.add('hidden');
+}
+
+function resetRename() {
+  if (!renameTarget) return;
+  renameAccount(renameTarget.id, '').then(ok => {
+    if (ok) closeRenameOverlay();
+  });
+}
+
+function submitRename() {
+  if (!renameTarget) return;
+  renameAccount(renameTarget.id, $('rename-input').value).then(ok => {
+    if (ok) closeRenameOverlay();
+  });
 }
 
 // ── Auth actions ─────────────────────────────────────────────
@@ -189,6 +216,8 @@ function updateWhoBtn() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
 
 function esc(str) {
   return String(str)
@@ -216,3 +245,10 @@ async function api(url, opts) {
   }
   return res.json();
 }
+
+document.addEventListener('keydown', event => {
+  const overlay = $('rename-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.key === 'Escape') closeRenameOverlay();
+  if (event.key === 'Enter' && event.target === $('rename-input')) submitRename();
+});
