@@ -197,23 +197,28 @@ describe('coverage-calculator — loans without liability data', () => {
 describe('coverage-calculator — clear scenario', () => {
   before(async () => {
     await clearTestAccountMemberships();
-    // Remove credit card obligation
+    // Mark credit card obligation as satisfied for the current cycle
     await pool.query(`
-      UPDATE accounts SET last_statement_balance = 0, current_balance = 0
+      UPDATE accounts SET last_statement_balance = 2000.00, current_balance = 2500.00,
+        minimum_payment_amount = 0, is_overdue = false
       WHERE plaid_account_id = 'acct-cov-cc1'
     `);
   });
 
-  it('returns clear when no obligations exist', async () => {
+  it('returns clear when all obligations are satisfied', async () => {
     const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.status, 'clear');
     assert.equal(result.obligation_total, 0);
     assert.equal(result.ratio, null);
+    assert.equal(result.cards.length, 1);
+    assert.equal(result.cards[0].satisfied, true);
+    assert.equal(result.cards[0].obligation, 0);
   });
 
   after(async () => {
     await pool.query(`
-      UPDATE accounts SET last_statement_balance = 2000.00, current_balance = 2500.00
+      UPDATE accounts SET last_statement_balance = 2000.00, current_balance = 2500.00,
+        minimum_payment_amount = 25.00, is_overdue = false
       WHERE plaid_account_id = 'acct-cov-cc1'
     `);
   });

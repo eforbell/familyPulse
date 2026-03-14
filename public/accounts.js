@@ -85,7 +85,7 @@ function renderDashboard(data) {
           </div>
           <div class="acct-balance-wrap">
             <div class="acct-balance ${(isCredit || isLoan) ? 'credit' : ''}">${fmtMoney(bal)}</div>
-            ${showLedgerSecondary ? `<div class="acct-balance-sub">Ledger ${fmtMoney(ledgerBalance)}</div>` : ''}
+            ${buildBalanceSubline(a, bal, showLedgerSecondary, ledgerBalance)}
           </div>
         </div>`;
     }
@@ -111,12 +111,15 @@ function renderCoverage(data) {
     const due = c.due_date ? formatShortDate(c.due_date) : null;
     const overdue = c.is_overdue ? '<span class="coverage-overdue">OVERDUE</span>' : '';
     const minPay = c.minimum_payment !== null ? fmtMoney(c.minimum_payment) : null;
+    const statusText = c.satisfied
+      ? '<span class="coverage-card-status coverage-card-status-ok">Satisfied</span>'
+      : `<span class="coverage-card-amount">${fmtMoney(c.obligation)}</span>`;
     return `<div class="coverage-card-line">
       <div class="coverage-card-name">${esc(c.name)} ${c.mask ? '<span class="coverage-card-mask">···' + esc(c.mask) + '</span>' : ''}</div>
       <div class="coverage-card-details">
-        <span class="coverage-card-amount">${fmtMoney(c.obligation)}</span>
+        ${statusText}
         ${due ? `<span class="coverage-card-due">due ${due}</span>` : ''}
-        ${minPay ? `<span class="coverage-card-min">min ${minPay}</span>` : ''}
+        ${minPay && !c.satisfied ? `<span class="coverage-card-min">min ${minPay}</span>` : ''}
         ${overdue}
       </div>
     </div>`;
@@ -138,6 +141,10 @@ function renderCoverage(data) {
 }
 
 function buildLiabilityLine(acct) {
+  if (acct.type === 'credit') {
+    return buildCreditLiabilityLine(acct);
+  }
+
   const parts = [];
   if (acct.last_statement_balance != null) {
     parts.push(`Stmt ${fmtMoney(acct.last_statement_balance)}`);
@@ -150,6 +157,51 @@ function buildLiabilityLine(acct) {
   }
   if (parts.length === 0) return '';
   return `<div class="acct-liability">${parts.join(' · ')}</div>`;
+}
+
+function buildCreditLiabilityLine(acct) {
+  const statementBalance = parseFloat(acct.last_statement_balance);
+  const minimumPayment = parseFloat(acct.minimum_payment_amount);
+  const hasStatement = Number.isFinite(statementBalance);
+  const hasMinimum = Number.isFinite(minimumPayment);
+  const paymentDate = acct.last_payment_date ? formatShortDate(acct.last_payment_date) : '';
+  const paymentAmount = parseFloat(acct.last_payment_amount);
+  const hasPaymentAmount = Number.isFinite(paymentAmount);
+
+  const parts = [];
+  if (acct.is_overdue) {
+    parts.push('Payment overdue');
+  }
+  if (hasMinimum && minimumPayment === 0) {
+    parts.push('No payment currently due');
+  }
+  if (hasStatement) {
+    parts.push(`Stmt ${fmtMoney(statementBalance)}`);
+  }
+  if (acct.next_payment_due_date && !(hasMinimum && minimumPayment === 0)) {
+    parts.push(`due ${formatShortDate(acct.next_payment_due_date)}`);
+  }
+  if (hasMinimum && minimumPayment > 0) {
+    parts.push(`min ${fmtMoney(minimumPayment)}`);
+  }
+  if (hasPaymentAmount) {
+    parts.push(`Last payment ${fmtMoney(paymentAmount)}${paymentDate ? ` ${paymentDate}` : ''}`);
+  }
+  if (!parts.length) return '';
+  return `<div class="acct-liability${hasMinimum && minimumPayment === 0 ? ' acct-liability-ok' : ''}">${parts.join(' · ')}</div>`;
+}
+
+function buildBalanceSubline(acct, displayBalance, showLedgerSecondary, ledgerBalance) {
+  if (acct.type === 'credit') {
+    return `<div class="acct-balance-sub">Current balance</div>`;
+  }
+  if (acct.type === 'loan') {
+    return `<div class="acct-balance-sub">Outstanding balance</div>`;
+  }
+  if (showLedgerSecondary) {
+    return `<div class="acct-balance-sub">Ledger ${fmtMoney(ledgerBalance)}</div>`;
+  }
+  return '';
 }
 
 function formatShortDate(dateStr) {

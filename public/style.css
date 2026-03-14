@@ -1621,6 +1621,8 @@ header h1 {
   text-align: right;
 }
 .coverage-card-amount { font-weight: 600; color: var(--text); }
+.coverage-card-status { font-weight: 600; }
+.coverage-card-status-ok { color: var(--green); }
 .coverage-card-due { color: var(--muted); }
 .coverage-card-min { color: var(--muted); }
 .coverage-overdue { color: var(--red); font-weight: 600; }
@@ -1638,6 +1640,11 @@ header h1 {
   font-size: 0.75rem;
   color: var(--dim);
   margin-top: 0.1rem;
+}
+
+.acct-liability-ok {
+  color: var(--green);
+  font-weight: 600;
 }
 
 .acct-rename-btn {
