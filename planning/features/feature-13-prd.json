@@ -1,0 +1,124 @@
+{
+  "branchName": "feature/13-balance-policy",
+  "projectName": "Balance Policy",
+  "description": "Introduce an explicit household balance policy so Pulse can prefer Plaid available balances for depository cash views while preserving current balances as ledger values. Add a household setting, centralize balance selection logic, and align dashboard/accounts/kids/coverage calculations with the selected basis.",
+  "timing": {
+    "draftedOn": "2026-03-14",
+    "plannedEarliestExecution": "immediate",
+    "gatingCondition": "None. Feature 12 (Liability Coverage) is already shipped and provides one of the key downstream consumers of depository balance policy."
+  },
+  "principles": [
+    "Separate spendable cash from ledger balance — one number cannot serve both meanings reliably",
+    "Default to available balance when Plaid provides it for depository accounts, because that most closely matches real spendable cash",
+    "Never hand-net pending transactions to override the institution's balance view when available_balance is present",
+    "Ledger balance remains visible and queryable — this is not a destructive replacement of current_balance",
+    "Non-depository accounts keep existing semantics unless explicitly expanded later",
+    "Balance policy must be centralized in one helper/module so routes and UIs do not drift",
+    "Household setting controls behavior globally; kids and parents should see consistent policy-driven balances"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL app_config for balance_basis configuration",
+    "testing": "node:test for policy helpers, API aggregates, and settings persistence"
+  },
+  "userStories": [
+    {
+      "id": "BAL-013-001",
+      "title": "Centralize depository balance selection policy",
+      "acceptanceCriteria": [
+        "New shared helper/module defines display balance selection rules",
+        "Mode available_preferred returns available_balance for depository accounts when non-null, otherwise falls back to current_balance",
+        "Mode current_only always returns current_balance",
+        "Helper exposes both account-level selection and aggregate summation helpers",
+        "Credit, loan, and investment accounts retain existing current_balance behavior unless explicitly overridden"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "Unit tests for account-level and aggregate selection across mixed available/current/null inputs.",
+      "passes": false
+    },
+    {
+      "id": "BAL-013-002",
+      "title": "Add household balance policy setting",
+      "acceptanceCriteria": [
+        "app_config stores balance_basis with allowed values available_preferred and current_only",
+        "Default behavior is available_preferred when config is unset",
+        "Settings page exposes a clear household-level toggle with explanatory copy",
+        "Settings save path persists the chosen basis and reflects the current selection on reload"
+      ],
+      "priority": 1,
+      "estimatedLines": "+90/-10",
+      "testStrategy": "Integration test for config default and persistence plus manual settings UI verification.",
+      "passes": false
+    },
+    {
+      "id": "BAL-013-003",
+      "title": "Use policy-driven balances in household and kid cash views",
+      "acceptanceCriteria": [
+        "Dashboard liquid total and net cash view use the configured balance basis for depository accounts",
+        "Accounts page depository account cards use the configured main balance and can show ledger balance as secondary detail when mode is available_preferred",
+        "Kids dashboard total balance uses the configured balance basis",
+        "Balance labels in the UI clarify whether the displayed number is Available or Ledger when needed",
+        "No change to transaction history or transfer-detection logic"
+      ],
+      "priority": 1,
+      "estimatedLines": "+140/-20",
+      "testStrategy": "API and UI verification using accounts where available_balance differs from current_balance.",
+      "passes": false
+    },
+    {
+      "id": "BAL-013-004",
+      "title": "Align coverage and other depository aggregates with policy",
+      "acceptanceCriteria": [
+        "Coverage calculator uses configured balance basis for depository total",
+        "Kid-linked account exclusion still applies before summation",
+        "Coverage status changes correctly when available_balance materially differs from current_balance",
+        "Any future aggregate helper consumers can reuse the same policy module"
+      ],
+      "priority": 2,
+      "estimatedLines": "+50/-10",
+      "testStrategy": "Coverage integration tests for available-preferred vs current-only scenarios.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Institutions do not populate available_balance consistently, so fallback behavior must be explicit and tested",
+      "Users may be surprised if top-line balances change after enabling available_preferred; UI labeling must make the basis obvious",
+      "Coverage alerts may become more conservative under available_preferred, which is correct but behaviorally visible"
+    ],
+    "low": [
+      "A single global household setting may eventually be less flexible than per-user preference, but is the right MVP tradeoff"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm current UI locations that show depository balances: dashboard, accounts, kids, coverage",
+    "Confirm app_config read/write pattern to reuse from existing settings features",
+    "Decide whether to show secondary ledger balance inline or only in a tooltip/subtext when available_preferred is active",
+    "Verify at least one real/sandbox account has available_balance different from current_balance for end-to-end validation"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+360/-40",
+    "storiesCount": 4,
+    "filesCreated": [
+      "lib/balance-policy.js",
+      "test/balance-policy.test.js",
+      "planning/features/feature-13-prd.json",
+      "planning/features/feature-13-summary.md"
+    ],
+    "filesModified": [
+      "db/seed.sql",
+      "lib/routes/accounts.js",
+      "lib/routes/kids.js",
+      "lib/coverage-calculator.js",
+      "public/app.js",
+      "public/accounts.js",
+      "public/kids.js",
+      "public/settings.html",
+      "public/settings.js",
+      "public/style.css"
+    ]
+  }
+}

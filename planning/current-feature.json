@@ -1,5 +1,5 @@
 {
-  "currentFeature": "Feature #10: Household Authentication",
+  "currentFeature": "Feature #13: Balance Policy",
   "status": "planning",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
@@ -8,13 +8,15 @@
     "Feature #3: Monarch Money Migration",
     "Feature #4: Budget Framework",
     "Feature #5: Hot Spots & Anomaly Detection",
-    "Feature #7: Magic Actions (LLM Layer)"
-  ],
-  "skippedFeatures": [
-    "Feature #6: Kids View"
-  ],
-  "futureFeatures": [
     "Feature #6: Kids View",
+    "Feature #7: Magic Actions (LLM Layer)",
+    "Feature #10: Household Authentication",
+    "Feature #11: Split Liability Onboarding",
+    "Feature #12: Liability Coverage"
+  ],
+  "skippedFeatures": [],
+  "futureFeatures": [
+    "Feature #13: Balance Policy",
     "Feature #8: MCP Server",
     "Feature #9: Planning & Goals"
   ]

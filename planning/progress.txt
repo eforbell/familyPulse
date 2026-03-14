@@ -48,3 +48,17 @@
 2026-03-11
 - Project status: Features 1–5 and 7 complete. Feature 6 skipped.
 - Remaining: Feature 8 (MCP Server), Feature 9 (Planning & Goals).
+
+2026-03-14
+- Feature 6 (Kids View) completed, merged, and shipped.
+  - Dedicated kid routes (`/kids/:name`) with login redirect to kid-specific dashboards
+  - API-enforced kid scoping for dashboards, transactions, categorization, and parent-only endpoints
+  - Parent-set monthly kid budgets plus kid dashboard budget progress UI
+  - LLM-generated Money Report Card for kids, cached monthly
+  - Parent accounts view includes kid-owned accounts
+  - Coverage calculator excludes kid-linked accounts
+  - Owner reassignment now reconciles `account_members` so stale kid membership is not left behind
+  - Kids/coverage/link tests hardened and coverage calculator integration test isolated to deterministic suite-owned fixtures
+- Feature 13 (Balance Policy) drafted as the next feature.
+  - Added planning artifacts for household `available_preferred` vs `current_only` balance basis
+  - Scope includes centralized balance policy helper, settings toggle, cash-view alignment, and coverage integration
