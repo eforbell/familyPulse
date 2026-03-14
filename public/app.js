@@ -106,6 +106,7 @@ function renderDashboard(data) {
 
   $('balance-breakdown').innerHTML = `
     <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
+    <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
     <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
   `;

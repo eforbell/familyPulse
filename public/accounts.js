@@ -49,6 +49,7 @@ function renderDashboard(data) {
 
   document.getElementById('balance-breakdown').innerHTML = `
     <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
+    <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
     <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
   `;
@@ -62,10 +63,15 @@ function renderDashboard(data) {
     group.innerHTML = `<div class="owner-label">${esc(owner)}</div>`;
 
     for (const a of accts) {
-      const bal = parseFloat(a.current_balance) || 0;
+      const bal = parseFloat(a.display_balance != null ? a.display_balance : a.current_balance) || 0;
       const isCredit = a.type === 'credit';
       const isLoan = a.type === 'loan';
       const liabilityLine = (isCredit || isLoan) ? buildLiabilityLine(a) : '';
+      const ledgerBalance = parseFloat(a.ledger_balance);
+      const showLedgerSecondary = a.type === 'depository'
+        && a.display_balance_kind === 'available'
+        && Number.isFinite(ledgerBalance)
+        && Math.round(ledgerBalance * 100) / 100 !== Math.round(bal * 100) / 100;
       const displayName = a.display_name || a.name;
       group.innerHTML += `
         <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
@@ -77,7 +83,10 @@ function renderDashboard(data) {
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
             ${liabilityLine}
           </div>
-          <div class="acct-balance ${(isCredit || isLoan) ? 'credit' : ''}">${fmtMoney(bal)}</div>
+          <div class="acct-balance-wrap">
+            <div class="acct-balance ${(isCredit || isLoan) ? 'credit' : ''}">${fmtMoney(bal)}</div>
+            ${showLedgerSecondary ? `<div class="acct-balance-sub">Ledger ${fmtMoney(ledgerBalance)}</div>` : ''}
+          </div>
         </div>`;
     }
 
@@ -120,7 +129,7 @@ function renderCoverage(data) {
         <div class="coverage-banner-ratio" style="color:${color}">${ratioLabel}</div>
       </div>
       <div class="coverage-banner-totals">
-        <span>Cash: <strong>${fmtMoney(data.depository_total)}</strong></span>
+        <span>Cash (${esc(data.depository_balance_label || 'Available')}): <strong>${fmtMoney(data.depository_total)}</strong></span>
         <span>Obligations: <strong>${fmtMoney(data.obligation_total)}</strong></span>
       </div>
       ${cardsHtml ? '<div class="coverage-card-lines">' + cardsHtml + '</div>' : ''}

@@ -75,6 +75,23 @@
       </div>
     </section>
 
+    <section id="balance-policy-section" class="hidden" style="margin-top:1.5rem">
+      <h2 class="section-heading">Household Cash Basis</h2>
+      <div class="theme-card">
+        <p class="theme-card-copy">
+          Choose how Pulse displays depository balances in household Cash totals. Investment accounts stay on ledger balance.
+        </p>
+        <div class="settings-inline-row">
+          <select id="balance-basis-select" class="magic-input" style="max-width:280px">
+            <option value="available_preferred">Available balance preferred</option>
+            <option value="current_only">Ledger balance only</option>
+          </select>
+          <button class="btn-primary" onclick="saveBalancePolicy()">Save</button>
+        </div>
+        <div id="balance-policy-copy" class="settings-help-copy"></div>
+      </div>
+    </section>
+
     <!-- Data Import -->
     <section style="margin-top:1.5rem">
       <h2 class="section-heading">Data Import</h2>

@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch {}
 
   await Promise.all([loadItems(), loadMembers(), loadDedupHistory()]);
+  loadBalancePolicy();
   loadThemeControls();
   loadAIPrompts();
   loadPassphraseManager();
@@ -119,6 +120,53 @@ function loadThemeControls() {
       <span>${esc(option.label)}</span>
     </button>
   `).join('');
+}
+
+async function loadBalancePolicy() {
+  const section = document.getElementById('balance-policy-section');
+  if (!section) return;
+  if (!currentMember || currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  try {
+    const data = await api('api/settings/balance-basis');
+    const select = document.getElementById('balance-basis-select');
+    select.value = data.balance_basis || 'available_preferred';
+    renderBalancePolicyCopy(select.value);
+  } catch (err) {
+    console.error('Balance policy load failed:', err);
+  }
+}
+
+function renderBalancePolicyCopy(balanceBasis) {
+  const copy = document.getElementById('balance-policy-copy');
+  if (!copy) return;
+
+  copy.textContent = balanceBasis === 'current_only'
+    ? 'Pulse will show depository balances using ledger/current balance everywhere. Investment accounts continue using ledger balance.'
+    : 'Pulse will prefer a bank-provided available balance for depository accounts when present, then fall back to ledger/current balance. Investment accounts continue using ledger balance.';
+}
+
+async function saveBalancePolicy() {
+  const select = document.getElementById('balance-basis-select');
+  if (!select) return;
+
+  try {
+    await api('api/settings/balance-basis', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ balance_basis: select.value })
+    });
+    renderBalancePolicyCopy(select.value);
+    select.style.borderColor = 'var(--green)';
+    setTimeout(() => { select.style.borderColor = ''; }, 1500);
+  } catch (err) {
+    alert('Failed to save balance basis: ' + err.message);
+  }
 }
 
 function setThemePreference(preference) {

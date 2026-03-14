@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Introduce an explicit balance policy so Pulse can distinguish between spendable cash and ledger balance. For depository accounts, Pulse should prefer Plaid `available_balance` when the household wants real-world spendable cash, while preserving `current_balance` as the ledger/book value.
+Introduce an explicit balance policy so Pulse can distinguish between spendable cash and ledger balance. For depository accounts, Pulse should prefer Plaid `available_balance` when the household wants real-world spendable cash, while preserving `current_balance` as the ledger/book value. Household-facing "Cash" totals continue to mean cash-like assets that are easy to spend or sell without tax-lot math, not strictly depository-only balances.
 
 ## Why This Matters
 
@@ -15,7 +15,8 @@ Plaid transfer timing is often asymmetric: the source account may still mark an 
 - Modes:
   - `available_preferred` = `available_balance ?? current_balance` for depository accounts
   - `current_only` = always `current_balance`
-- Helper supports both account-level display balance and aggregate depository totals
+- Helper supports both account-level display balance and aggregate cash-like totals
+- Policy switching applies only to depository accounts; investment accounts continue to use `current_balance`
 
 ### Phase 2: Household Setting
 - Add `balance_basis` to `app_config`
@@ -23,10 +24,10 @@ Plaid transfer timing is often asymmetric: the source account may still mark an 
 - Settings page exposes a household-level toggle with clear explanatory copy
 
 ### Phase 3: Apply To Cash Views
-- **Dashboard**: liquid total / cash summary uses configured balance basis
-- **Accounts page**: depository cards use policy-driven balance; ledger balance may appear as secondary detail
-- **Kids dashboard**: total balance uses the same household policy
-- Labels should clarify when the displayed value is `Available` instead of `Ledger`
+- **Dashboard**: cash summary means cash-like assets and uses configured balance basis for depository accounts while keeping investment accounts on `current_balance`
+- **Accounts page**: depository cards use policy-driven balance; ledger balance may appear as secondary detail. Investment accounts keep existing current-balance behavior.
+- **Kids dashboard**: total balance uses the same household policy for depository accounts and keeps investment balances on `current_balance`
+- Labels should clarify when a displayed depository value is `Available` instead of `Ledger`
 
 ### Phase 4: Coverage Alignment
 - Coverage calculator uses configured balance basis for depository total
@@ -45,12 +46,14 @@ Plaid transfer timing is often asymmetric: the source account may still mark an 
 - **No manual pending-transaction math** when Plaid already provides `available_balance`
 - **One centralized policy helper** avoids route/UI drift
 - **Global household setting first** — simpler and more coherent than per-user preference
+- **"Cash" remains a family-friendly label for cash-like assets** — depository plus cash-adjacent investment holdings, with policy switching only on the depository portion
 
 ## Definition of Done
 
 - A household setting controls balance basis: `available_preferred` or `current_only`
 - Dashboard, accounts, kids, and coverage all use the same policy
-- Depository totals match available balance when configured and present
+- Depository portions of cash-like totals match available balance when configured and present
+- Investment accounts continue to contribute `current_balance` to cash-like totals
 - Fallback to current balance works when available balance is null
-- UI labels make the chosen basis understandable
+- UI labels make the chosen depository basis understandable without implying investment balances changed basis
 - Tests cover mixed available/current inputs and aggregate behavior

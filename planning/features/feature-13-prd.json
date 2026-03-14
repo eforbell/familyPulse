@@ -1,7 +1,7 @@
 {
   "branchName": "feature/13-balance-policy",
   "projectName": "Balance Policy",
-  "description": "Introduce an explicit household balance policy so Pulse can prefer Plaid available balances for depository cash views while preserving current balances as ledger values. Add a household setting, centralize balance selection logic, and align dashboard/accounts/kids/coverage calculations with the selected basis.",
+  "description": "Introduce an explicit household balance policy so Pulse can prefer Plaid available balances for depository cash views while preserving current balances as ledger values. Keep household-facing Cash totals defined as cash-like assets, with policy switching applied to depository accounts while investment accounts continue using current balances. Add a household setting, centralize balance selection logic, and align dashboard/accounts/kids/coverage calculations with the selected basis.",
   "timing": {
     "draftedOn": "2026-03-14",
     "plannedEarliestExecution": "immediate",
@@ -13,6 +13,8 @@
     "Never hand-net pending transactions to override the institution's balance view when available_balance is present",
     "Ledger balance remains visible and queryable — this is not a destructive replacement of current_balance",
     "Non-depository accounts keep existing semantics unless explicitly expanded later",
+    "Household-facing Cash remains a family-friendly cash-like total, not a strict depository-only metric",
+    "Investment accounts continue to contribute current_balance to cash-like totals unless explicitly expanded later",
     "Balance policy must be centralized in one helper/module so routes and UIs do not drift",
     "Household setting controls behavior globally; kids and parents should see consistent policy-driven balances"
   ],
@@ -31,6 +33,7 @@
         "Mode available_preferred returns available_balance for depository accounts when non-null, otherwise falls back to current_balance",
         "Mode current_only always returns current_balance",
         "Helper exposes both account-level selection and aggregate summation helpers",
+        "Cash-like aggregates can include both depository and investment accounts, but policy switching only applies to depository balances",
         "Credit, loan, and investment accounts retain existing current_balance behavior unless explicitly overridden"
       ],
       "priority": 1,
@@ -56,25 +59,26 @@
       "id": "BAL-013-003",
       "title": "Use policy-driven balances in household and kid cash views",
       "acceptanceCriteria": [
-        "Dashboard liquid total and net cash view use the configured balance basis for depository accounts",
+        "Dashboard Cash total and related cash-like summaries use the configured balance basis for depository accounts while investment accounts continue using current_balance",
         "Accounts page depository account cards use the configured main balance and can show ledger balance as secondary detail when mode is available_preferred",
-        "Kids dashboard total balance uses the configured balance basis",
-        "Balance labels in the UI clarify whether the displayed number is Available or Ledger when needed",
+        "Investment account cards keep existing current-balance behavior and are not relabeled as Available or Ledger unless future scope expands",
+        "Kids dashboard total balance uses the configured balance basis for depository accounts while keeping investment balances on current_balance",
+        "Balance labels in the UI clarify whether a depository displayed number is Available or Ledger when needed",
         "No change to transaction history or transfer-detection logic"
       ],
       "priority": 1,
       "estimatedLines": "+140/-20",
-      "testStrategy": "API and UI verification using accounts where available_balance differs from current_balance.",
+      "testStrategy": "API and UI verification using mixed portfolios where available_balance differs from current_balance on depository accounts and investment balances remain current-based.",
       "passes": false
     },
     {
       "id": "BAL-013-004",
       "title": "Align coverage and other depository aggregates with policy",
       "acceptanceCriteria": [
-        "Coverage calculator uses configured balance basis for depository total",
-        "Kid-linked account exclusion still applies before summation",
-        "Coverage status changes correctly when available_balance materially differs from current_balance",
-        "Any future aggregate helper consumers can reuse the same policy module"
+      "Coverage calculator uses configured balance basis for depository total",
+      "Kid-linked account exclusion still applies before summation",
+      "Coverage status changes correctly when available_balance materially differs from current_balance",
+      "Any future aggregate helper consumers can reuse the same policy module"
       ],
       "priority": 2,
       "estimatedLines": "+50/-10",
@@ -86,7 +90,7 @@
     "high": [],
     "medium": [
       "Institutions do not populate available_balance consistently, so fallback behavior must be explicit and tested",
-      "Users may be surprised if top-line balances change after enabling available_preferred; UI labeling must make the basis obvious",
+      "Users may be surprised if top-line balances change after enabling available_preferred; UI labeling must make the depository basis obvious while keeping the family-facing Cash label understandable",
       "Coverage alerts may become more conservative under available_preferred, which is correct but behaviorally visible"
     ],
     "low": [
@@ -94,9 +98,10 @@
     ]
   },
   "preFlightChecklist": [
-    "Confirm current UI locations that show depository balances: dashboard, accounts, kids, coverage",
+    "Confirm current UI locations that show cash-like totals and depository balances: dashboard, accounts, kids, coverage",
     "Confirm app_config read/write pattern to reuse from existing settings features",
     "Decide whether to show secondary ledger balance inline or only in a tooltip/subtext when available_preferred is active",
+    "Document that Cash means cash-like assets, with investment accounts staying on current_balance while depository accounts follow the configured basis",
     "Verify at least one real/sandbox account has available_balance different from current_balance for end-to-end validation"
   ],
   "metrics": {

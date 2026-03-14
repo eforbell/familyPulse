@@ -96,6 +96,7 @@ function renderDashboard() {
 
   $('balance-detail').innerHTML = `
     <span><span class="label">Accounts</span> <span class="value">${d.accounts.length}</span></span>
+    <span><span class="label">Depository basis</span> <span class="value">${esc(d.depository_balance_label || 'Available')}</span></span>
     <span><span class="label">Spent this month</span> <span class="value">${fmtMoney(d.month_spending)}</span></span>
   `;
 

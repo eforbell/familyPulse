@@ -1,6 +1,5 @@
 'use strict';
 
-require('dotenv').config();
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { Pool } = require('pg');
@@ -11,15 +10,15 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { getCoverage } = require('../lib/coverage-calculator');
 
 let testItemId;
-let hiddenItemStatuses = [];
+const ACCOUNT_PREFIX = 'acct-cov-';
 
 async function clearTestAccountMemberships() {
   await pool.query(`
     DELETE FROM account_members
     WHERE account_id IN (
-      SELECT id FROM accounts WHERE plaid_account_id LIKE 'acct-cov-%'
+      SELECT id FROM accounts WHERE plaid_account_id LIKE $1
     )
-  `);
+  `, [`${ACCOUNT_PREFIX}%`]);
 }
 
 before(async () => {
@@ -28,22 +27,6 @@ before(async () => {
     INSERT INTO app_config (key, value) VALUES ('coverage_alert_threshold', '0.70')
     ON CONFLICT (key) DO UPDATE SET value = '0.70'
   `);
-
-  // Isolate coverage calculations to this test item's accounts.
-  const { rows } = await pool.query(`
-    SELECT id, status
-    FROM items
-    WHERE status = 'good'
-      AND item_id <> 'test-item-cov'
-  `);
-  hiddenItemStatuses = rows;
-  if (hiddenItemStatuses.length > 0) {
-    await pool.query(`
-      UPDATE items
-      SET status = 'test_hidden_for_coverage'
-      WHERE id = ANY($1::int[])
-    `, [hiddenItemStatuses.map(row => row.id)]);
-  }
 
   // Create a test item
   const { rows: [item] } = await pool.query(`
@@ -59,12 +42,6 @@ after(async () => {
   await clearTestAccountMemberships();
   await pool.query("DELETE FROM accounts WHERE plaid_account_id LIKE 'acct-cov-%'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-cov'");
-  for (const item of hiddenItemStatuses) {
-    await pool.query(
-      'UPDATE items SET status = $1 WHERE id = $2',
-      [item.status, item.id]
-    );
-  }
   await pool.end();
 });
 
@@ -73,9 +50,9 @@ describe('coverage-calculator — healthy scenario', () => {
     await clearTestAccountMemberships();
     // Checking account with $10,000
     await pool.query(`
-      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
-      VALUES ('acct-cov-chk1', $1, 'Main Checking', 'depository', 'checking', '0001', 10000.00)
-      ON CONFLICT (plaid_account_id) DO UPDATE SET current_balance = 10000.00, type = 'depository', subtype = 'checking'
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance, available_balance)
+      VALUES ('acct-cov-chk1', $1, 'Main Checking', 'depository', 'checking', '0001', 10000.00, 9600.00)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET current_balance = 10000.00, available_balance = 9600.00, type = 'depository', subtype = 'checking'
     `, [testItemId]);
 
     // Credit card with $2000 statement balance, due next week
@@ -92,15 +69,16 @@ describe('coverage-calculator — healthy scenario', () => {
   });
 
   it('returns healthy status when checking covers obligations', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.status, 'healthy');
-    assert.equal(result.depository_total, 10000);
+    assert.equal(result.depository_total, 9600);
     assert.equal(result.obligation_total, 2000);
-    assert.equal(result.ratio, 5);
+    assert.equal(result.ratio, 4.8);
     assert.equal(result.cards.length, 1);
     assert.equal(result.cards[0].name, 'Visa Card');
     assert.equal(result.cards[0].obligation, 2000);
     assert.equal(result.cards[0].minimum_payment, 25);
+    assert.equal(result.depository_balance_label, 'Available');
   });
 });
 
@@ -109,7 +87,7 @@ describe('coverage-calculator — warning scenario', () => {
     await clearTestAccountMemberships();
     // Reduce checking to $4000, add another card with $1000 statement
     await pool.query(`
-      UPDATE accounts SET current_balance = 4000.00 WHERE plaid_account_id = 'acct-cov-chk1'
+      UPDATE accounts SET current_balance = 4000.00, available_balance = 3500.00 WHERE plaid_account_id = 'acct-cov-chk1'
     `);
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance,
@@ -124,15 +102,15 @@ describe('coverage-calculator — warning scenario', () => {
   });
 
   it('returns warning when obligations consume >=70% of checking', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.status, 'warning');
-    assert.equal(result.depository_total, 4000);
+    assert.equal(result.depository_total, 3500);
     assert.equal(result.obligation_total, 3000);
-    assert.equal(result.ratio, 1.33);
+    assert.equal(result.ratio, 1.17);
   });
 
   it('orders cards by due date ascending', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.cards.length, 2);
     // First card due sooner (7 days) should come first
     assert.equal(result.cards[0].name, 'Visa Card');
@@ -141,24 +119,24 @@ describe('coverage-calculator — warning scenario', () => {
 
   after(async () => {
     await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-cov-cc2'");
-    await pool.query(`UPDATE accounts SET current_balance = 10000.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
+    await pool.query(`UPDATE accounts SET current_balance = 10000.00, available_balance = 9600.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
   });
 });
 
 describe('coverage-calculator — danger scenario', () => {
   before(async () => {
     await clearTestAccountMemberships();
-    await pool.query(`UPDATE accounts SET current_balance = 1500.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
+    await pool.query(`UPDATE accounts SET current_balance = 1500.00, available_balance = 1200.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
   });
 
   it('returns danger when obligations exceed checking', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.status, 'danger');
     assert.ok(result.ratio < 1);
   });
 
   after(async () => {
-    await pool.query(`UPDATE accounts SET current_balance = 10000.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
+    await pool.query(`UPDATE accounts SET current_balance = 10000.00, available_balance = 9600.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
   });
 });
 
@@ -178,7 +156,7 @@ describe('coverage-calculator — loan obligations', () => {
   });
 
   it('uses monthly payment for loan obligations instead of principal balance', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     const mortgage = result.cards.find(c => c.name === 'Home Mortgage');
     assert.ok(mortgage);
     assert.equal(mortgage.obligation, 1800);
@@ -206,7 +184,7 @@ describe('coverage-calculator — loans without liability data', () => {
   });
 
   it('does not treat loan principal as an immediate obligation when liability data is missing', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.obligation_total, 2000);
     assert.equal(result.cards.some(c => c.name === 'Mortgage Without Liability Data'), false);
   });
@@ -227,7 +205,7 @@ describe('coverage-calculator — clear scenario', () => {
   });
 
   it('returns clear when no obligations exist', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.status, 'clear');
     assert.equal(result.obligation_total, 0);
     assert.equal(result.ratio, null);
@@ -252,9 +230,22 @@ describe('coverage-calculator — statement fallback', () => {
   });
 
   it('falls back to current_balance when no statement balance', async () => {
-    const result = await getCoverage();
+    const result = await getCoverage({ accountIdPrefix: ACCOUNT_PREFIX });
     assert.equal(result.obligation_total, 800);
     assert.equal(result.cards[0].obligation, 800);
     assert.equal(result.cards[0].statement_balance, null);
+  });
+});
+
+describe('coverage-calculator — current_only balance basis', () => {
+  it('uses ledger/current balances for depository totals when configured', async () => {
+    const result = await getCoverage({
+      balanceBasis: 'current_only',
+      accountIdPrefix: ACCOUNT_PREFIX
+    });
+
+    assert.equal(result.balance_basis, 'current_only');
+    assert.equal(result.depository_balance_label, 'Ledger');
+    assert.equal(result.depository_total, 10000);
   });
 });
