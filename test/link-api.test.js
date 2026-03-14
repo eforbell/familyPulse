@@ -3,6 +3,7 @@
 require('dotenv').config();
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -21,6 +22,17 @@ const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
 const OAUTH_STATE_ID = 'test-oauth-state-link';
 const DEFAULT_LINK_TOKEN = 'test-link-token-default';
 const LIABILITY_LINK_TOKEN = 'test-link-token-liability';
+let parentSessionToken;
+
+function authFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: {
+      Cookie: `fp_session=${parentSessionToken}`,
+      ...opts.headers
+    }
+  });
+}
 
 async function insertPendingLinkSession(linkToken, owner) {
   const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
@@ -34,6 +46,15 @@ before(async () => {
   server = app.listen(0);
   const port = server.address().port;
   baseUrl = `http://127.0.0.1:${port}`;
+
+  const { rows: [parent] } = await pool.query(
+    "SELECT id FROM family_members WHERE role = 'parent' ORDER BY id LIMIT 1"
+  );
+  parentSessionToken = crypto.randomUUID();
+  await pool.query(
+    'INSERT INTO sessions (token, member_id, expires_at) VALUES ($1, $2, now() + interval \'1 day\')',
+    [parentSessionToken, parent.id]
+  );
 
   // Seed a test item
   const { rows: [item] } = await pool.query(`
@@ -54,6 +75,13 @@ before(async () => {
 });
 
 after(async () => {
+  await pool.query('DELETE FROM sessions WHERE token = $1', [parentSessionToken]);
+  await pool.query(`
+    DELETE FROM account_members
+    WHERE account_id IN (
+      SELECT id FROM accounts WHERE plaid_account_id = ANY($1::text[])
+    )
+  `, [LINK_ACCOUNT_IDS]);
   await pool.query(
     'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
     [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, LIABILITY_LINK_TOKEN]]
@@ -69,7 +97,7 @@ after(async () => {
 
 describe('GET /api/items', () => {
   it('returns items with account counts', async () => {
-    const res = await fetch(`${baseUrl}/api/items`);
+    const res = await authFetch(`${baseUrl}/api/items`);
     assert.equal(res.status, 200);
     const items = await res.json();
     assert.ok(Array.isArray(items));
@@ -98,7 +126,7 @@ describe('Plaid link token routes', () => {
       };
     };
 
-    const res = await fetch(`${baseUrl}/api/link/create-token`, {
+    const res = await authFetch(`${baseUrl}/api/link/create-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -117,7 +145,7 @@ describe('Plaid link token routes', () => {
       };
     };
 
-    const res = await fetch(`${baseUrl}/api/link/create-liability-token`, {
+    const res = await authFetch(`${baseUrl}/api/link/create-liability-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
@@ -131,7 +159,7 @@ describe('Plaid link token routes', () => {
 
 describe('PUT /api/items/:id/owner', () => {
   it('assigns owner to all accounts of an item', async () => {
-    const res = await fetch(`${baseUrl}/api/items/${testItemId}/owner`, {
+    const res = await authFetch(`${baseUrl}/api/items/${testItemId}/owner`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ owner: 'Alex' })
@@ -153,8 +181,73 @@ describe('PUT /api/items/:id/owner', () => {
     );
   });
 
+  it('reconciles account_members when kid ownership changes', async () => {
+    const { rows: [jordan] } = await pool.query(
+      "SELECT id FROM family_members WHERE name = 'Jordan'"
+    );
+    const { rows: [casey] } = await pool.query(
+      "SELECT id FROM family_members WHERE name = 'Casey'"
+    );
+    assert.ok(jordan);
+    assert.ok(casey);
+
+    let res = await authFetch(`${baseUrl}/api/items/${testItemId}/owner`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner: 'Jordan' })
+    });
+    assert.equal(res.status, 200);
+
+    let { rows } = await pool.query(`
+      SELECT member_id, count(*)::int AS linked
+      FROM account_members am
+      JOIN accounts a ON a.id = am.account_id
+      WHERE a.item_id = $1
+      GROUP BY member_id
+      ORDER BY member_id
+    `, [testItemId]);
+    assert.deepEqual(rows, [{ member_id: jordan.id, linked: 2 }]);
+
+    res = await authFetch(`${baseUrl}/api/items/${testItemId}/owner`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner: 'Casey' })
+    });
+    assert.equal(res.status, 200);
+
+    ({ rows } = await pool.query(`
+      SELECT member_id, count(*)::int AS linked
+      FROM account_members am
+      JOIN accounts a ON a.id = am.account_id
+      WHERE a.item_id = $1
+      GROUP BY member_id
+      ORDER BY member_id
+    `, [testItemId]));
+    assert.deepEqual(rows, [{ member_id: casey.id, linked: 2 }]);
+
+    res = await authFetch(`${baseUrl}/api/items/${testItemId}/owner`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner: 'Alex' })
+    });
+    assert.equal(res.status, 200);
+
+    const { rows: cleared } = await pool.query(`
+      SELECT am.member_id
+      FROM account_members am
+      JOIN accounts a ON a.id = am.account_id
+      WHERE a.item_id = $1
+    `, [testItemId]);
+    assert.equal(cleared.length, 0);
+
+    await pool.query(
+      'UPDATE accounts SET owner = $1 WHERE item_id = $2',
+      ['Eric', testItemId]
+    );
+  });
+
   it('returns 404 for non-existent item', async () => {
-    const res = await fetch(`${baseUrl}/api/items/999999/owner`, {
+    const res = await authFetch(`${baseUrl}/api/items/999999/owner`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ owner: 'Alex' })
@@ -178,7 +271,7 @@ describe('DELETE /api/items/:id', () => {
       VALUES ($2, $1, 'Del Account', 'depository', 'checking', '0000', 0)
     `, [delItem.id, DELETE_ACCOUNT_ID]);
 
-    const res = await fetch(`${baseUrl}/api/items/${delItem.id}`, {
+    const res = await authFetch(`${baseUrl}/api/items/${delItem.id}`, {
       method: 'DELETE'
     });
     assert.equal(res.status, 200);
@@ -194,7 +287,7 @@ describe('DELETE /api/items/:id', () => {
   });
 
   it('returns 404 for non-existent item', async () => {
-    const res = await fetch(`${baseUrl}/api/items/999999`, {
+    const res = await authFetch(`${baseUrl}/api/items/999999`, {
       method: 'DELETE'
     });
     assert.equal(res.status, 404);
@@ -234,7 +327,7 @@ describe('GET /oauth/callback', () => {
     );
     await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
 
-    const res = await fetch(`${baseUrl}/oauth/callback?oauth_state_id=${OAUTH_STATE_ID}`);
+    const res = await authFetch(`${baseUrl}/oauth/callback?oauth_state_id=${OAUTH_STATE_ID}`);
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.ok(text.includes('Completing bank connection'));
@@ -253,14 +346,14 @@ describe('GET /oauth/callback', () => {
 
 describe('static pages', () => {
   it('serves settings.html', async () => {
-    const res = await fetch(`${baseUrl}/settings.html`);
+    const res = await authFetch(`${baseUrl}/settings.html`);
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.ok(text.includes('Linked Institutions'));
   });
 
   it('serves settings.js', async () => {
-    const res = await fetch(`${baseUrl}/settings.js`);
+    const res = await authFetch(`${baseUrl}/settings.js`);
     assert.equal(res.status, 200);
     const text = await res.text();
     assert.ok(text.includes('startLink'));

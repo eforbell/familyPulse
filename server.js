@@ -40,12 +40,25 @@ app.use(async (req, res, next) => {
 
 const HTML_PAGES = new Set([
   '/', '/index.html', '/accounts.html', '/transactions.html',
-  '/budget.html', '/reports.html', '/admin.html', '/settings.html', '/import.html'
+  '/budget.html', '/reports.html', '/admin.html', '/settings.html', '/import.html',
+  '/kids.html'
 ]);
 
 const PARENT_ONLY_PAGES = new Set([
   '/settings.html', '/admin.html', '/import.html'
 ]);
+
+function memberSlug(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'kid';
+}
+
+function kidDashboardPath(member) {
+  return `/kids/${memberSlug(member?.name)}`;
+}
 
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
@@ -60,13 +73,31 @@ app.use(async (req, res, next) => {
       return res.redirect('login.html');
     }
 
+    if (req.member.role === 'kid' && !PARENT_ONLY_PAGES.has(urlPath) && urlPath !== '/kids.html') {
+      return res.redirect(kidDashboardPath(req.member));
+    }
+
     if (req.member.role === 'kid' && PARENT_ONLY_PAGES.has(urlPath)) {
-      return res.redirect('./');
+      return res.redirect(kidDashboardPath(req.member));
     }
   } catch (err) {
     logger.error('Auth gate error', { error: err.message });
   }
   next();
+});
+
+// ── Kid dashboard route ──────────────────────────────────────
+// /kids/:name → serves kids.html (for both kids and parents)
+app.get('/kids/:name', async (req, res, next) => {
+  try {
+    const isAuthOn = await authEnabled();
+    if (isAuthOn && !req.member) {
+      return res.redirect('login.html');
+    }
+  } catch (err) {
+    logger.error('Kid route auth error', { error: err.message });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'kids.html'));
 });
 
 // Static files — AFTER auth gate so HTML pages are protected
@@ -85,7 +116,7 @@ const API_PUBLIC = new Set([
 
 const API_PARENT_ONLY_PREFIXES = [
   '/api/sync', '/api/link', '/api/import', '/api/items',
-  '/api/magic', '/api/anomalies'
+  '/api/magic', '/api/anomalies', '/api/status'
 ];
 
 const API_PARENT_ONLY_WRITES = [
@@ -151,6 +182,7 @@ app.use(require('./lib/routes/import'));
 app.use(require('./lib/routes/budget'));
 app.use(require('./lib/routes/anomalies'));
 app.use(require('./lib/routes/magic-actions'));
+app.use(require('./lib/routes/kids'));
 
 // Expose cfg/setCfg on app so route modules can access them
 app.set('cfg', cfg);
@@ -167,7 +199,7 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', requireParent, async (req, res) => {
   try {
     const items = await pool.query(`
       SELECT id, institution_name, status, error_code, last_sync_at
@@ -233,6 +265,28 @@ if (require.main === module) {
     const { generateMonthlyClose } = require('./lib/magic-actions/monthly-close');
     logger.info('Monthly close cron triggered');
     generateMonthlyClose(null, cfg).catch(err => logger.error('Monthly close failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  // 2nd of month at 7 AM — kid money report cards
+  cron.schedule('0 7 2 * *', async () => {
+    const { generateKidReportCard } = require('./lib/magic-actions/kid-report-card');
+    try {
+      const { rows: kids } = await pool.query(
+        "SELECT id FROM family_members WHERE role = 'kid'"
+      );
+      for (const kid of kids) {
+        const now = new Date();
+        const prior = now.getMonth() === 0
+          ? `${now.getFullYear() - 1}-12`
+          : `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
+        logger.info('Generating kid report card', { memberId: kid.id, period: prior });
+        await generateKidReportCard(kid.id, prior, cfg).catch(err =>
+          logger.error('Kid report card failed', { memberId: kid.id, error: err.message })
+        );
+      }
+    } catch (err) {
+      logger.error('Kid report card cron failed', { error: err.message });
+    }
   }, { timezone: TZ });
 
   // Daily at midnight — clean expired sessions

@@ -67,11 +67,25 @@
     let members = [];
     let selectedId = null;
 
+    function memberRoute(member) {
+      if (!member || member.role !== 'kid') return './';
+      const slug = String(member.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'kid';
+      return `kids/${slug}`;
+    }
+
     async function boot() {
       // Check if already authenticated
       try {
         const res = await fetch('api/auth/me');
-        if (res.ok) { window.location.replace('./'); return; }
+        if (res.ok) {
+          const member = await res.json();
+          window.location.replace(memberRoute(member));
+          return;
+        }
       } catch {}
 
       // Load members
@@ -142,7 +156,8 @@
           body: JSON.stringify({ member_id: id })
         });
         if (!res.ok) throw new Error('Login failed');
-        window.location.replace('./');
+        const member = await res.json();
+        window.location.replace(memberRoute(member));
       } catch (err) {
         document.getElementById('login-error').textContent = err.message;
       }
@@ -177,7 +192,8 @@
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || 'Login failed');
         }
-        window.location.replace('./');
+        const member = await res.json();
+        window.location.replace(memberRoute(member));
       } catch (err) {
         document.getElementById('login-error').textContent = err.message;
         btn.disabled = false;

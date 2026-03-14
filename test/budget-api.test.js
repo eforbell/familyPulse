@@ -2,28 +2,48 @@
 
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('crypto');
+const { Pool } = require('pg');
 const { app } = require('../server');
 
-// Simple test HTTP helper
-const PORT = 3099;
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 let server;
+let baseUrl;
+let sessionToken;
 
 function req(path, opts = {}) {
-  const url = `http://127.0.0.1:${PORT}/${path}`;
-  return fetch(url, {
+  return fetch(`${baseUrl}/${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts.headers }
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: `fp_session=${sessionToken}`,
+      ...opts.headers
+    }
   });
 }
 
 describe('budget API', () => {
   before(async () => {
-    server = app.listen(PORT);
-    await new Promise(r => server.on('listening', r));
+    server = app.listen(0);
+    const port = server.address().port;
+    baseUrl = `http://127.0.0.1:${port}`;
+
+    // Create a parent session for auth (budget routes require parent)
+    const { rows: [parent] } = await pool.query(
+      "SELECT id FROM family_members WHERE role = 'parent' LIMIT 1"
+    );
+    sessionToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await pool.query(
+      'INSERT INTO sessions (token, member_id, expires_at) VALUES ($1, $2, $3)',
+      [sessionToken, parent.id, expiresAt]
+    );
   });
 
   after(async () => {
+    await pool.query('DELETE FROM sessions WHERE token = $1', [sessionToken]);
     server.close();
+    await pool.end();
   });
 
   it('GET /api/budget/summary returns correct shape', async () => {

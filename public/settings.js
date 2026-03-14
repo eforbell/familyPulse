@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadThemeControls();
   loadAIPrompts();
   loadPassphraseManager();
+  loadKidBudgets();
 });
 
 // ── Data fetching ────────────────────────────────────────────
@@ -490,6 +491,62 @@ async function api(url, opts) {
     throw new Error(err.error || res.statusText);
   }
   return res.json();
+}
+
+// ── Kid Budgets ─────────────────────────────────────────────
+
+async function loadKidBudgets() {
+  const section = document.getElementById('kid-budgets-section');
+  if (!section) return;
+  if (!currentMember || currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const kids = familyMembers.filter(m => m.role === 'kid');
+  if (kids.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  const list = document.getElementById('kid-budgets-list');
+  list.innerHTML = kids.map(m => `
+    <div class="admin-row" data-member-id="${m.id}">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <span>${m.avatar_emoji || '\u{1F464}'}</span>
+          <strong>${esc(m.name)}</strong>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+        <span style="font-size:0.85rem;color:var(--muted)">$</span>
+        <input type="number" id="kid-budget-${m.id}" placeholder="No budget"
+               value="${m.monthly_budget != null ? m.monthly_budget : ''}"
+               min="0" step="1" class="login-input"
+               style="width:100px;padding:0.4rem 0.5rem;font-size:0.85rem">
+        <button class="btn-primary" onclick="saveKidBudget(${m.id})" style="padding:0.4rem 0.75rem;font-size:0.8rem">Save</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveKidBudget(memberId) {
+  const input = document.getElementById('kid-budget-' + memberId);
+  const value = input.value.trim();
+  const amount = value === '' ? null : parseFloat(value);
+
+  try {
+    await api('api/kids/budget', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_id: memberId, amount })
+    });
+    input.style.borderColor = 'var(--green)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+  } catch (err) {
+    alert('Failed to save budget: ' + err.message);
+  }
 }
 
 // ── AI Prompts ──────────────────────────────────────────────

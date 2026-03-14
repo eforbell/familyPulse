@@ -3,6 +3,7 @@
 
 (function () {
   const activePage = document.body.dataset.navPage || 'dashboard';
+  const navRole = document.body.dataset.navRole || 'parent';
 
   // ── Icon SVGs (20x20 line-art) ──────────────────────────────
 
@@ -19,7 +20,7 @@
 
   // ── Navigation items ────────────────────────────────────────
 
-  const allItems = [
+  const parentItems = [
     { id: 'dashboard',     label: 'Dashboard',    icon: 'home',             href: './' },
     { id: 'accounts',      label: 'Accounts',     icon: 'building-columns', href: 'accounts.html' },
     { id: 'transactions',  label: 'Transactions', icon: 'credit-card',      href: 'transactions.html' },
@@ -29,9 +30,15 @@
     { id: 'settings',      label: 'Settings',     icon: 'gear',             href: 'settings.html' }
   ];
 
-  // Mobile bottom bar: first 4 + More
+  const kidItems = [
+    { id: 'kid-dashboard', label: 'My Money',     icon: 'home',             href: './' }
+  ];
+
+  const allItems = navRole === 'kid' ? kidItems : parentItems;
+
+  // Mobile bottom bar: first 4 + More (kids only have 1 item, no More needed)
   const mobileItems = allItems.slice(0, 4);
-  const moreItems = allItems.slice(4); // Reports, Categories, Settings
+  const moreItems = allItems.slice(4);
 
   // ── Build sidebar (desktop) ─────────────────────────────────
 
@@ -77,30 +84,32 @@
     <span class="nav-label">Pulse</span>
   </button>`;
 
-  bottomBar.innerHTML = mobileHTML + moreBtn;
+  bottomBar.innerHTML = mobileHTML + (moreItems.length > 0 ? moreBtn : '');
 
   // ── Build "More" sheet ──────────────────────────────────────
 
   const moreSheet = document.createElement('div');
   moreSheet.className = 'more-sheet hidden';
-  moreSheet.innerHTML = `
-    <div class="more-sheet-backdrop"></div>
-    <div class="more-sheet-panel">
-      <div class="more-sheet-brand">
-        <img src="icon-32.png" alt="Pulse" width="34" height="34">
-        <div>
-          <div class="more-sheet-brand-title">Family Pulse</div>
-          <div class="more-sheet-brand-copy">Reports, categories, settings</div>
+  if (moreItems.length > 0) {
+    moreSheet.innerHTML = `
+      <div class="more-sheet-backdrop"></div>
+      <div class="more-sheet-panel">
+        <div class="more-sheet-brand">
+          <img src="icon-32.png" alt="Pulse" width="34" height="34">
+          <div>
+            <div class="more-sheet-brand-title">Family Pulse</div>
+            <div class="more-sheet-brand-copy">Reports, categories, settings</div>
+          </div>
         </div>
-      </div>
-      ${moreItems.map(item => {
-        const active = item.id === activePage ? ' active' : '';
-        return `<a href="${item.href}" class="more-sheet-item${active}">
-          <span class="nav-icon">${icons[item.icon]}</span>
-          <span>${item.label}</span>
-        </a>`;
-      }).join('')}
-    </div>`;
+        ${moreItems.map(item => {
+          const active = item.id === activePage ? ' active' : '';
+          return `<a href="${item.href}" class="more-sheet-item${active}">
+            <span class="nav-icon">${icons[item.icon]}</span>
+            <span>${item.label}</span>
+          </a>`;
+        }).join('')}
+      </div>`;
+  }
 
   // ── Inject into DOM ─────────────────────────────────────────
 
@@ -115,6 +124,9 @@
     moreSheet.classList.toggle('hidden');
   }
 
-  document.getElementById('more-nav-btn').addEventListener('click', toggleMoreSheet);
-  moreSheet.querySelector('.more-sheet-backdrop').addEventListener('click', toggleMoreSheet);
+  const moreBtnEl = document.getElementById('more-nav-btn');
+  if (moreBtnEl) {
+    moreBtnEl.addEventListener('click', toggleMoreSheet);
+    moreSheet.querySelector('.more-sheet-backdrop').addEventListener('click', toggleMoreSheet);
+  }
 })();

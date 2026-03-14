@@ -11,6 +11,16 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { getCoverage } = require('../lib/coverage-calculator');
 
 let testItemId;
+let hiddenItemStatuses = [];
+
+async function clearTestAccountMemberships() {
+  await pool.query(`
+    DELETE FROM account_members
+    WHERE account_id IN (
+      SELECT id FROM accounts WHERE plaid_account_id LIKE 'acct-cov-%'
+    )
+  `);
+}
 
 before(async () => {
   // Ensure coverage_alert_threshold exists
@@ -18,6 +28,22 @@ before(async () => {
     INSERT INTO app_config (key, value) VALUES ('coverage_alert_threshold', '0.70')
     ON CONFLICT (key) DO UPDATE SET value = '0.70'
   `);
+
+  // Isolate coverage calculations to this test item's accounts.
+  const { rows } = await pool.query(`
+    SELECT id, status
+    FROM items
+    WHERE status = 'good'
+      AND item_id <> 'test-item-cov'
+  `);
+  hiddenItemStatuses = rows;
+  if (hiddenItemStatuses.length > 0) {
+    await pool.query(`
+      UPDATE items
+      SET status = 'test_hidden_for_coverage'
+      WHERE id = ANY($1::int[])
+    `, [hiddenItemStatuses.map(row => row.id)]);
+  }
 
   // Create a test item
   const { rows: [item] } = await pool.query(`
@@ -30,13 +56,21 @@ before(async () => {
 });
 
 after(async () => {
+  await clearTestAccountMemberships();
   await pool.query("DELETE FROM accounts WHERE plaid_account_id LIKE 'acct-cov-%'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-cov'");
+  for (const item of hiddenItemStatuses) {
+    await pool.query(
+      'UPDATE items SET status = $1 WHERE id = $2',
+      [item.status, item.id]
+    );
+  }
   await pool.end();
 });
 
 describe('coverage-calculator — healthy scenario', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     // Checking account with $10,000
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
@@ -72,6 +106,7 @@ describe('coverage-calculator — healthy scenario', () => {
 
 describe('coverage-calculator — warning scenario', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     // Reduce checking to $4000, add another card with $1000 statement
     await pool.query(`
       UPDATE accounts SET current_balance = 4000.00 WHERE plaid_account_id = 'acct-cov-chk1'
@@ -112,6 +147,7 @@ describe('coverage-calculator — warning scenario', () => {
 
 describe('coverage-calculator — danger scenario', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     await pool.query(`UPDATE accounts SET current_balance = 1500.00 WHERE plaid_account_id = 'acct-cov-chk1'`);
   });
 
@@ -128,6 +164,7 @@ describe('coverage-calculator — danger scenario', () => {
 
 describe('coverage-calculator — loan obligations', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance,
                             last_statement_balance, minimum_payment_amount, next_payment_due_date)
@@ -155,6 +192,7 @@ describe('coverage-calculator — loan obligations', () => {
 
 describe('coverage-calculator — loans without liability data', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
       VALUES ('acct-cov-loan-raw', $1, 'Mortgage Without Liability Data', 'loan', 'mortgage', '4444', 325000.00)
@@ -180,6 +218,7 @@ describe('coverage-calculator — loans without liability data', () => {
 
 describe('coverage-calculator — clear scenario', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     // Remove credit card obligation
     await pool.query(`
       UPDATE accounts SET last_statement_balance = 0, current_balance = 0
@@ -204,6 +243,7 @@ describe('coverage-calculator — clear scenario', () => {
 
 describe('coverage-calculator — statement fallback', () => {
   before(async () => {
+    await clearTestAccountMemberships();
     // Set statement balance to NULL — should fall back to current_balance
     await pool.query(`
       UPDATE accounts SET last_statement_balance = NULL, current_balance = 800.00

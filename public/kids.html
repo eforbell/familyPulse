@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <base href="../">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Family Pulse | My Money</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-nav-page="kid-dashboard" data-nav-role="kid">
+
+  <!-- Category assignment overlay (no create-rule for kids) -->
+  <div id="category-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>Assign Category</h2>
+      <div id="category-list" class="cat-list"></div>
+      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeCategoryOverlay()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="app">
+
+    <!-- Header -->
+    <header>
+      <h1 id="greeting">My Money</h1>
+      <button id="who-btn" class="who-btn" title="Sign out"></button>
+    </header>
+
+    <!-- Balance card -->
+    <div id="balance-card" class="net-position-card">
+      <div class="net-label">MY BALANCE</div>
+      <div id="balance-amount" class="net-amount loading-pulse">Loading...</div>
+      <div id="balance-detail" class="balance-breakdown"></div>
+    </div>
+
+    <!-- Budget progress -->
+    <div id="budget-section" class="hidden">
+      <h2 class="section-heading">Monthly Budget</h2>
+      <div id="budget-card" class="kid-budget-card"></div>
+    </div>
+
+    <!-- Category breakdown -->
+    <div id="categories-section" class="hidden">
+      <h2 class="section-heading">Spending by Category</h2>
+      <div id="category-chart-wrap" style="max-width:300px;margin:0 auto 1rem">
+        <canvas id="category-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Report Card -->
+    <div id="report-card-section" class="hidden">
+      <div class="magic-card">
+        <div class="magic-card-header" onclick="toggleReportCard()">
+          <span class="magic-card-title">Money Report Card</span>
+          <span class="magic-card-toggle" id="report-card-toggle">+</span>
+        </div>
+        <div id="report-card-body" class="magic-card-body hidden">
+          <div id="report-card-content" class="digest-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <section id="transactions-section">
+      <h2 class="section-heading">Recent Transactions</h2>
+      <div id="tx-list" class="tx-list"></div>
+    </section>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="nav.js"></script>
+  <script src="kids.js"></script>
+</body>
+</html>
