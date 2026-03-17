@@ -17,6 +17,7 @@ const { getCoverageData } = require('./tools/coverage');
 const { getFinancialSnapshot } = require('./tools/snapshot');
 
 const PORT = parseInt(process.env.MCP_PORT || '3004', 10);
+const HOST = process.env.MCP_HOST || '0.0.0.0';
 const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || '';
 
 // ── MCP Server ────────────────────────────────────────────────
@@ -218,9 +219,9 @@ if (require.main === module) {
   if (!AUTH_TOKEN) {
     console.warn('WARNING: MCP_AUTH_TOKEN not set — MCP server is unauthenticated');
   }
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Family Pulse MCP server listening on http://0.0.0.0:${PORT}/mcp`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Family Pulse MCP server listening on http://${HOST}:${PORT}/mcp`);
+    console.log(`Health check: http://${HOST}:${PORT}/health`);
   });
 }
 
