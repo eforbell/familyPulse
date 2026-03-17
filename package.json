@@ -16,15 +16,18 @@
     "db:clear-linked-data": "node db/clear-linked-data.js --yes",
     "sync": "node lib/cli.js sync",
     "accounts": "node lib/cli.js accounts",
-    "status": "node lib/cli.js status"
+    "status": "node lib/cli.js status",
+    "mcp": "node mcp/server.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "multer": "^2.1.1",
     "node-cron": "^3.0.3",
     "openai": "^6.27.0",
     "pg": "^8.11.5",
-    "plaid": "^28.0.0"
+    "plaid": "^28.0.0",
+    "zod": "^3.25.0"
   }
 }

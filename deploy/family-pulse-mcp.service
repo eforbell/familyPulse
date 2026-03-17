@@ -1,0 +1,18 @@
+[Unit]
+Description=Family Pulse MCP Server
+After=network.target postgresql.service
+Wants=family-pulse.service
+
+[Service]
+Type=simple
+User=forbell
+WorkingDirectory=/data/apps/familyPulse
+EnvironmentFile=/data/apps/familyPulse/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /data/apps/familyPulse/mcp/server.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

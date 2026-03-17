@@ -1,6 +1,6 @@
 {
-  "currentFeature": "Feature #13: Balance Policy",
-  "status": "planning",
+  "currentFeature": "Feature #8: MCP Server",
+  "status": "in-progress",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
@@ -12,11 +12,11 @@
     "Feature #7: Magic Actions (LLM Layer)",
     "Feature #10: Household Authentication",
     "Feature #11: Split Liability Onboarding",
-    "Feature #12: Liability Coverage"
+    "Feature #12: Liability Coverage",
+    "Feature #13: Balance Policy"
   ],
   "skippedFeatures": [],
   "futureFeatures": [
-    "Feature #13: Balance Policy",
     "Feature #8: MCP Server",
     "Feature #9: Planning & Goals"
   ]
