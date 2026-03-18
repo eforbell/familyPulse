@@ -1,5 +1,5 @@
 {
-  "currentFeature": "Feature #14: Plaid Disconnect Lifecycle",
+  "currentFeature": "Feature #15: Plaid Liability Permission Upgrade",
   "status": "in-progress",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
@@ -14,12 +14,12 @@
     "Feature #10: Household Authentication",
     "Feature #11: Split Liability Onboarding",
     "Feature #12: Liability Coverage",
-    "Feature #13: Balance Policy"
+    "Feature #13: Balance Policy",
+    "Feature #14: Plaid Disconnect Lifecycle"
   ],
   "skippedFeatures": [],
   "futureFeatures": [
     "Feature #9: Planning & Goals",
-    "Feature #15: Plaid Liability Permission Upgrade",
     "Feature #16: Plaid Account Selection Management"
   ]
 }

@@ -1,7 +1,7 @@
 {
   "branchName": "feature/15-plaid-liability-permission-upgrade",
   "projectName": "Plaid Liability Permission Upgrade",
-  "description": "Unify new Plaid onboarding around transactions plus optional liabilities, then add a dedicated update-mode path for legacy Items that need liability consent later without forcing delete-and-relink behavior.",
+  "description": "Unify new Plaid onboarding around transactions plus additive liability consent, then add a dedicated update-mode path for legacy Items that need liability consent later without forcing delete-and-relink behavior.",
   "timing": {
     "draftedOn": "2026-03-18",
     "plannedEarliestExecution": "after Feature 14",
@@ -17,23 +17,23 @@
   "techStack": {
     "language": "Node.js + vanilla JS",
     "runtime": "Express.js",
-    "plaid": "Link token creation, optional products, and update-mode product/consent expansion",
+    "plaid": "Link token creation with additional_consented_products and update-mode consent expansion",
     "database": "PostgreSQL item-level liability access state",
     "testing": "node:test integration tests for token creation behavior, item status tracking, and sync visibility"
   },
   "userStories": [
     {
       "id": "LIAB-015-001",
-      "title": "Default new links request liabilities opportunistically",
+      "title": "Default new links request liability consent opportunistically",
       "acceptanceCriteria": [
         "Default new-item link token requests transactions as the required product",
-        "Default new-item link token also requests liabilities as an optional product",
+        "Default new-item link token also requests liabilities via additional_consented_products",
         "Ordinary bank onboarding can still succeed when liability consent is not granted",
         "The split onboarding assumption that liabilities require a separate institution flow is removed"
       ],
       "priority": 1,
       "estimatedLines": "+20/-15",
-      "testStrategy": "Route-level integration test confirming default link token includes optional liabilities instead of required liabilities.",
+      "testStrategy": "Route-level integration test confirming default link token requests additional liability consent without making liabilities required.",
       "passes": false
     },
     {
@@ -84,7 +84,7 @@
       "Plaid update-mode product-consent mechanics are the most failure-prone part of this feature and must be confirmed before implementation"
     ],
     "medium": [
-      "Optional liabilities on default links may still produce institution-specific OAuth edge cases",
+      "Additional liability consent on default links may still produce institution-specific OAuth edge cases",
       "Persisted capability state can drift if not updated consistently during link, sync, and upgrade flows"
     ],
     "low": [

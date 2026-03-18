@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const plaid = require('../lib/plaid-client');
 
 describe('plaid-client — liabilities fallback', () => {
-  it('returns null when liability consent has not been granted for the item', async () => {
+  it('returns a sparse result when liability consent has not been granted for the item', async () => {
     const restore = mock.method(plaid.client, 'liabilitiesGet', async () => {
       const err = new Error('missing liability consent');
       err.response = {
@@ -21,7 +21,10 @@ describe('plaid-client — liabilities fallback', () => {
 
     try {
       const result = await plaid.getLiabilities('test-access-token');
-      assert.equal(result, null);
+      assert.deepEqual(result, {
+        data: null,
+        errorCode: 'ADDITIONAL_CONSENT_REQUIRED'
+      });
     } finally {
       restore.mock.restore();
     }

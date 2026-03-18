@@ -3,7 +3,7 @@
 ## Purpose
 
 Stop treating liability access as a separate institution-linking class. New links should
-request liabilities opportunistically, and existing Items should be upgradeable later
+request additional liability consent opportunistically, and existing Items should be upgradeable later
 without delete-and-relink workarounds.
 
 ## Why This Matters
@@ -16,7 +16,7 @@ without a clean way to enable liabilities later.
 ## Scope
 
 ### Phase 1: Better default link behavior
-- Default new links request `transactions` plus optional `liabilities`
+- Default new links request `transactions` plus `additional_consented_products: ['liabilities']`
 - Successful basic bank onboarding remains the priority
 
 ### Phase 2: Upgrade existing Items
@@ -32,14 +32,14 @@ without a clean way to enable liabilities later.
 
 ## Key Design Decisions
 
-- **Liabilities are optional by default** — they should not block ordinary bank onboarding
+- **Liability consent is additive by default** — it should not block ordinary bank onboarding
 - **Legacy Items need an upgrade path** — delete-and-relink is not an acceptable long-term answer
 - **Permission upgrade and reauth are different actions**
 - **Persist item state** — capability should not depend only on sparse sync results
 
 ## Definition of Done
 
-- Default new links request optional liabilities
+- Default new links request additional liability consent without making liabilities required
 - Existing Items can enable liabilities via a dedicated flow
 - Settings shows the right CTA based on item state
 - Non-fatal consent gaps are visible without marking the whole Item broken

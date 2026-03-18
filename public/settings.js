@@ -212,6 +212,7 @@ function renderItems() {
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
           ${normalizedStatus === 'needs_reauth' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
+          ${normalizedStatus !== 'disconnected' && item.liability_access_status === 'missing' ? `<button class="btn-ghost" onclick="enableLiabilities(${item.id})" title="Enable liabilities">Enable liabilities</button>` : ''}
           ${normalizedStatus === 'disconnected' ? `<button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}', 'purge')" title="Delete local history">Purge</button>` : ''}
           <button class="btn-ghost" onclick="openOwnerOverlay(${item.id})" title="Assign owner">Owner</button>
           ${normalizedStatus !== 'disconnected' ? `<button class="btn-ghost" onclick="syncItem(${item.id})" title="Sync now">Sync</button>` : ''}
@@ -226,22 +227,11 @@ function renderItems() {
 async function startLink() {
   await startLinkFlow({
     buttonId: 'link-btn',
-    label: '+ Link Bank Account',
+    label: '+ Link Institution',
     loadingLabel: 'Loading...',
     connectingLabel: 'Connecting...',
     route: 'api/link/create-token',
-    failurePrefix: 'Failed to link bank account'
-  });
-}
-
-async function startLiabilityLink() {
-  await startLinkFlow({
-    buttonId: 'credit-link-btn',
-    label: '+ Link Credit / Loan',
-    loadingLabel: 'Loading...',
-    connectingLabel: 'Connecting...',
-    route: 'api/link/create-liability-token',
-    failurePrefix: 'Failed to link credit / loan account'
+    failurePrefix: 'Failed to link institution'
   });
 }
 
@@ -292,11 +282,30 @@ async function startLinkFlow(config) {
 }
 
 async function fixItem(itemId) {
+  await startItemUpdateFlow({
+    itemId,
+    route: 'api/link/update-token',
+    startError: 'Failed to start re-link',
+    completeError: 'Failed to complete re-link'
+  });
+}
+
+async function enableLiabilities(itemId) {
+  await startItemUpdateFlow({
+    itemId,
+    route: 'api/link/create-liability-upgrade-token',
+    startError: 'Failed to start liability upgrade',
+    completeError: 'Failed to enable liabilities',
+    completionRoute: 'api/link/complete-liability-upgrade'
+  });
+}
+
+async function startItemUpdateFlow(config) {
   try {
-    const data = await api('api/link/update-token', {
+    const data = await api(config.route, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId })
+      body: JSON.stringify({ item_id: config.itemId })
     });
 
     const handler = Plaid.create({
@@ -312,10 +321,18 @@ async function fixItem(itemId) {
                 link_session_id: data.link_session_id
               })
             });
+          } else if (config.completionRoute) {
+            await api(config.completionRoute, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                link_session_id: data.link_session_id
+              })
+            });
           }
           await loadItems();
         } catch (err) {
-          alert('Failed to complete re-link: ' + err.message);
+          alert(`${config.completeError}: ` + err.message);
         }
       },
       onExit: (err) => {
@@ -324,7 +341,7 @@ async function fixItem(itemId) {
     });
     handler.open();
   } catch (err) {
-    alert('Failed to start re-link: ' + err.message);
+    alert(`${config.startError}: ` + err.message);
   }
 }
 

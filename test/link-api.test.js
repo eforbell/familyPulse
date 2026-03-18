@@ -21,7 +21,7 @@ const SESSION_TOKEN = 'test-lt-link-table';
 const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
 const OAUTH_STATE_ID = 'test-oauth-state-link';
 const DEFAULT_LINK_TOKEN = 'test-link-token-default';
-const LIABILITY_LINK_TOKEN = 'test-link-token-liability';
+const UPGRADE_LINK_TOKEN = 'test-link-token-upgrade';
 let parentSessionToken;
 
 function authFetch(url, opts = {}) {
@@ -84,7 +84,7 @@ after(async () => {
   `, [LINK_ACCOUNT_IDS]);
   await pool.query(
     'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
-    [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, LIABILITY_LINK_TOKEN]]
+    [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN]]
   );
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
@@ -111,15 +111,21 @@ describe('GET /api/items', () => {
 
 describe('Plaid link token routes', () => {
   const originalCreateLinkToken = require('../lib/plaid-client').createLinkToken;
+  const originalGetItemInfo = require('../lib/plaid-client').getItemInfo;
+  const originalGetAccounts = require('../lib/plaid-client').getAccounts;
 
   after(() => {
     require('../lib/plaid-client').createLinkToken = originalCreateLinkToken;
+    require('../lib/plaid-client').getItemInfo = originalGetItemInfo;
+    require('../lib/plaid-client').getAccounts = originalGetAccounts;
   });
 
-  it('default link flow requests transactions only', async () => {
+  it('default link flow requests transactions plus additional liability consent', async () => {
     let requestedProducts = null;
+    let requestedAdditionalConsentedProducts = null;
     require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
       requestedProducts = opts.products;
+      requestedAdditionalConsentedProducts = opts.additionalConsentedProducts;
       return {
         link_token: DEFAULT_LINK_TOKEN,
         expiration: '2099-01-01T00:00:00Z'
@@ -133,25 +139,82 @@ describe('Plaid link token routes', () => {
     });
     assert.equal(res.status, 200);
     assert.deepEqual(requestedProducts, ['transactions']);
+    assert.deepEqual(requestedAdditionalConsentedProducts, ['liabilities']);
   });
 
-  it('liability link flow requests transactions and liabilities', async () => {
-    let requestedProducts = null;
+  it('liability upgrade flow uses update mode with additional liability consent', async () => {
+    let requestedAccessToken = null;
+    let requestedAdditionalConsentedProducts = null;
     require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
-      requestedProducts = opts.products;
+      requestedAccessToken = opts.accessToken;
+      requestedAdditionalConsentedProducts = opts.additionalConsentedProducts;
       return {
-        link_token: LIABILITY_LINK_TOKEN,
+        link_token: UPGRADE_LINK_TOKEN,
         expiration: '2099-01-01T00:00:00Z'
       };
     };
 
-    const res = await authFetch(`${baseUrl}/api/link/create-liability-token`, {
+    const res = await authFetch(`${baseUrl}/api/link/create-liability-upgrade-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ item_id: testItemId })
     });
     assert.equal(res.status, 200);
-    assert.deepEqual(requestedProducts, ['transactions', 'liabilities']);
+    assert.equal(requestedAccessToken, 'test-token-link');
+    assert.deepEqual(requestedAdditionalConsentedProducts, ['liabilities']);
+  });
+
+  it('completes liability upgrade without a public token by refreshing item state', async () => {
+    require('../lib/plaid-client').getItemInfo = async () => ({
+      item: {
+        institution_id: 'ins_link',
+        products: ['transactions'],
+        consented_products: ['transactions', 'liabilities'],
+        available_products: ['liabilities']
+      }
+    });
+    require('../lib/plaid-client').getAccounts = async () => ({
+      accounts: [{
+        account_id: LINK_ACCOUNT_IDS[0],
+        name: 'Link Checking',
+        official_name: 'Link Checking',
+        type: 'credit',
+        subtype: 'credit card',
+        mask: '1111',
+        balances: { current: 1000, available: null, iso_currency_code: 'USD' }
+      }]
+    });
+
+    const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    const { rows: [session] } = await pool.query(`
+      INSERT INTO link_sessions (link_token, status, owner, item_id_for_update, expires_at)
+      VALUES ($1, 'pending', $2, $3, $4)
+      RETURNING id
+    `, [UPGRADE_LINK_TOKEN, 'Eric', testItemId, expiresAt]);
+
+    await pool.query(
+      "UPDATE items SET liability_access_status = 'missing' WHERE id = $1",
+      [testItemId]
+    );
+
+    const res = await authFetch(`${baseUrl}/api/link/complete-liability-upgrade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link_session_id: session.id })
+    });
+    assert.equal(res.status, 200);
+
+    const { rows: [item] } = await pool.query(
+      'SELECT liability_access_status FROM items WHERE id = $1',
+      [testItemId]
+    );
+    assert.equal(item.liability_access_status, 'enabled');
+
+    const { rows: [updatedSession] } = await pool.query(
+      'SELECT status FROM link_sessions WHERE id = $1',
+      [session.id]
+    );
+    assert.equal(updatedSession.status, 'exchanged');
   });
 });
 
@@ -411,7 +474,7 @@ describe('GET /oauth/callback', () => {
   it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
     await pool.query(
       'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
-      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, LIABILITY_LINK_TOKEN]]
+      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN]]
     );
     await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
 

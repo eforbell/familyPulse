@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { syncAll, classifyItemFailure } = require('../lib/sync');
 const plaid = require('../lib/plaid-client');
+const { LIABILITY_ACCESS_STATUS } = require('../lib/liability-access');
 
 after(async () => {
   await pool.end();
@@ -136,6 +137,9 @@ describe('sync — upsert logic', () => {
 
 describe('sync — liability field persistence', () => {
   let liabItemId;
+  const originalGetAccounts = plaid.getAccounts;
+  const originalSyncTransactions = plaid.syncTransactions;
+  const originalGetLiabilities = plaid.getLiabilities;
 
   before(async () => {
     const { rows: [item] } = await pool.query(`
@@ -151,6 +155,14 @@ describe('sync — liability field persistence', () => {
       VALUES ('acct-liab-cc', $1, 'Test Credit Card', 'credit', 'credit card', '9999', 500.00)
       ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Test Credit Card'
     `, [liabItemId]);
+  });
+
+  after(async () => {
+    plaid.getAccounts = originalGetAccounts;
+    plaid.syncTransactions = originalSyncTransactions;
+    plaid.getLiabilities = originalGetLiabilities;
+    await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-liab-cc'");
+    await pool.query("DELETE FROM items WHERE item_id = 'test-item-liab'");
   });
 
   it('stores all liability fields on credit account', async () => {
@@ -183,9 +195,82 @@ describe('sync — liability field persistence', () => {
     assert.equal(acct.apr_data[0].apr_type, 'purchase_apr');
   });
 
-  after(async () => {
-    await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-liab-cc'");
-    await pool.query("DELETE FROM items WHERE item_id = 'test-item-liab'");
+  it('marks liability access missing when Plaid requires additional consent', async () => {
+    plaid.getAccounts = async () => ({
+      accounts: [{
+        account_id: 'acct-liab-cc',
+        name: 'Test Credit Card',
+        official_name: 'Test Credit Card',
+        type: 'credit',
+        subtype: 'credit card',
+        mask: '9999',
+        balances: { current: 500, available: null, iso_currency_code: 'USD' }
+      }]
+    });
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-liab-missing'
+    });
+    plaid.getLiabilities = async () => ({
+      data: null,
+      errorCode: 'ADDITIONAL_CONSENT_REQUIRED'
+    });
+
+    await syncAll();
+
+    const { rows: [item] } = await pool.query(
+      'SELECT liability_access_status FROM items WHERE id = $1',
+      [liabItemId]
+    );
+    assert.equal(item.liability_access_status, LIABILITY_ACCESS_STATUS.MISSING);
+  });
+
+  it('marks liability access enabled when liability fetch succeeds', async () => {
+    plaid.getAccounts = async () => ({
+      accounts: [{
+        account_id: 'acct-liab-cc',
+        name: 'Test Credit Card',
+        official_name: 'Test Credit Card',
+        type: 'credit',
+        subtype: 'credit card',
+        mask: '9999',
+        balances: { current: 500, available: null, iso_currency_code: 'USD' }
+      }]
+    });
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-liab-enabled'
+    });
+    plaid.getLiabilities = async () => ({
+      data: {
+        liabilities: {
+          credit: [{
+            account_id: 'acct-liab-cc',
+            last_statement_balance: 450,
+            last_statement_issue_date: '2026-03-01',
+            minimum_payment_amount: 25,
+            next_payment_due_date: '2026-03-25',
+            last_payment_amount: 500,
+            last_payment_date: '2026-02-20',
+            is_overdue: false,
+            aprs: [{ apr_percentage: 22.99, apr_type: 'purchase_apr' }]
+          }]
+        }
+      },
+      errorCode: null
+    });
+
+    await syncAll();
+
+    const { rows: [item] } = await pool.query(
+      'SELECT liability_access_status FROM items WHERE id = $1',
+      [liabItemId]
+    );
+    assert.equal(item.liability_access_status, LIABILITY_ACCESS_STATUS.ENABLED);
   });
 });
 
