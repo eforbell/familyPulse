@@ -1,7 +1,7 @@
 'use strict';
 
 require('dotenv').config();
-const { describe, it, before, after } = require('node:test');
+const { describe, it, before, after, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const { Pool } = require('pg');
@@ -259,8 +259,15 @@ describe('PUT /api/items/:id/owner', () => {
 // ── DELETE /api/items/:id ───────────────────────────────────
 
 describe('DELETE /api/items/:id', () => {
-  it('removes an item and cascaded accounts', async () => {
-    // Create a throwaway item to delete
+  const originalRemoveItem = require('../lib/plaid-client').removeItem;
+
+  afterEach(() => {
+    require('../lib/plaid-client').removeItem = originalRemoveItem;
+  });
+
+  it('disconnects an item remotely and preserves local history', async () => {
+    require('../lib/plaid-client').removeItem = async () => ({ removed: true });
+
     const { rows: [delItem] } = await pool.query(`
       INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
       VALUES ('test-token-del', $1, 'ins_del', 'Delete Me Bank', 'good')
@@ -269,6 +276,7 @@ describe('DELETE /api/items/:id', () => {
     await pool.query(`
       INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
       VALUES ($2, $1, 'Del Account', 'depository', 'checking', '0000', 0)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET item_id = EXCLUDED.item_id
     `, [delItem.id, DELETE_ACCOUNT_ID]);
 
     const res = await authFetch(`${baseUrl}/api/items/${delItem.id}`, {
@@ -277,13 +285,93 @@ describe('DELETE /api/items/:id', () => {
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.success, true);
+    assert.equal(data.disconnected, true);
+    assert.equal(data.preserved_history, true);
 
-    // Verify cascade
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT status, disconnected_at, access_token FROM items WHERE id = $1',
+      [delItem.id]
+    );
+    assert.equal(itemRow.status, 'disconnected');
+    assert.ok(itemRow.disconnected_at);
+    assert.equal(itemRow.access_token, `[DISCONNECTED]:${DELETE_ITEM_ID}`);
+
     const { rows: accts } = await pool.query(
       'SELECT id FROM accounts WHERE plaid_account_id = $1',
       [DELETE_ACCOUNT_ID]
     );
-    assert.equal(accts.length, 0);
+    assert.equal(accts.length, 1);
+  });
+
+  it('purges local history only after an item is disconnected', async () => {
+    require('../lib/plaid-client').removeItem = async () => ({ removed: true });
+
+    const { rows: [delItem] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-del', $1, 'ins_del', 'Delete Me Bank', 'good')
+      ON CONFLICT (item_id) DO UPDATE SET
+        access_token = EXCLUDED.access_token,
+        status = 'good',
+        disconnected_at = NULL
+      RETURNING id
+    `, [DELETE_ITEM_ID]);
+
+    let res = await authFetch(`${baseUrl}/api/items/${delItem.id}/purge`, {
+      method: 'DELETE'
+    });
+    assert.equal(res.status, 409);
+
+    res = await authFetch(`${baseUrl}/api/items/${delItem.id}`, {
+      method: 'DELETE'
+    });
+    assert.equal(res.status, 200);
+
+    res = await authFetch(`${baseUrl}/api/items/${delItem.id}/purge`, {
+      method: 'DELETE'
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.purged, true);
+
+    const { rows: items } = await pool.query(
+      'SELECT id FROM items WHERE id = $1',
+      [delItem.id]
+    );
+    assert.equal(items.length, 0);
+  });
+
+  it('falls back to local disconnect when Plaid reports the item is already gone', async () => {
+    require('../lib/plaid-client').removeItem = async () => {
+      const err = new Error('Item not found');
+      err.code = 'ITEM_NOT_FOUND';
+      throw err;
+    };
+
+    const { rows: [delItem] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-del', $1, 'ins_del', 'Delete Me Bank', 'good')
+      ON CONFLICT (item_id) DO UPDATE SET
+        access_token = EXCLUDED.access_token,
+        status = 'good',
+        disconnected_at = NULL
+      RETURNING id
+    `, [DELETE_ITEM_ID]);
+
+    const res = await authFetch(`${baseUrl}/api/items/${delItem.id}`, {
+      method: 'DELETE'
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.disconnected, true);
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT status, disconnected_at FROM items WHERE id = $1',
+      [delItem.id]
+    );
+    assert.equal(itemRow.status, 'disconnected');
+    assert.ok(itemRow.disconnected_at);
   });
 
   it('returns 404 for non-existent item', async () => {

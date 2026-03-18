@@ -1,0 +1,119 @@
+{
+  "branchName": "feature/16-plaid-account-selection-management",
+  "projectName": "Plaid Account Selection Management",
+  "description": "Add explicit management for which accounts under an existing Plaid Item should keep syncing, using update mode where Plaid supports account-selection edits and institution-specific fallback messaging where it does not.",
+  "timing": {
+    "draftedOn": "2026-03-18",
+    "plannedEarliestExecution": "after Feature 15",
+    "gatingCondition": "Features 14 and 15 should land first so item lifecycle state and permission-upgrade semantics are already stable."
+  },
+  "principles": [
+    "Users should be able to revisit account selection after initial onboarding where Plaid supports it",
+    "The UI must not over-promise symmetric add/remove behavior across all institutions",
+    "Institution-specific exceptions, especially Chase, should be surfaced clearly rather than hidden behind a broken generic flow",
+    "Account-selection editing is distinct from login repair and product-consent upgrade",
+    "Historical local data should remain understandable even when account sync membership changes"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "plaid": "Link update mode with account selection editing where supported",
+    "database": "PostgreSQL item/account lifecycle state as needed for archived or de-selected accounts",
+    "testing": "node:test integration coverage for update token creation plus manual institution validation"
+  },
+  "userStories": [
+    {
+      "id": "ACCT-016-001",
+      "title": "Launch account-selection editing for an existing item",
+      "acceptanceCriteria": [
+        "A dedicated route exists for creating an update-mode token to edit synced accounts",
+        "Settings exposes an Edit synced accounts action only when editability has a defined source of truth",
+        "The action is separate from Fix login and Enable liabilities",
+        "OAuth resume and link session tracking continue to work for this flow",
+        "The feature defines whether editability comes from persisted item state, institution-specific rules, fallback heuristics, or a documented combination"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-15",
+      "testStrategy": "Route integration test for token creation plus manual update-mode validation.",
+      "passes": false
+    },
+    {
+      "id": "ACCT-016-002",
+      "title": "Reflect account-selection changes safely in local state",
+      "acceptanceCriteria": [
+        "After account-selection changes, the local account set is refreshed correctly",
+        "The app distinguishes active synced accounts from locally retained historical accounts if needed",
+        "Future sync behavior respects the updated account selection",
+        "Historical reporting remains understandable after account-selection edits"
+      ],
+      "priority": 1,
+      "estimatedLines": "+140/-30",
+      "testStrategy": "Integration tests for account refresh behavior plus manual verification on a real institution.",
+      "passes": false
+    },
+    {
+      "id": "ACCT-016-003",
+      "title": "Handle institution-specific exceptions honestly",
+      "acceptanceCriteria": [
+        "Institutions with limited in-app account-selection editing are identified or messaged clearly",
+        "For Chase-like cases, the UI can direct users to the bank's own permission manager when needed",
+        "The app does not promise account removal in-app when the institution does not support it through Plaid",
+        "Fallback guidance is specific enough for a parent to act on"
+      ],
+      "priority": 1,
+      "estimatedLines": "+70/-5",
+      "testStrategy": "Manual UX review against institution-specific copy and fallback behavior.",
+      "passes": false
+    },
+    {
+      "id": "ACCT-016-004",
+      "title": "Make account-selection state visible in Settings",
+      "acceptanceCriteria": [
+        "Settings makes it understandable which accounts are currently active for sync",
+        "Closed or deselected accounts can remain visible as historical if the product model chooses to preserve them",
+        "Users can tell whether an institution is active, disconnected, or partially limited by institution rules"
+      ],
+      "priority": 2,
+      "estimatedLines": "+100/-20",
+      "testStrategy": "Manual UI verification with mixed account states.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Account-selection editing behavior is institution-specific, so a generic implementation may fail or mislead users without explicit exceptions"
+    ],
+    "medium": [
+      "Local reconciliation after account deselection is more complex when historical rows are preserved",
+      "Users may expect deselecting an account to delete its history unless the UI explains the model clearly"
+    ],
+    "low": [
+      "Some institutions may only need improved guidance rather than a new technical flow"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm the exact Plaid update-mode parameters for account-selection editing",
+    "Decide how deselected accounts should appear locally when history is preserved",
+    "Define the source of truth for whether an item should show Edit synced accounts",
+    "Document known institution exceptions and fallback guidance before shipping the UI",
+    "Verify at least one institution supports the intended edit flow end-to-end"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+410/-60",
+    "storiesCount": 4,
+    "filesCreated": [
+      "planning/features/feature-16-prd.json",
+      "planning/features/feature-16-summary.md"
+    ],
+    "filesModified": [
+      "lib/plaid-client.js",
+      "lib/routes/link.js",
+      "lib/sync.js",
+      "public/settings.js",
+      "public/settings.html",
+      "test/link-api.test.js",
+      "test/sync.test.js",
+      "db/migrations/*.sql"
+    ]
+  }
+}

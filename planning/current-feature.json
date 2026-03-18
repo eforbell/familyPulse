@@ -1,5 +1,5 @@
 {
-  "currentFeature": "Feature #8: MCP Server",
+  "currentFeature": "Feature #14: Plaid Disconnect Lifecycle",
   "status": "in-progress",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
@@ -10,6 +10,7 @@
     "Feature #5: Hot Spots & Anomaly Detection",
     "Feature #6: Kids View",
     "Feature #7: Magic Actions (LLM Layer)",
+    "Feature #8: MCP Server",
     "Feature #10: Household Authentication",
     "Feature #11: Split Liability Onboarding",
     "Feature #12: Liability Coverage",
@@ -17,7 +18,8 @@
   ],
   "skippedFeatures": [],
   "futureFeatures": [
-    "Feature #8: MCP Server",
-    "Feature #9: Planning & Goals"
+    "Feature #9: Planning & Goals",
+    "Feature #15: Plaid Liability Permission Upgrade",
+    "Feature #16: Plaid Account Selection Management"
   ]
 }

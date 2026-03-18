@@ -1,0 +1,122 @@
+{
+  "branchName": "feature/14-plaid-disconnect-lifecycle",
+  "projectName": "Plaid Disconnect Lifecycle",
+  "description": "Replace Family Pulse's local-only institution removal with a true Plaid disconnect flow that calls /item/remove, stops future sync and billing, and preserves local historical data by default. Add a separate destructive purge path for users who intentionally want to erase local institution history.",
+  "timing": {
+    "draftedOn": "2026-03-18",
+    "plannedEarliestExecution": "immediate",
+    "gatingCondition": "None. This should be executed first because the current local-only delete risks continued Plaid billing after users believe an institution has been removed."
+  },
+  "principles": [
+    "Disconnect should stop remote sync and billing while preserving local historical reporting by default",
+    "Permanent local data deletion must be a separate destructive action, not the default interpretation of disconnect",
+    "Remote disconnect should call Plaid /item/remove before changing local institution state",
+    "Users must understand the difference between disconnect, reauth, and purge",
+    "Disconnected institutions should no longer be eligible for routine syncs",
+    "Server-side secrets invariant remains unchanged — no Plaid access tokens or internal removal details leak to clients"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL item lifecycle state on items and/or related tables",
+    "plaid": "Items API for /item/remove",
+    "testing": "node:test integration tests for remote disconnect, local archival, and explicit purge behavior"
+  },
+  "userStories": [
+    {
+      "id": "DISC-014-001",
+      "title": "Disconnect an institution remotely while preserving history",
+      "acceptanceCriteria": [
+        "A parent can disconnect a linked institution from Plaid using a dedicated disconnect action",
+        "The backend calls Plaid /item/remove before marking the institution disconnected locally",
+        "On success, the institution stops future syncs and billing-oriented Plaid usage",
+        "Local accounts and transactions remain available for historical reporting by default",
+        "The institution is shown in the UI as disconnected or archived rather than silently disappearing"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-30",
+      "testStrategy": "Integration test stubbing Plaid item removal and verifying local state transitions without cascading historical deletion.",
+      "passes": false
+    },
+    {
+      "id": "DISC-014-002",
+      "title": "Separate purge from disconnect",
+      "acceptanceCriteria": [
+        "A distinct destructive action exists for permanently deleting local institution history",
+        "Purge requires explicit confirmation that local accounts and transactions will be deleted",
+        "Purge does not masquerade as the normal disconnect path",
+        "If retained, any old delete semantics are renamed so users cannot confuse them with disconnect"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-20",
+      "testStrategy": "Route-level integration test verifying purge deletes local rows only when explicitly invoked.",
+      "passes": false
+    },
+    {
+      "id": "DISC-014-003",
+      "title": "Exclude disconnected institutions from future sync runs",
+      "acceptanceCriteria": [
+        "Routine sync ignores disconnected/archived institutions",
+        "Disconnected institutions remain queryable for historical display",
+        "Operational logs and status views distinguish disconnected items from broken items that need reauth",
+        "No existing good item is skipped unless explicitly disconnected",
+        "Feature 14 defines reconnect semantics explicitly enough that archived local history is not silently duplicated by future implementation work"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-10",
+      "testStrategy": "Sync integration test verifying disconnected items are not included in the sync loop.",
+      "passes": false
+    },
+    {
+      "id": "DISC-014-004",
+      "title": "Clarify institution lifecycle actions in Settings",
+      "acceptanceCriteria": [
+        "Settings uses explicit labels for Disconnect, Fix login, and any destructive purge action",
+        "Disconnect confirmation explains that Plaid billing/sync stops while history stays by default",
+        "Purge confirmation explains that local history will be erased",
+        "Users can still see enough institution state to understand whether the item is active, disconnected, or broken"
+      ],
+      "priority": 2,
+      "estimatedLines": "+90/-15",
+      "testStrategy": "Manual UI verification in Settings plus route smoke tests.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Changing delete semantics touches item/account/transaction lifecycle and can destroy history if implemented incorrectly"
+    ],
+    "medium": [
+      "Plaid /item/remove may fail for already-broken Items, so fallback handling and messaging must be explicit",
+      "Archived-history behavior will affect future reconnect semantics and must not accidentally re-enable sync"
+    ],
+    "low": [
+      "Some users may still expect disconnect to remove all traces locally, which is why purge remains available separately"
+    ]
+  },
+  "preFlightChecklist": [
+    "Decide the exact local representation of a disconnected institution (items.status extension or dedicated fields)",
+    "Confirm how disconnected institutions should appear in Settings and status views",
+    "Confirm whether purge remains supported after remote disconnect and what sequence is allowed",
+    "Confirm the app should not call Plaid for disconnected items during status or sync operations",
+    "Choose and document reconnect semantics for archived-history items before coding begins"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+350/-75",
+    "storiesCount": 4,
+    "filesCreated": [
+      "planning/features/feature-14-prd.json",
+      "planning/features/feature-14-summary.md"
+    ],
+    "filesModified": [
+      "lib/plaid-client.js",
+      "lib/routes/link.js",
+      "lib/sync.js",
+      "public/settings.js",
+      "public/settings.html",
+      "test/link-api.test.js",
+      "test/sync.test.js",
+      "db/migrations/*.sql"
+    ]
+  }
+}

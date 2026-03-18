@@ -7,6 +7,7 @@ let items = [];
 let familyMembers = [];
 let ownerTarget = null; // item id being assigned
 let currentMember = null;
+let deleteMode = 'disconnect';
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -188,6 +189,8 @@ function renderItems() {
     const normalizedStatus = item.status === 'error' ? 'sync_error' : item.status;
     const statusBadge = normalizedStatus === 'good'
       ? '<span class="status-good">Connected</span>'
+      : normalizedStatus === 'disconnected'
+        ? '<span class="status-error">Disconnected</span>'
       : normalizedStatus === 'needs_reauth'
         ? `<span class="status-error">Needs reauth${item.error_code ? `: ${esc(item.error_code)}` : ''}</span>`
         : `<span class="status-error">Sync issue${item.error_code ? `: ${esc(item.error_code)}` : ''}</span>`;
@@ -209,9 +212,10 @@ function renderItems() {
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
           ${normalizedStatus === 'needs_reauth' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
+          ${normalizedStatus === 'disconnected' ? `<button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}', 'purge')" title="Delete local history">Purge</button>` : ''}
           <button class="btn-ghost" onclick="openOwnerOverlay(${item.id})" title="Assign owner">Owner</button>
-          <button class="btn-ghost" onclick="syncItem(${item.id})" title="Sync now">Sync</button>
-          <button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}')" title="Remove">Remove</button>
+          ${normalizedStatus !== 'disconnected' ? `<button class="btn-ghost" onclick="syncItem(${item.id})" title="Sync now">Sync</button>` : ''}
+          ${normalizedStatus !== 'disconnected' ? `<button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}', 'disconnect')" title="Disconnect">Disconnect</button>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -362,26 +366,42 @@ async function assignOwner(name) {
 
 let deleteTarget = null;
 
-function openDeleteOverlay(itemId, name) {
+function openDeleteOverlay(itemId, name, mode) {
   deleteTarget = itemId;
-  document.getElementById('delete-msg').textContent =
-    `Remove ${name}? This will delete all its accounts and transactions. This cannot be undone.`;
+  deleteMode = mode || 'disconnect';
+  const title = document.getElementById('delete-title');
+  const msg = document.getElementById('delete-msg');
+  const confirmBtn = document.getElementById('delete-confirm-btn');
+
+  if (deleteMode === 'purge') {
+    title.textContent = 'Purge Local History';
+    msg.textContent = `Permanently delete ${name} and all its local accounts and transactions? This cannot be undone.`;
+    confirmBtn.textContent = 'Purge';
+  } else {
+    title.textContent = 'Disconnect Institution';
+    msg.textContent = `Disconnect ${name} from Plaid? Future syncs will stop and local history will be preserved.`;
+    confirmBtn.textContent = 'Disconnect';
+  }
   document.getElementById('delete-overlay').classList.remove('hidden');
 }
 
 function closeDeleteOverlay() {
   document.getElementById('delete-overlay').classList.add('hidden');
   deleteTarget = null;
+  deleteMode = 'disconnect';
 }
 
 async function confirmDelete() {
   if (!deleteTarget) return;
   try {
-    await api(`api/items/${deleteTarget}`, { method: 'DELETE' });
+    const path = deleteMode === 'purge'
+      ? `api/items/${deleteTarget}/purge`
+      : `api/items/${deleteTarget}`;
+    await api(path, { method: 'DELETE' });
     closeDeleteOverlay();
     await loadItems();
   } catch (err) {
-    alert('Failed to remove institution: ' + err.message);
+    alert(`Failed to ${deleteMode === 'purge' ? 'purge local history' : 'disconnect institution'}: ` + err.message);
   }
 }
 

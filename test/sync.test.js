@@ -6,7 +6,8 @@ const assert = require('node:assert/strict');
 const { Pool } = require('pg');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const { classifyItemFailure } = require('../lib/sync');
+const { syncAll, classifyItemFailure } = require('../lib/sync');
+const plaid = require('../lib/plaid-client');
 
 after(async () => {
   await pool.end();
@@ -203,5 +204,61 @@ describe('sync — item failure classification', () => {
       status: 'sync_error',
       errorCode: 'RATE_LIMIT_EXCEEDED'
     });
+  });
+});
+
+describe('sync — disconnected items', () => {
+  const originalGetAccounts = plaid.getAccounts;
+  const originalSyncTransactions = plaid.syncTransactions;
+  let activeItemId;
+  let disconnectedItemId;
+
+  before(async () => {
+    const { rows: [active] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-active-sync', 'test-item-active-sync', 'ins_active_sync', 'Active Sync Bank', 'good')
+      ON CONFLICT (item_id) DO UPDATE SET status = 'good', disconnected_at = NULL
+      RETURNING id
+    `);
+    activeItemId = active.id;
+
+    const { rows: [disconnected] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status, disconnected_at)
+      VALUES ('[DISCONNECTED]:test-item-disconnected-sync', 'test-item-disconnected-sync', 'ins_disc_sync', 'Disconnected Sync Bank', 'disconnected', now())
+      ON CONFLICT (item_id) DO UPDATE SET status = 'disconnected', disconnected_at = now()
+      RETURNING id
+    `);
+    disconnectedItemId = disconnected.id;
+  });
+
+  after(async () => {
+    plaid.getAccounts = originalGetAccounts;
+    plaid.syncTransactions = originalSyncTransactions;
+    await pool.query("DELETE FROM items WHERE item_id IN ('test-item-active-sync', 'test-item-disconnected-sync')");
+  });
+
+  it('skips disconnected items during syncAll', async () => {
+    const seenTokens = [];
+    plaid.getAccounts = async (accessToken) => {
+      seenTokens.push(accessToken);
+      return { accounts: [] };
+    };
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-test'
+    });
+
+    const result = await syncAll();
+    assert.ok(result.items >= 1);
+    assert.ok(seenTokens.includes('test-token-active-sync'));
+    assert.ok(!seenTokens.includes('[DISCONNECTED]:test-item-disconnected-sync'));
+
+    const { rows: [row] } = await pool.query(
+      'SELECT status FROM items WHERE id = $1',
+      [disconnectedItemId]
+    );
+    assert.equal(row.status, 'disconnected');
   });
 });

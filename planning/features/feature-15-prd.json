@@ -1,0 +1,118 @@
+{
+  "branchName": "feature/15-plaid-liability-permission-upgrade",
+  "projectName": "Plaid Liability Permission Upgrade",
+  "description": "Unify new Plaid onboarding around transactions plus optional liabilities, then add a dedicated update-mode path for legacy Items that need liability consent later without forcing delete-and-relink behavior.",
+  "timing": {
+    "draftedOn": "2026-03-18",
+    "plannedEarliestExecution": "after Feature 14",
+    "gatingCondition": "Feature 14 should land first so institution lifecycle semantics are stable before adding more Item-management surface area."
+  },
+  "principles": [
+    "Default new-item onboarding should succeed even when liability consent is not granted",
+    "Liabilities should be requested opportunistically, not required for every institution",
+    "Existing Items need a first-class upgrade path instead of delete-and-relink workarounds",
+    "Login repair and permission upgrade must be treated as separate actions",
+    "Item-level capability state should be persisted rather than inferred forever from sparse sync results"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "plaid": "Link token creation, optional products, and update-mode product/consent expansion",
+    "database": "PostgreSQL item-level liability access state",
+    "testing": "node:test integration tests for token creation behavior, item status tracking, and sync visibility"
+  },
+  "userStories": [
+    {
+      "id": "LIAB-015-001",
+      "title": "Default new links request liabilities opportunistically",
+      "acceptanceCriteria": [
+        "Default new-item link token requests transactions as the required product",
+        "Default new-item link token also requests liabilities as an optional product",
+        "Ordinary bank onboarding can still succeed when liability consent is not granted",
+        "The split onboarding assumption that liabilities require a separate institution flow is removed"
+      ],
+      "priority": 1,
+      "estimatedLines": "+20/-15",
+      "testStrategy": "Route-level integration test confirming default link token includes optional liabilities instead of required liabilities.",
+      "passes": false
+    },
+    {
+      "id": "LIAB-015-002",
+      "title": "Legacy items can upgrade to liability consent",
+      "acceptanceCriteria": [
+        "A dedicated update-mode route exists for enabling liabilities on an existing Item",
+        "Permission upgrade is distinct from login repair in both routing and UI",
+        "OAuth resume and link session tracking continue to work for the upgrade flow",
+        "Users are not required to delete and relink an institution just to enable liabilities"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-20",
+      "testStrategy": "Integration tests for token-creation route shape plus manual validation on an OAuth institution that previously lacked liability consent.",
+      "passes": false
+    },
+    {
+      "id": "LIAB-015-003",
+      "title": "Persist item-level liability access state",
+      "acceptanceCriteria": [
+        "Items track whether liability access is enabled, missing, unsupported, or still unknown",
+        "Legacy transactions-only items can be identified without relying entirely on sync heuristics",
+        "Settings uses persisted item state to decide when to show Enable liabilities",
+        "Non-fatal liability-consent issues do not mark the whole Item as broken"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-10",
+      "testStrategy": "Migration/integration tests for item state persistence plus sync tests for non-fatal consent-required behavior.",
+      "passes": false
+    },
+    {
+      "id": "LIAB-015-004",
+      "title": "Clarify liability upgrade action in Settings",
+      "acceptanceCriteria": [
+        "Settings shows an explicit Enable liabilities action when an Item is upgradeable",
+        "Fix login remains focused on ITEM_LOGIN_REQUIRED / reauth behavior",
+        "Items already confirmed liability-enabled do not keep showing the upgrade CTA",
+        "UI copy makes clear that liability access is additive and institution-dependent"
+      ],
+      "priority": 2,
+      "estimatedLines": "+80/-10",
+      "testStrategy": "Manual Settings verification and route smoke tests.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Plaid update-mode product-consent mechanics are the most failure-prone part of this feature and must be confirmed before implementation"
+    ],
+    "medium": [
+      "Optional liabilities on default links may still produce institution-specific OAuth edge cases",
+      "Persisted capability state can drift if not updated consistently during link, sync, and upgrade flows"
+    ],
+    "low": [
+      "Some institutions may never expose liabilities even after consent, which the UI can explain without treating as an error"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm the exact Plaid request shape for additional liability consent in update mode before implementation",
+    "Decide the final item-level liability_access_status state machine",
+    "Confirm how legacy transactions-only Items are initialized into the new state model",
+    "Verify at least one real institution can be used for end-to-end upgrade validation"
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+420/-55",
+    "storiesCount": 4,
+    "filesCreated": [
+      "planning/features/feature-15-prd.json",
+      "planning/features/feature-15-summary.md"
+    ],
+    "filesModified": [
+      "lib/plaid-client.js",
+      "lib/routes/link.js",
+      "lib/sync.js",
+      "public/settings.js",
+      "public/settings.html",
+      "test/link-api.test.js",
+      "test/sync.test.js",
+      "db/migrations/*.sql"
+    ]
+  }
+}

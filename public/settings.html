@@ -25,13 +25,13 @@
     </div>
   </div>
 
-  <!-- Confirm delete overlay -->
+  <!-- Confirm item action overlay -->
   <div id="delete-overlay" class="overlay hidden">
     <div class="overlay-box">
-      <h2>Remove Institution</h2>
-      <p id="delete-msg">This will remove the institution and all its accounts and transactions. This cannot be undone.</p>
+      <h2 id="delete-title">Disconnect Institution</h2>
+      <p id="delete-msg">This will disconnect the institution from Plaid and preserve local history by default.</p>
       <div class="form-actions">
-        <button class="btn-danger" onclick="confirmDelete()">Remove</button>
+        <button id="delete-confirm-btn" class="btn-danger" onclick="confirmDelete()">Disconnect</button>
         <button class="btn-ghost" onclick="closeDeleteOverlay()">Cancel</button>
       </div>
     </div>
