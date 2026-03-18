@@ -22,6 +22,7 @@ const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
 const OAUTH_STATE_ID = 'test-oauth-state-link';
 const DEFAULT_LINK_TOKEN = 'test-link-token-default';
 const UPGRADE_LINK_TOKEN = 'test-link-token-upgrade';
+const ACCOUNT_SELECTION_LINK_TOKEN = 'test-link-token-account-selection';
 let parentSessionToken;
 
 function authFetch(url, opts = {}) {
@@ -84,7 +85,7 @@ after(async () => {
   `, [LINK_ACCOUNT_IDS]);
   await pool.query(
     'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
-    [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN]]
+    [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN, ACCOUNT_SELECTION_LINK_TOKEN]]
   );
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
@@ -106,6 +107,31 @@ describe('GET /api/items', () => {
     assert.equal(testItem.institution_name, 'Test Bank Link');
     assert.equal(testItem.account_count, 2);
     assert.equal(testItem.status, 'good');
+  });
+
+  it('returns item account detail with active and historical sync status', async () => {
+    await pool.query(
+      "UPDATE accounts SET sync_status = 'historical', sync_disabled_at = now() WHERE plaid_account_id = $1",
+      [LINK_ACCOUNT_IDS[1]]
+    );
+
+    const res = await authFetch(`${baseUrl}/api/items/${testItemId}/accounts`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.item.id, testItemId);
+    assert.equal(data.accounts.length, 2);
+    assert.deepEqual(
+      data.accounts.map((account) => ({ plaid_account_id: account.plaid_account_id, sync_status: account.sync_status })),
+      [
+        { plaid_account_id: LINK_ACCOUNT_IDS[0], sync_status: 'active' },
+        { plaid_account_id: LINK_ACCOUNT_IDS[1], sync_status: 'historical' }
+      ]
+    );
+
+    await pool.query(
+      "UPDATE accounts SET sync_status = 'active', sync_disabled_at = NULL WHERE plaid_account_id = $1",
+      [LINK_ACCOUNT_IDS[1]]
+    );
   });
 });
 
@@ -164,6 +190,70 @@ describe('Plaid link token routes', () => {
     assert.deepEqual(requestedAdditionalConsentedProducts, ['liabilities']);
   });
 
+  it('account selection flow uses update mode with account selection enabled', async () => {
+    let requestedAccessToken = null;
+    let requestedUpdate = null;
+    require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
+      requestedAccessToken = opts.accessToken;
+      requestedUpdate = opts.update;
+      return {
+        link_token: ACCOUNT_SELECTION_LINK_TOKEN,
+        expiration: '2099-01-01T00:00:00Z'
+      };
+    };
+
+    const res = await authFetch(`${baseUrl}/api/link/create-account-selection-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: testItemId })
+    });
+    assert.equal(res.status, 200);
+    assert.equal(requestedAccessToken, 'test-token-link');
+    assert.deepEqual(requestedUpdate, { account_selection_enabled: true });
+  });
+
+  it('allows Chase items to open account selection while keeping bank-managed removal guidance', async () => {
+    await pool.query(
+      `UPDATE items
+       SET institution_id = 'ins_56', institution_name = 'Chase'
+       WHERE id = $1`,
+      [testItemId]
+    );
+
+    let requestedAccessToken = null;
+    require('../lib/plaid-client').createLinkToken = async (opts = {}) => {
+      requestedAccessToken = opts.accessToken;
+      return {
+        link_token: ACCOUNT_SELECTION_LINK_TOKEN,
+        expiration: '2099-01-01T00:00:00Z'
+      };
+    };
+
+    try {
+      const itemRes = await authFetch(`${baseUrl}/api/items`);
+      assert.equal(itemRes.status, 200);
+      const items = await itemRes.json();
+      const chaseItem = items.find((item) => item.id === testItemId);
+      assert.equal(chaseItem.account_selection.mode, 'editable');
+      assert.equal(chaseItem.account_selection.removal_requires_bank, true);
+
+      const res = await authFetch(`${baseUrl}/api/link/create-account-selection-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: testItemId })
+      });
+      assert.equal(res.status, 200);
+      assert.equal(requestedAccessToken, 'test-token-link');
+    } finally {
+      await pool.query(
+        `UPDATE items
+         SET institution_id = 'ins_test', institution_name = 'Test Bank'
+         WHERE id = $1`,
+        [testItemId]
+      );
+    }
+  });
+
   it('completes liability upgrade without a public token by refreshing item state', async () => {
     require('../lib/plaid-client').getItemInfo = async () => ({
       item: {
@@ -215,6 +305,45 @@ describe('Plaid link token routes', () => {
       [session.id]
     );
     assert.equal(updatedSession.status, 'exchanged');
+  });
+
+  it('completes account selection without a public token and marks absent accounts historical', async () => {
+    require('../lib/plaid-client').getAccounts = async () => ({
+      accounts: [{
+        account_id: LINK_ACCOUNT_IDS[0],
+        name: 'Link Checking',
+        official_name: 'Link Checking',
+        type: 'depository',
+        subtype: 'checking',
+        mask: '1111',
+        balances: { current: 1000, available: 900, iso_currency_code: 'USD' }
+      }]
+    });
+
+    const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
+    const { rows: [session] } = await pool.query(`
+      INSERT INTO link_sessions (link_token, status, owner, item_id_for_update, expires_at)
+      VALUES ($1, 'pending', $2, $3, $4)
+      RETURNING id
+    `, [ACCOUNT_SELECTION_LINK_TOKEN, 'Eric', testItemId, expiresAt]);
+
+    const res = await authFetch(`${baseUrl}/api/link/complete-account-selection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link_session_id: session.id })
+    });
+    assert.equal(res.status, 200);
+
+    const { rows } = await pool.query(`
+      SELECT plaid_account_id, sync_status
+      FROM accounts
+      WHERE item_id = $1
+      ORDER BY plaid_account_id
+    `, [testItemId]);
+    assert.deepEqual(rows, [
+      { plaid_account_id: LINK_ACCOUNT_IDS[0], sync_status: 'active' },
+      { plaid_account_id: LINK_ACCOUNT_IDS[1], sync_status: 'historical' }
+    ]);
   });
 });
 
@@ -474,7 +603,7 @@ describe('GET /oauth/callback', () => {
   it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
     await pool.query(
       'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
-      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN]]
+      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN, ACCOUNT_SELECTION_LINK_TOKEN]]
     );
     await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
 

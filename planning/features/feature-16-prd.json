@@ -1,7 +1,7 @@
 {
   "branchName": "feature/16-plaid-account-selection-management",
   "projectName": "Plaid Account Selection Management",
-  "description": "Add explicit management for which accounts under an existing Plaid Item should keep syncing, using update mode where Plaid supports account-selection edits and institution-specific fallback messaging where it does not.",
+  "description": "Add explicit management for which accounts under an existing Plaid Item should keep syncing, using Plaid update mode account-selection editing where supported, preserving local history by default when accounts stop syncing, and surfacing institution-specific fallback guidance where in-app removal is not supported.",
   "timing": {
     "draftedOn": "2026-03-18",
     "plannedEarliestExecution": "after Feature 15",
@@ -17,8 +17,8 @@
   "techStack": {
     "language": "Node.js + vanilla JS",
     "runtime": "Express.js",
-    "plaid": "Link update mode with account selection editing where supported",
-    "database": "PostgreSQL item/account lifecycle state as needed for archived or de-selected accounts",
+    "plaid": "Link update mode with update.account_selection_enabled where supported",
+    "database": "PostgreSQL account lifecycle state for active vs historical accounts plus item-level editability guidance as needed",
     "testing": "node:test integration coverage for update token creation plus manual institution validation"
   },
   "userStories": [
@@ -30,7 +30,8 @@
         "Settings exposes an Edit synced accounts action only when editability has a defined source of truth",
         "The action is separate from Fix login and Enable liabilities",
         "OAuth resume and link session tracking continue to work for this flow",
-        "The feature defines whether editability comes from persisted item state, institution-specific rules, fallback heuristics, or a documented combination"
+        "The feature defines whether editability comes from persisted item state, institution-specific rules, fallback heuristics, or a documented combination",
+        "The first shipped rule set for editability is documented in code and planning artifacts"
       ],
       "priority": 1,
       "estimatedLines": "+100/-15",
@@ -42,9 +43,10 @@
       "title": "Reflect account-selection changes safely in local state",
       "acceptanceCriteria": [
         "After account-selection changes, the local account set is refreshed correctly",
-        "The app distinguishes active synced accounts from locally retained historical accounts if needed",
+        "The app distinguishes active synced accounts from locally retained historical accounts",
         "Future sync behavior respects the updated account selection",
-        "Historical reporting remains understandable after account-selection edits"
+        "Historical reporting remains understandable after account-selection edits",
+        "De-selected accounts are preserved as historical by default rather than being auto-purged"
       ],
       "priority": 1,
       "estimatedLines": "+140/-30",
@@ -58,7 +60,8 @@
         "Institutions with limited in-app account-selection editing are identified or messaged clearly",
         "For Chase-like cases, the UI can direct users to the bank's own permission manager when needed",
         "The app does not promise account removal in-app when the institution does not support it through Plaid",
-        "Fallback guidance is specific enough for a parent to act on"
+        "Fallback guidance is specific enough for a parent to act on",
+        "Chase-specific removal guidance is an explicit first-release requirement"
       ],
       "priority": 1,
       "estimatedLines": "+70/-5",
@@ -97,6 +100,32 @@
     "Define the source of truth for whether an item should show Edit synced accounts",
     "Document known institution exceptions and fallback guidance before shipping the UI",
     "Verify at least one institution supports the intended edit flow end-to-end"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Launch edit action",
+      "goal": "Add a dedicated account-selection update-mode token flow and Settings CTA with a documented editability rule set.",
+      "notes": [
+        "Use update.account_selection_enabled = true",
+        "Keep route/action separate from reauth and liability upgrade"
+      ]
+    },
+    {
+      "name": "Slice B: Reconcile local accounts",
+      "goal": "Introduce account-level active vs historical state so de-selected accounts stop syncing without losing household history.",
+      "notes": [
+        "Preserve historical transactions by default",
+        "Future sync behavior should only treat active accounts as live membership"
+      ]
+    },
+    {
+      "name": "Slice C: Institution-aware UX",
+      "goal": "Handle Chase and similar institutions honestly with explicit fallback guidance instead of implying symmetric in-app removal behavior.",
+      "notes": [
+        "Chase removal should point to bank-managed permissions",
+        "Settings should surface partial limitations clearly"
+      ]
+    }
   ],
   "metrics": {
     "estimatedTotalLines": "+410/-60",

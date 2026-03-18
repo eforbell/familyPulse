@@ -236,6 +236,10 @@ header h1 {
   margin-bottom: 1rem;
 }
 
+.owner-group-historical {
+  opacity: 0.9;
+}
+
 .owner-label {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -258,6 +262,10 @@ header h1 {
 }
 .account-card:hover { background: var(--surface2); }
 
+.account-card-historical {
+  border-style: dashed;
+}
+
 .acct-info {
   display: flex;
   flex-direction: column;
@@ -266,10 +274,23 @@ header h1 {
 .acct-name {
   font-size: 0.95rem;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .acct-detail {
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+.acct-status-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.12rem 0.4rem;
 }
 
 .acct-balance {
@@ -289,6 +310,12 @@ header h1 {
 .acct-balance-sub {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.historical-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
 }
 
 /* ── Section heading ───────────────────────────────────────── */

@@ -47,20 +47,42 @@ function renderDashboard(data) {
   netEl.textContent = fmtMoney(data.net_position);
   netEl.classList.remove('loading-pulse');
 
+  const historicalSummary = data.historical_account_count > 0
+    ? `<span><span class="label">Historical</span> <span class="value">${data.historical_account_count}</span></span>`
+    : '';
+
   document.getElementById('balance-breakdown').innerHTML = `
     <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
     <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
     <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
-    <span><span class="label">Accounts</span> <span class="value">${data.account_count}</span></span>
+    <span><span class="label">Active accounts</span> <span class="value">${data.account_count}</span></span>
+    ${historicalSummary}
   `;
 
   const grid = document.getElementById('accounts-grid');
   grid.innerHTML = '';
+  renderAccountGroups(grid, data.groups);
+  if (data.historical_groups && Object.keys(data.historical_groups).length > 0) {
+    const heading = document.createElement('div');
+    heading.className = 'section-heading';
+    heading.textContent = 'Historical Accounts';
+    grid.appendChild(heading);
 
-  for (const [owner, accts] of Object.entries(data.groups)) {
+    const note = document.createElement('div');
+    note.className = 'historical-note';
+    note.textContent = 'These accounts are retained for history and no longer affect live balance totals.';
+    grid.appendChild(note);
+
+    renderAccountGroups(grid, data.historical_groups, { historical: true });
+  }
+}
+
+function renderAccountGroups(container, groups, opts = {}) {
+  const historical = Boolean(opts.historical);
+  for (const [owner, accts] of Object.entries(groups || {})) {
     const group = document.createElement('div');
-    group.className = 'owner-group';
-    group.innerHTML = `<div class="owner-label">${esc(owner)}</div>`;
+    group.className = `owner-group${historical ? ' owner-group-historical' : ''}`;
+    group.innerHTML = `<div class="owner-label">${esc(owner)}${historical ? ' · Historical' : ''}</div>`;
 
     for (const a of accts) {
       const bal = parseFloat(a.display_balance != null ? a.display_balance : a.current_balance) || 0;
@@ -73,11 +95,13 @@ function renderDashboard(data) {
         && Number.isFinite(ledgerBalance)
         && Math.round(ledgerBalance * 100) / 100 !== Math.round(bal * 100) / 100;
       const displayName = a.display_name || a.name;
+      const statusBadge = historical ? '<span class="acct-status-badge">Historical</span>' : '';
       group.innerHTML += `
-        <div class="account-card" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
+        <div class="account-card${historical ? ' account-card-historical' : ''}" style="cursor:pointer" onclick="location.href='transactions.html?account_id=${a.id}'">
           <div class="acct-info">
             <div class="acct-name">
               ${esc(displayName)}
+              ${statusBadge}
               <button class="acct-rename-btn" onclick="openRename(event, ${a.id}, '${esc(displayName).replace(/'/g, "\\'")}' )" title="Rename">&#9998;</button>
             </div>
             <div class="acct-detail">${esc(a.institution_name || '')} ${a.mask ? '···' + esc(a.mask) : ''} · ${esc(a.subtype || a.type)}</div>
@@ -85,12 +109,12 @@ function renderDashboard(data) {
           </div>
           <div class="acct-balance-wrap">
             <div class="acct-balance ${(isCredit || isLoan) ? 'credit' : ''}">${fmtMoney(bal)}</div>
-            ${buildBalanceSubline(a, bal, showLedgerSecondary, ledgerBalance)}
+            ${buildBalanceSubline(a, bal, showLedgerSecondary, ledgerBalance, historical)}
           </div>
         </div>`;
     }
 
-    grid.appendChild(group);
+    container.appendChild(group);
   }
 }
 
@@ -191,7 +215,10 @@ function buildCreditLiabilityLine(acct) {
   return `<div class="acct-liability${hasMinimum && minimumPayment === 0 ? ' acct-liability-ok' : ''}">${parts.join(' · ')}</div>`;
 }
 
-function buildBalanceSubline(acct, displayBalance, showLedgerSecondary, ledgerBalance) {
+function buildBalanceSubline(acct, displayBalance, showLedgerSecondary, ledgerBalance, historical = false) {
+  if (historical) {
+    return '<div class="acct-balance-sub">No longer syncing</div>';
+  }
   if (acct.type === 'credit') {
     return `<div class="acct-balance-sub">Current balance</div>`;
   }

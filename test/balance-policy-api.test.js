@@ -219,6 +219,48 @@ describe('balance policy API', () => {
     assert.equal(kidGroup[0].display_balance, 450);
   });
 
+  it('excludes historical accounts from live dashboard totals while retaining them separately', async () => {
+    const baselineParentRes = await parentReq('api/accounts/dashboard');
+    assert.equal(baselineParentRes.status, 200);
+    const baselineParentData = await baselineParentRes.json();
+
+    await pool.query(`
+      UPDATE accounts
+      SET sync_status = 'historical', sync_disabled_at = now()
+      WHERE plaid_account_id IN ('acct-balance-parent-checking', 'acct-balance-kid-checking')
+    `);
+
+    try {
+      const parentRes = await parentReq('api/accounts/dashboard');
+      assert.equal(parentRes.status, 200);
+      const parentData = await parentRes.json();
+
+      assert.equal(parentData.account_count, baselineParentData.account_count - 2);
+      assert.equal(parentData.historical_account_count, baselineParentData.historical_account_count + 2);
+      assert.equal(parentData.liquid_total, baselineParentData.liquid_total - 1300);
+      assert.equal(parentData.groups[PARENT_NAME].length, 1);
+      assert.equal(parentData.groups[KID_NAME], undefined);
+      assert.equal(parentData.historical_groups[PARENT_NAME][0].id, parentAccountId);
+      assert.equal(parentData.historical_groups[KID_NAME][0].id, kidAccountId);
+
+      const kidRes = await kidReq('api/kids/dashboard');
+      assert.equal(kidRes.status, 200);
+      const kidData = await kidRes.json();
+      assert.equal(kidData.balance_total, 0);
+      assert.equal(kidData.account_count, 0);
+      assert.equal(kidData.historical_account_count, 1);
+      assert.equal(kidData.accounts.length, 0);
+      assert.equal(kidData.historical_accounts.length, 1);
+      assert.equal(kidData.historical_accounts[0].id, kidAccountId);
+    } finally {
+      await pool.query(`
+        UPDATE accounts
+        SET sync_status = 'active', sync_disabled_at = NULL
+        WHERE plaid_account_id IN ('acct-balance-parent-checking', 'acct-balance-kid-checking')
+      `);
+    }
+  });
+
   it('uses configured basis for kid dashboard totals', async () => {
     await pool.query(`
       INSERT INTO app_config (key, value) VALUES ('balance_basis', 'current_only')

@@ -8,6 +8,7 @@ let familyMembers = [];
 let ownerTarget = null; // item id being assigned
 let currentMember = null;
 let deleteMode = 'disconnect';
+let accountSelectionTarget = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -198,6 +199,10 @@ function renderItems() {
     const syncText = item.last_sync_at
       ? `Last synced ${timeAgo(item.last_sync_at)}`
       : 'Never synced';
+    const accountSelection = item.account_selection || { mode: 'unavailable', label: null, help: null, removal_requires_bank: false };
+    const accountSummary = item.historical_account_count > 0
+      ? `${item.account_count} active · ${item.historical_account_count} historical`
+      : `${item.account_count} account${item.account_count !== 1 ? 's' : ''}`;
 
     return `
       <div class="admin-row" data-item-id="${item.id}">
@@ -207,12 +212,14 @@ function renderItems() {
             ${statusBadge}
           </div>
           <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
-            ${item.account_count} account${item.account_count !== 1 ? 's' : ''}${item.owner ? ` · ${esc(item.owner)}` : ''} · ${syncText}
+            ${accountSummary}${item.owner ? ` · ${esc(item.owner)}` : ''} · ${syncText}
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;flex-shrink:0">
           ${normalizedStatus === 'needs_reauth' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
           ${normalizedStatus !== 'disconnected' && item.liability_access_status === 'missing' ? `<button class="btn-ghost" onclick="enableLiabilities(${item.id})" title="Enable liabilities">Enable liabilities</button>` : ''}
+          ${accountSelection.mode === 'editable' ? `<button class="btn-ghost" onclick="editSyncedAccounts(${item.id})" title="${esc(accountSelection.help || 'Edit synced accounts')}">${esc(accountSelection.label || 'Edit synced accounts')}</button>` : ''}
+          <button class="btn-ghost" onclick="openAccountSelectionOverlay(${item.id})" title="View synced accounts">Accounts</button>
           ${normalizedStatus === 'disconnected' ? `<button class="btn-danger" onclick="openDeleteOverlay(${item.id}, '${esc(item.institution_name)}', 'purge')" title="Delete local history">Purge</button>` : ''}
           <button class="btn-ghost" onclick="openOwnerOverlay(${item.id})" title="Assign owner">Owner</button>
           ${normalizedStatus !== 'disconnected' ? `<button class="btn-ghost" onclick="syncItem(${item.id})" title="Sync now">Sync</button>` : ''}
@@ -298,6 +305,73 @@ async function enableLiabilities(itemId) {
     completeError: 'Failed to enable liabilities',
     completionRoute: 'api/link/complete-liability-upgrade'
   });
+}
+
+async function editSyncedAccounts(itemId) {
+  await startItemUpdateFlow({
+    itemId,
+    route: 'api/link/create-account-selection-token',
+    startError: 'Failed to start account selection update',
+    completeError: 'Failed to refresh synced accounts',
+    completionRoute: 'api/link/complete-account-selection'
+  });
+}
+
+async function openAccountSelectionOverlay(itemId) {
+  accountSelectionTarget = itemId;
+  const title = document.getElementById('account-selection-title');
+  const msg = document.getElementById('account-selection-msg');
+  const summary = document.getElementById('account-selection-summary');
+  const list = document.getElementById('account-selection-list');
+
+  const item = items.find((candidate) => candidate.id === itemId);
+  title.textContent = item ? `${item.institution_name} Accounts` : 'Institution Accounts';
+  msg.textContent = 'Active accounts continue syncing. Historical accounts are preserved in Family Pulse but no longer updated from Plaid.';
+  summary.textContent = 'Loading account state...';
+  list.innerHTML = '<div class="empty-state loading-pulse">Loading...</div>';
+  document.getElementById('account-selection-overlay').classList.remove('hidden');
+
+  try {
+    const data = await api(`api/items/${itemId}/accounts`);
+    const active = data.accounts.filter((account) => account.sync_status === 'active');
+    const historical = data.accounts.filter((account) => account.sync_status === 'historical');
+    const help = data.item?.account_selection?.help;
+
+    summary.textContent = `${active.length} active · ${historical.length} historical${help ? ` · ${help}` : ''}`;
+    list.innerHTML = data.accounts.length === 0
+      ? '<div class="empty-state">No accounts found for this institution.</div>'
+      : data.accounts.map((account) => {
+          const badge = account.sync_status === 'historical'
+            ? '<span class="status-error">Historical</span>'
+            : '<span class="status-good">Active</span>';
+          const meta = [
+            account.subtype || account.type,
+            account.mask ? `••${esc(account.mask)}` : null,
+            account.owner ? esc(account.owner) : null,
+            account.sync_disabled_at ? `sync stopped ${timeAgo(account.sync_disabled_at)}` : null
+          ].filter(Boolean).join(' · ');
+
+          return `
+            <div class="admin-row">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                  <strong>${esc(account.official_name || account.name)}</strong>
+                  ${badge}
+                </div>
+                <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">${meta}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+  } catch (err) {
+    summary.textContent = '';
+    list.innerHTML = `<div class="empty-state">Failed to load account state: ${esc(err.message)}</div>`;
+  }
+}
+
+function closeAccountSelectionOverlay() {
+  document.getElementById('account-selection-overlay').classList.add('hidden');
+  accountSelectionTarget = null;
 }
 
 async function startItemUpdateFlow(config) {

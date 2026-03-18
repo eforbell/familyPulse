@@ -130,6 +130,9 @@ async function loadAccounts() {
     const data = await api('api/accounts/dashboard');
     accounts = [];
     Object.values(data.groups).forEach(g => accounts.push(...g));
+    Object.values(data.historical_groups || {}).forEach(g => {
+      g.forEach(account => accounts.push({ ...account, is_historical: true }));
+    });
   } catch (err) {
     console.error('Accounts load failed:', err);
   }
@@ -179,6 +182,9 @@ function renderTransactions() {
     const pendingClass = tx.pending ? ' pending' : '';
     const selectedClass = selectedIds.has(tx.id) ? ' selected' : '';
     const sourceBadge = `<span class="cat-badge">${esc(tx.source || 'unknown')}</span>`;
+    const accountStatusBadge = tx.account_sync_status === 'historical'
+      ? '<span class="cat-badge uncat">historical account</span>'
+      : '';
     const hiddenBadge = tx.is_hidden
       ? `<span class="cat-badge uncat">suppressed${tx.hidden_reason ? `: ${esc(tx.hidden_reason)}` : ''}</span>`
       : '';
@@ -197,6 +203,7 @@ function renderTransactions() {
           <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
           ${catBadge}
           ${sourceBadge}
+          ${accountStatusBadge}
           ${hiddenBadge}
           ${suppressButton}
           ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
@@ -236,7 +243,7 @@ function populateFilterDropdowns() {
   for (const a of accounts) {
     const opt = document.createElement('option');
     opt.value = a.id;
-    opt.textContent = `${a.display_name || a.name} ···${a.mask || ''}`;
+    opt.textContent = `${a.display_name || a.name} ···${a.mask || ''}${a.is_historical ? ' (historical)' : ''}`;
     acctSelect.appendChild(opt);
   }
 

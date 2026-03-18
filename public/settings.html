@@ -37,6 +37,17 @@
     </div>
   </div>
 
+  <!-- Account selection detail overlay -->
+  <div id="account-selection-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="account-selection-title">Institution Accounts</h2>
+      <p id="account-selection-msg">See which accounts are actively syncing and which are retained as historical.</p>
+      <div id="account-selection-summary" class="settings-help-copy" style="margin-bottom:0.75rem"></div>
+      <div id="account-selection-list" class="admin-list" style="margin:0"></div>
+      <button class="btn-ghost" style="width:100%;margin-top:0.75rem" onclick="closeAccountSelectionOverlay()">Close</button>
+    </div>
+  </div>
+
   <div id="app">
     <header>
       <h1>Settings</h1>
