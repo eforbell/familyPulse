@@ -14,7 +14,7 @@
   }
 
   function themeColor(theme) {
-    return theme === 'light' ? '#f6f1e8' : '#0f0f0f';
+    return theme === 'light' ? '#f5f0e8' : '#0b0b0b';
   }
 
   function setThemeColorMeta(theme) {
