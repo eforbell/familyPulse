@@ -165,22 +165,20 @@ function renderCoverage(data) {
 }
 
 function buildLiabilityLine(acct) {
-  if (acct.type === 'credit') {
-    return buildCreditLiabilityLine(acct);
-  }
+  if (acct.type === 'credit') return buildCreditLiabilityLine(acct);
 
-  const parts = [];
+  const chips = [];
   if (acct.last_statement_balance != null) {
-    parts.push(`Stmt ${fmtMoney(acct.last_statement_balance)}`);
+    chips.push(renderLiabilityChip(`Stmt ${fmtMoney(acct.last_statement_balance)}`));
   }
   if (acct.next_payment_due_date) {
-    parts.push(`due ${formatShortDate(acct.next_payment_due_date)}`);
+    chips.push(renderLiabilityChip(`Due ${formatShortDate(acct.next_payment_due_date)}`));
   }
   if (acct.minimum_payment_amount != null) {
-    parts.push(`min ${fmtMoney(acct.minimum_payment_amount)}`);
+    chips.push(renderLiabilityChip(`Min ${fmtMoney(acct.minimum_payment_amount)}`));
   }
-  if (parts.length === 0) return '';
-  return `<div class="acct-liability">${parts.join(' · ')}</div>`;
+  if (!chips.length) return '';
+  return `<div class="acct-liability"><div class="acct-liability-chips">${chips.join('')}</div></div>`;
 }
 
 function buildCreditLiabilityLine(acct) {
@@ -191,28 +189,34 @@ function buildCreditLiabilityLine(acct) {
   const paymentDate = acct.last_payment_date ? formatShortDate(acct.last_payment_date) : '';
   const paymentAmount = parseFloat(acct.last_payment_amount);
   const hasPaymentAmount = Number.isFinite(paymentAmount);
+  const noPaymentDue = hasMinimum && minimumPayment === 0;
 
-  const parts = [];
+  const chips = [];
   if (acct.is_overdue) {
-    parts.push('Payment overdue');
+    chips.push(renderLiabilityChip('Payment overdue', 'alert'));
   }
-  if (hasMinimum && minimumPayment === 0) {
-    parts.push('No payment currently due');
+  if (noPaymentDue) {
+    chips.push(renderLiabilityChip('No payment due', 'ok'));
   }
   if (hasStatement) {
-    parts.push(`Stmt ${fmtMoney(statementBalance)}`);
+    chips.push(renderLiabilityChip(`Stmt ${fmtMoney(statementBalance)}`));
   }
-  if (acct.next_payment_due_date && !(hasMinimum && minimumPayment === 0)) {
-    parts.push(`due ${formatShortDate(acct.next_payment_due_date)}`);
+  if (acct.next_payment_due_date && !noPaymentDue) {
+    chips.push(renderLiabilityChip(`Due ${formatShortDate(acct.next_payment_due_date)}`));
   }
   if (hasMinimum && minimumPayment > 0) {
-    parts.push(`min ${fmtMoney(minimumPayment)}`);
+    chips.push(renderLiabilityChip(`Min ${fmtMoney(minimumPayment)}`));
   }
+  const secondary = [];
   if (hasPaymentAmount) {
-    parts.push(`Last payment ${fmtMoney(paymentAmount)}${paymentDate ? ` ${paymentDate}` : ''}`);
+    secondary.push(`Last payment ${fmtMoney(paymentAmount)}${paymentDate ? ` ${paymentDate}` : ''}`);
   }
-  if (!parts.length) return '';
-  return `<div class="acct-liability${hasMinimum && minimumPayment === 0 ? ' acct-liability-ok' : ''}">${parts.join(' · ')}</div>`;
+  if (!chips.length && !secondary.length) return '';
+  return `
+    <div class="acct-liability${noPaymentDue ? ' acct-liability-ok' : ''}">
+      ${chips.length ? `<div class="acct-liability-chips">${chips.join('')}</div>` : ''}
+      ${secondary.length ? `<div class="acct-liability-secondary">${secondary.join(' · ')}</div>` : ''}
+    </div>`;
 }
 
 function buildBalanceSubline(acct, displayBalance, showLedgerSecondary, ledgerBalance, historical = false) {
@@ -237,6 +241,10 @@ function formatShortDate(dateStr) {
   const d = str.length === 10 ? new Date(str + 'T00:00:00') : new Date(str);
   if (isNaN(d)) return '';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderLiabilityChip(label, tone = 'neutral') {
+  return `<span class="acct-liability-chip acct-liability-chip-${tone}">${esc(label)}</span>`;
 }
 
 // ── Account rename ───────────────────────────────────────

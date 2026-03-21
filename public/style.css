@@ -360,6 +360,8 @@ header h1 {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .acct-name {
   font-size: var(--text-md);
@@ -367,10 +369,13 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 .acct-detail {
   font-size: var(--text-sm);
   color: var(--muted);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .acct-status-badge {
@@ -397,6 +402,7 @@ header h1 {
   flex-direction: column;
   align-items: flex-end;
   gap: 0.2rem;
+  flex-shrink: 0;
 }
 
 .acct-balance-sub {
@@ -1925,7 +1931,45 @@ header h1 {
 .acct-liability {
   font-size: var(--text-xs);
   color: var(--dim);
-  margin-top: 0.15rem;
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.acct-liability-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.acct-liability-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.acct-liability-chip-ok {
+  color: var(--green);
+  border-color: rgba(16,185,129,0.28);
+  background: rgba(16,185,129,0.12);
+}
+
+.acct-liability-chip-alert {
+  color: var(--red);
+  border-color: rgba(248,113,113,0.28);
+  background: rgba(248,113,113,0.1);
+}
+
+.acct-liability-secondary {
+  color: var(--dim);
+  line-height: 1.35;
 }
 
 .acct-liability-ok {
@@ -1945,6 +1989,28 @@ header h1 {
 }
 .account-card:hover .acct-rename-btn { opacity: 1; }
 @media (pointer: coarse) { .acct-rename-btn { opacity: 0.5; } }
+
+@media (max-width: 520px) {
+  .account-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .acct-balance-wrap {
+    align-items: flex-start;
+  }
+
+  .acct-balance,
+  .acct-balance-sub {
+    text-align: left;
+  }
+
+  .acct-liability-chip {
+    min-height: 1.45rem;
+  }
+}
 
 .obligations-card {
   background: var(--surface);
