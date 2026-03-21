@@ -119,6 +119,24 @@ The app supports household member sessions with parent and kid roles.
 - parent-only routes protect administrative and account-linking actions
 - kid access is scoped through `account_members`
 
+## Plaid Behavior Notes
+
+Family Pulse now supports editing the synced account set for an existing Plaid Item through update mode, and preserves de-selected accounts locally as historical instead of deleting them.
+
+A few institution behaviors are worth knowing up front:
+
+- Many OAuth institutions appear to be effectively add-only from Plaid Link's point of view.
+- In production testing, both `Chase` and `Capital One` allowed adding newly shared accounts more easily than removing a single account from an existing Item.
+- Some institutions expose removal only as a full app disconnect on the bank side, not as a granular per-account de-selection flow for Family Pulse.
+- Because of that, `Edit synced accounts` should be treated as a best-effort review/add flow, not a guarantee of symmetric add/remove control across all institutions.
+- If an Item needs a permission reset, or if liabilities were never added to a legacy bundled Item, the practical remedy may be `Disconnect` followed by a fresh `Link Institution`.
+
+Current app behavior:
+
+- `Disconnect` removes the Plaid Item remotely and stops future sync/billing, but preserves local history.
+- `Purge` is the explicit destructive action for deleting preserved local history after a disconnect.
+- Historical accounts remain visible for past transactions and account history, but they no longer affect live balance totals.
+
 ## Backup Restore Drill
 
 Run a monthly restore drill to prove backups are fully recoverable:
