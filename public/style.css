@@ -872,6 +872,79 @@ header h1 {
   font-weight: 600;
 }
 
+/* ── Settings: linked institution cards ───────────────────── */
+
+.settings-item-card {
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.settings-item-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.settings-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-item-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-item-meta {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.settings-item-actions {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.settings-item-actions .btn-primary,
+.settings-item-actions .btn-ghost,
+.settings-item-actions .btn-danger {
+  min-width: 0;
+}
+
+@media (min-width: 721px) {
+  .settings-item-card {
+    flex-wrap: wrap;
+  }
+
+  .settings-item-actions {
+    flex: 0 1 auto;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-item-card {
+    padding: 0.95rem;
+  }
+
+  .settings-item-actions > button {
+    flex: 1 1 calc(50% - 0.2rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-item-actions > button {
+    flex-basis: 100%;
+  }
+}
+
 /* ── Import page ──────────────────────────────────────────── */
 
 .upload-zone {

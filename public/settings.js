@@ -205,17 +205,17 @@ function renderItems() {
       : `${item.account_count} account${item.account_count !== 1 ? 's' : ''}`;
 
     return `
-      <div class="admin-row" data-item-id="${item.id}">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
-            <strong>${esc(item.institution_name)}</strong>
+      <div class="admin-row settings-item-card" data-item-id="${item.id}">
+        <div class="settings-item-main">
+          <div class="settings-item-title-row">
+            <strong class="settings-item-title">${esc(item.institution_name)}</strong>
             ${statusBadge}
           </div>
-          <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
+          <div class="settings-item-meta">
             ${accountSummary}${item.owner ? ` · ${esc(item.owner)}` : ''} · ${syncText}
           </div>
         </div>
-        <div style="display:flex;gap:0.4rem;flex-shrink:0">
+        <div class="settings-item-actions">
           ${normalizedStatus === 'needs_reauth' ? `<button class="btn-primary" onclick="fixItem(${item.id})" title="Re-link">Fix</button>` : ''}
           ${normalizedStatus !== 'disconnected' && item.liability_access_status === 'missing' ? `<button class="btn-ghost" onclick="enableLiabilities(${item.id})" title="Enable liabilities">Enable liabilities</button>` : ''}
           ${accountSelection.mode === 'editable' ? `<button class="btn-ghost" onclick="editSyncedAccounts(${item.id})" title="${esc(accountSelection.help || 'Edit synced accounts')}">${esc(accountSelection.label || 'Edit synced accounts')}</button>` : ''}
