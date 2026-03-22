@@ -227,17 +227,16 @@ function renderCategoryDoughnut(period) {
     });
   }
 
-  // Restore canvas if it was replaced by empty state
-  if (!$('category-doughnut-chart')) {
-    container.innerHTML = '<canvas id="category-doughnut-chart"></canvas>';
-  }
+  // Reset container to just the canvas (clears any leftover empty-state text)
+  if (categoryDoughnutChart) categoryDoughnutChart.destroy();
+  categoryDoughnutChart = null;
+  container.innerHTML = '<canvas id="category-doughnut-chart"></canvas>';
   const canvas = $('category-doughnut-chart');
 
   const labels = cats.map(c => `${c.icon || ''} ${c.name}`.trim());
   const data = cats.map(c => c.spent);
   const colors = cats.map(c => c.color || '#10b981');
 
-  if (categoryDoughnutChart) categoryDoughnutChart.destroy();
   categoryDoughnutChart = new Chart(canvas, {
     type: 'doughnut',
     data: {
