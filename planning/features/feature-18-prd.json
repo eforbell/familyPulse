@@ -1,0 +1,185 @@
+{
+  "branchName": "feature/browser-test-foundation",
+  "projectName": "Browser Test Foundation",
+  "description": "Introduce a minimal browser-based testing foundation for Family Pulse so user-critical visual and DOM-driven behaviors can be verified automatically. Add one browser test runner, stable app bootstrapping against the test database, reusable auth helpers, and a small set of end-to-end flows focused on current high-risk pages such as Reports.",
+  "timing": {
+    "draftedOn": "2026-03-22",
+    "plannedEarliestExecution": "after Feature 17",
+    "gatingCondition": "Feature 17 should land first so Reports page chart behavior and its acceptance criteria are stable enough to target."
+  },
+  "principles": [
+    "Browser tests should complement node:test rather than replace it",
+    "Start with a small, reliable set of user-critical flows instead of broad UI coverage",
+    "The test harness must work with the existing seeded test database and local app startup model",
+    "Stability matters more than visual exhaustiveness in the first release",
+    "Selectors and fixtures should be intentional so UI refactors do not cause excessive churn"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "browserTesting": "Playwright with Chromium as the initial supported browser",
+    "database": "Existing PostgreSQL test database seeded via current test scripts",
+    "testing": "Playwright for selected end-to-end flows; keep node:test for API and business logic coverage"
+  },
+  "userStories": [
+    {
+      "id": "E2E-018-001",
+      "title": "Establish a browser test harness that boots the app reliably",
+      "acceptanceCriteria": [
+        "The repo gains a documented browser test runner configuration",
+        "Browser tests can start the app against test configuration without manual setup beyond installed dependencies",
+        "The harness reuses the existing test database reset/migrate/seed flow or a clearly documented equivalent",
+        "Local and CI execution paths are both defined",
+        "The initial implementation supports one browser target only to keep scope tight"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "Manual smoke run of the browser harness plus one passing end-to-end spec in local dev.",
+      "passes": false
+    },
+    {
+      "id": "E2E-018-002",
+      "title": "Provide reusable browser auth/session helpers",
+      "acceptanceCriteria": [
+        "Tests can authenticate as a parent without duplicating low-level session setup in each spec",
+        "The auth helper works with the current family_members and sessions model",
+        "Tests can land directly on protected pages in an authenticated state",
+        "The setup avoids requiring interactive login form entry for every spec"
+      ],
+      "priority": 1,
+      "estimatedLines": "+70/-0",
+      "testStrategy": "End-to-end test uses helper-backed authenticated page access.",
+      "passes": false
+    },
+    {
+      "id": "E2E-018-003",
+      "title": "Cover the Reports page with a focused browser spec",
+      "acceptanceCriteria": [
+        "A browser test verifies that a parent can load reports.html and see the chart sections",
+        "The doughnut month selector can change months without breaking the chart area",
+        "Theme toggle can be exercised and the page remains readable and interactive afterward",
+        "Ask Pulse or What-If history refresh behavior is covered at the page level",
+        "The spec asserts behavior and state, not pixel-perfect canvas output"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "Playwright spec with seeded data and stable selectors.",
+      "passes": false
+    },
+    {
+      "id": "E2E-018-004",
+      "title": "Cover one additional non-chart user-critical flow",
+      "acceptanceCriteria": [
+        "At least one more page outside Reports has browser coverage",
+        "The chosen flow represents a common user path such as budget page load, transaction filtering, or settings access",
+        "The test validates real DOM interaction rather than only page load success"
+      ],
+      "priority": 2,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "Playwright spec against a second page with one real interaction.",
+      "passes": false
+    },
+    {
+      "id": "E2E-018-005",
+      "title": "Document browser testing scope and non-goals",
+      "acceptanceCriteria": [
+        "The feature documents when to use browser tests vs node:test",
+        "The first release explicitly avoids broad screenshot regression testing",
+        "Selector conventions and fixture expectations are documented",
+        "Running the browser tests locally is documented in the repo"
+      ],
+      "priority": 2,
+      "estimatedLines": "+40/-0",
+      "testStrategy": "Documentation review plus successful local run using the documented commands.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Browser tests can become flaky quickly if selectors, seed data, and app startup are not standardized from the start"
+    ],
+    "medium": [
+      "Canvas-heavy pages like Reports are harder to assert directly, so tests need behavior-focused expectations",
+      "Test runtime will increase once the app is booted in a browser harness"
+    ],
+    "low": [
+      "One-browser support may miss browser-specific issues initially, but it keeps the first release maintainable"
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm whether Playwright is acceptable as the first non-zero test dependency",
+    "Define how the app should boot under browser tests using test env vars and seeded DB state",
+    "Choose the first non-chart page to cover in addition to Reports",
+    "Identify stable selectors or add test ids only where necessary",
+    "Decide whether browser tests run in default CI or only in a dedicated job initially"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Harness setup",
+      "goal": "Add Playwright config, scripts, and app bootstrapping against the test environment.",
+      "notes": [
+        "Support Chromium only at first",
+        "Reuse existing test DB preparation where possible"
+      ]
+    },
+    {
+      "name": "Slice B: Auth and fixtures",
+      "goal": "Create reusable helpers for parent-authenticated browser sessions and stable seeded entry points.",
+      "notes": [
+        "Avoid typing through login UI in every spec",
+        "Keep setup aligned with the current sessions table model"
+      ]
+    },
+    {
+      "name": "Slice C: Initial end-to-end flows",
+      "goal": "Add a Reports spec and one additional page-level spec that validate real DOM behavior.",
+      "notes": [
+        "Prefer state assertions over screenshots",
+        "Exercise theme toggle, selectors, and one data-refresh flow"
+      ]
+    },
+    {
+      "name": "Slice D: Documentation and boundaries",
+      "goal": "Document when browser tests should be used and what remains out of scope.",
+      "notes": [
+        "Do not attempt broad visual regression in the first release",
+        "Keep node:test as the default path for non-browser logic"
+      ]
+    }
+  ],
+  "testPlan": {
+    "primaryGoals": [
+      "Catch regressions that only appear after real page load, DOM updates, theme changes, responsive layout changes, or user interaction",
+      "Reduce repetitive manual QA for high-value flows on visual pages"
+    ],
+    "initialCoverage": [
+      "Reports page load as parent",
+      "Month selector interaction on the doughnut chart",
+      "Theme toggle resilience on Reports",
+      "History refresh after Ask Pulse or What-If submission",
+      "One additional flow on budget, transactions, or settings"
+    ],
+    "nonGoals": [
+      "Full page-by-page browser coverage",
+      "Pixel-perfect screenshot baselines for all visual states",
+      "Replacing current node:test API and unit coverage"
+    ]
+  },
+  "metrics": {
+    "estimatedTotalLines": "+430/-0",
+    "storiesCount": 5,
+    "filesCreated": [
+      "planning/features/feature-18-prd.json",
+      "planning/features/feature-18-summary.md"
+    ],
+    "filesModified": [
+      "package.json",
+      "README.md",
+      "playwright.config.*",
+      "test/e2e/*",
+      "test/helpers/*",
+      "public/*.html",
+      "public/*.js"
+    ]
+  }
+}
