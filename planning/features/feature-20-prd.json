@@ -1,0 +1,386 @@
+{
+  "branchName": "feature/predictive-cash-flow",
+  "projectName": "Predictive Cash Flow Engine",
+  "description": "Deterministic 90-day cash flow forecasting engine that synthesizes recurring income/expenses (Feature 19), Plaid liability obligations, seasonal spending patterns, and manually planned expenses into a day-by-day balance projection with confidence bands, danger zone detection, and scenario toggling. Turns Family Pulse from a rearview mirror into a windshield.",
+  "timing": {
+    "draftedOn": "2026-03-22",
+    "plannedEarliestExecution": "after Feature 19",
+    "gatingCondition": "Feature 19 (Recurring Expense Intelligence) must be shipped and running. The recurring_expenses table provides the structured recurring income and expense data that makes the forecast meaningful. Without it, the engine would have to guess at recurring charges."
+  },
+  "principles": [
+    "Deterministic math, not LLM — the forecast is a reproducible day-by-day ledger computation. LLM narrates results but never computes them. This makes forecasts testable, instant, and explainable.",
+    "Confidence bands over point estimates — a single line implies false precision. Bands communicate uncertainty honestly and widen over the forecast horizon.",
+    "Feature 19 is a hard dependency — recurring detection provides the structured recurring income and expense schedule that is the backbone of the forecast.",
+    "Planned expenses are simple data entry, not financial planning software — name, amount, date, done.",
+    "Forecast refreshes automatically after sync but is cached between syncs — never stale, never wastefully recomputed.",
+    "Daily granularity is sufficient — charges post daily, intra-day precision is noise.",
+    "The forecast is the foundation for deferred Feature 9 (Planning & Goals) — savings signal, goal projections, and tuition horizons all derive from forecast data.",
+    "SECRETS INVARIANT: forecast data contains only derived amounts and dates — no account numbers, tokens, or raw Plaid data in API responses or LLM context."
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — new planned_expenses and cash_flow_snapshots tables; reads from recurring_expenses, accounts, transactions",
+    "charting": "Chart.js 4.x with chartjs-plugin-annotation for danger zone markers and confidence band fills",
+    "testing": "node:test for forecast engine (deterministic inputs → expected outputs), seasonal baseline, danger zone detection, and API coverage"
+  },
+  "userStories": [
+    {
+      "id": "FCF-020-001",
+      "title": "Seasonal spending baseline computation",
+      "acceptanceCriteria": [
+        "Compute average total non-transfer, non-recurring spending per calendar month from all available history",
+        "Use at least 12 months of data when available (Monarch import + Plaid combined)",
+        "For months with <12 months of history, use available data with a wider confidence adjustment",
+        "Exclude the current (incomplete) month from the baseline",
+        "Subtract known recurring expense totals from each month's historical spending to isolate the discretionary component",
+        "Output: { month: 1-12, avg_total: number, avg_recurring: number, avg_discretionary: number, sample_months: number }",
+        "Handle edge case: no history for a calendar month (use overall monthly average as fallback)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "node:test with fixture transaction data spanning 14 months. Verify per-month averages, recurring subtraction, sparse month fallback, and current month exclusion.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-002",
+      "title": "Core forecast engine — day-by-day projection",
+      "acceptanceCriteria": [
+        "Takes as input: starting_balance, recurring_income (from Feature 19), recurring_expenses (from Feature 19), liability_payments (from accounts table), seasonal_baseline, planned_expenses, horizon_days (default 90)",
+        "Produces an array of { date, projected_balance, confidence_low, confidence_high, events: [] } for each day",
+        "Starting balance uses balance-policy.js sumAccountBalances for all depository accounts",
+        "Recurring income added on detected frequency dates (e.g., biweekly paycheck pattern)",
+        "Recurring expenses subtracted on projected next-occurrence dates",
+        "Liability minimum payments subtracted on due dates from Plaid data",
+        "Discretionary daily burn = (seasonal_discretionary_avg for that calendar month) / days_in_month",
+        "Planned one-time expenses subtracted on their scheduled date",
+        "Confidence bands: ±(horizon_pct × daily_std_dev) where horizon_pct scales from 5% at day 7 to 25% at day 90",
+        "Events array lists what happened on each day (income, charge name, planned expense, liability payment)",
+        "Engine is a pure function with no side effects — fully testable with fixture inputs"
+      ],
+      "priority": 1,
+      "estimatedLines": "+250/-0",
+      "testStrategy": "node:test with deterministic fixture inputs. Test: (1) simple case — one paycheck, one expense, 30 days. (2) Complex — multiple income streams, recurring at different frequencies, liability payments, seasonal adjustment, planned expense. (3) Edge: paycheck on weekend, month boundary, leap year. (4) Verify balance never goes negative without danger zone flagging. (5) Confidence band width increases monotonically.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-003",
+      "title": "Danger zone detection",
+      "acceptanceCriteria": [
+        "Configurable safety floor via app_config key cash_flow_safety_floor (default $3,000)",
+        "If projected_balance drops below safety floor on any day, flag as danger zone",
+        "Danger zone output: { date, projected_balance, deficit_below_floor, trigger_event }",
+        "Multiple danger zones possible (balance recovers then drops again)",
+        "If confidence_low (pessimistic band) crosses floor but projected doesn't, flag as 'at_risk' (not 'danger')",
+        "GET /api/cash-flow/danger-zones returns all upcoming danger/at-risk dates",
+        "Dashboard integration: if any danger zone within 30 days, show alert banner"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "node:test: (1) no danger zone when balance stays healthy. (2) Danger zone triggered by large planned expense. (3) Multiple danger zones with recovery between. (4) At-risk when only pessimistic band crosses. (5) Dashboard banner logic for 30-day window.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-004",
+      "title": "Monthly surplus/deficit summary cards",
+      "acceptanceCriteria": [
+        "GET /api/cash-flow/monthly-outlook returns next 3 months with: { month, expected_income, expected_recurring, expected_discretionary, expected_liability_payments, planned_expenses_total, net_surplus_or_deficit, projected_end_balance }",
+        "Income from detected recurring income patterns (Feature 19)",
+        "Recurring from Feature 19 committed total for that month",
+        "Discretionary from seasonal baseline for that calendar month",
+        "Liability payments from Plaid due dates falling in that month",
+        "Planned expenses from planned_expenses table for that month",
+        "Net = income - recurring - discretionary - liability - planned",
+        "End balance = prior month end balance + net (chained from current balance)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "node:test: verify month-over-month chaining (end balance of month 1 = start of month 2). Verify all components sum correctly. Edge: planned expense spanning month boundary assigned to correct month.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-005",
+      "title": "Planned expenses CRUD",
+      "acceptanceCriteria": [
+        "New table: planned_expenses (id, name, amount, scheduled_date, is_recurring, frequency, status, notes, created_by, created_at, updated_at)",
+        "POST /api/cash-flow/planned-expenses — create (parent-only)",
+        "GET /api/cash-flow/planned-expenses — list all active",
+        "PATCH /api/cash-flow/planned-expenses/:id — update amount, date, status, notes (parent-only)",
+        "DELETE /api/cash-flow/planned-expenses/:id — soft delete via status='deleted' (parent-only)",
+        "Validation: amount > 0, scheduled_date in the future (or within current month), name required",
+        "Recurring planned expenses: if is_recurring=true and frequency set, engine generates occurrences over forecast horizon",
+        "Status values: active, completed, deleted",
+        "Examples: 'Alex Pacific Rim trip' ($6000, Oct 2026), 'New tires' ($800, May 2026)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "node:test: CRUD operations, validation (missing name, negative amount, past date), parent-only auth, soft delete, recurring expansion over horizon.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-006",
+      "title": "Forecast caching and refresh",
+      "acceptanceCriteria": [
+        "After each Plaid sync, forecast is recomputed and cached in cash_flow_snapshots table",
+        "Cache stores: computed_at, horizon_days, starting_balance, daily_projections (JSONB), danger_zones (JSONB), monthly_outlook (JSONB)",
+        "GET /api/cash-flow/forecast returns cached forecast if computed_at is after last sync",
+        "If cache is stale (before last sync) or missing, recompute on demand and cache",
+        "Force refresh: POST /api/cash-flow/forecast/refresh (parent-only)",
+        "Cache is single-row (latest forecast), old rows cleaned up",
+        "Forecast computation targets <500ms for 90-day horizon (pure JS math, no LLM)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "node:test: cache hit returns stored data. Cache miss triggers recomputation. Force refresh replaces cache. Stale detection based on sync timestamp.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-007",
+      "title": "Cash flow forecast page (frontend)",
+      "acceptanceCriteria": [
+        "New page: forecast.html accessible from nav as 'Forecast'",
+        "Nav entry added after Recurring (order: Dashboard, Accounts, Transactions, Budget, Recurring, Forecast, Reports)",
+        "Hero section: current liquid balance, next danger zone date (if any), and overall 90-day outlook status (healthy/caution/danger)",
+        "Balance trajectory chart: Chart.js line chart with projected balance line, confidence band as filled area, safety floor as horizontal dashed line, danger zones highlighted in red",
+        "Chart x-axis: dates. Chart y-axis: dollar amounts. Tooltip shows date, projected balance, events",
+        "Monthly outlook cards below chart: 3 cards for next 3 months, each showing income/outflow/net/end-balance with color coding (green surplus, red deficit)",
+        "Planned expenses section: list of planned items with add/edit/delete. Toggle switch per item to include/exclude from forecast (scenario toggling)",
+        "Toggling a planned expense on/off immediately re-renders the chart with updated projection",
+        "Danger zone banner: if any danger zone within 30 days, prominent alert with date and amount",
+        "Loading state, empty state (no recurring data yet → link to recurring page)",
+        "Responsive: chart fills width on mobile, cards stack, planned expenses list scrollable",
+        "Theme-aware via CSS variables"
+      ],
+      "priority": 2,
+      "estimatedLines": "+400/-0",
+      "testStrategy": "Playwright e2e: page loads, chart renders, monthly cards present, planned expense add/toggle works. Manual: verify trajectory matches mental model, danger zone highlights visible, scenario toggles responsive.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-008",
+      "title": "Dashboard forecast widget",
+      "acceptanceCriteria": [
+        "Dashboard gains a forecast summary section below the existing coverage indicator",
+        "Shows: 90-day outlook status badge (healthy/caution/danger), next danger zone if any, next month projected surplus/deficit",
+        "Clicking the widget navigates to forecast.html",
+        "If no forecast data exists yet (Feature 19 hasn't run), shows a muted 'Forecast available after first sync' placeholder",
+        "Does not add more than 3 lines to the dashboard — information density matters"
+      ],
+      "priority": 2,
+      "estimatedLines": "+40/-10",
+      "testStrategy": "node:test: forecast summary API returns correct status badge logic. Playwright: widget renders on dashboard with link to forecast page.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-009",
+      "title": "LLM context enrichment with forecast data",
+      "acceptanceCriteria": [
+        "context-assembler adds forecast summary to weekly, monthly, and query contexts",
+        "Context includes: 90_day_outlook_status, next_danger_zone (date + deficit), monthly_outlook (next 3 months surplus/deficit), planned_expenses_total, current_liquid_balance, projected_90_day_balance",
+        "Weekly digest can now say: 'Looking ahead: April projects a $340 deficit due to car insurance renewal. Current trajectory keeps you above your $3,000 safety floor through June.'",
+        "What-if scenarios gain structured forecast baseline: instead of LLM guessing, the what-if prompt includes actual forecast numbers as the starting point",
+        "All forecast context passes through sanitizeForLLM"
+      ],
+      "priority": 2,
+      "estimatedLines": "+60/-15",
+      "testStrategy": "node:test: verify forecast context structure, verify sanitization, verify graceful empty state when no forecast exists.",
+      "passes": false
+    },
+    {
+      "id": "FCF-020-010",
+      "title": "What-If enhancement with forecast overlay",
+      "acceptanceCriteria": [
+        "POST /api/magic/whatif gains an optional forecast_overlay response field",
+        "When a what-if scenario is submitted, the engine: (1) computes baseline forecast, (2) parses the scenario into a planned expense equivalent, (3) computes modified forecast, (4) returns both baseline and modified trajectories",
+        "The LLM prompt now includes structured forecast comparison data, not just a text snapshot",
+        "Reports page What-If section can optionally show a mini chart comparing baseline vs scenario trajectory",
+        "Fallback: if scenario can't be parsed into a planned expense (too abstract), falls back to current LLM-only approach"
+      ],
+      "priority": 3,
+      "estimatedLines": "+100/-20",
+      "testStrategy": "node:test: parseable scenario produces forecast overlay with baseline and modified trajectories. Unparseable scenario falls back gracefully. Manual: verify mini chart renders on reports page.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Forecast accuracy depends entirely on Feature 19's recurring detection quality. If recurring income (paychecks) or major expenses are missed, the forecast will be misleading. Mitigation: the forecast page should show what assumptions it's making (detected income, detected recurring charges) so Eric can spot-check. Add a 'forecast assumptions' expandable section."
+    ],
+    "medium": [
+      "Seasonal baseline may be skewed by one-time large expenses in historical data (e.g., a $5,000 medical bill in March 2025 inflates March's average). Mitigation: use median rather than mean for seasonal baseline, and cap discretionary at 2× the 12-month overall average to limit outlier impact.",
+      "Confidence bands are heuristic, not statistically derived. Mitigation: clearly label them as 'estimated range' not 'confidence interval'. Calibrate the scaling factor after observing real forecast-vs-actual divergence over 2-3 months.",
+      "Planned expenses are manual data entry — Eric has to remember to add them. Mitigation: the forecast page should prompt 'Any upcoming large expenses?' and the LLM digest can remind him when the planned expenses list is empty."
+    ],
+    "low": [
+      "Chart.js annotation plugin needed for danger zone markers and confidence bands. Mitigation: chartjs-plugin-annotation is a well-maintained CDN-loadable plugin, same loading pattern as Chart.js itself.",
+      "Forecast computation time for 90-day horizon. Mitigation: pure JS math with no DB queries during computation (all inputs pre-fetched). Target <500ms is easily achievable.",
+      "Nav bar now has 7 entries (Dashboard, Accounts, Transactions, Budget, Recurring, Forecast, Reports). Mitigation: this is the natural grouping — past (Transactions) → present (Budget) → recurring (Recurring) → future (Forecast). Reports is the analytical summary. Settings remains in its own section."
+    ]
+  },
+  "preFlightChecklist": [
+    "Feature 19 (Recurring Expense Intelligence) is shipped and recurring_expenses table has data",
+    "Verify at least 6 months of transaction history exists for seasonal baseline computation",
+    "Confirm liability data (due dates, minimum payments) is populated for credit cards and loans",
+    "Verify balance-policy.js sumAccountBalances works correctly for all depository accounts",
+    "Check that chartjs-plugin-annotation CDN is accessible and compatible with Chart.js 4.x",
+    "Review what-if.js to understand the current scenario parsing approach before enhancing it"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Seasonal baseline + forecast engine",
+      "goal": "Build the core computational engine as a pure, testable function with no side effects.",
+      "notes": [
+        "Create lib/seasonal-baseline.js — queries 12+ months of history, computes per-calendar-month discretionary averages",
+        "Create lib/cash-flow-engine.js — pure function: takes structured inputs, produces day-by-day projection array",
+        "No DB writes in the engine itself — it's a computation, not a service",
+        "Create migration 015 with planned_expenses and cash_flow_snapshots tables",
+        "Test heavily with fixture data: simple (1 income, 1 expense, 30 days), complex (full household scenario), edge cases"
+      ]
+    },
+    {
+      "name": "Slice B: Danger zones + monthly outlook",
+      "goal": "Layer danger zone detection and monthly summary computation on top of the core engine.",
+      "notes": [
+        "Danger zone scanner walks the projection array and flags crossings below safety floor",
+        "Distinguish 'danger' (projected crosses) from 'at_risk' (only pessimistic band crosses)",
+        "Monthly outlook aggregates daily projections into month-level summaries",
+        "Chained computation: end-of-month balance carries forward as next month's start"
+      ]
+    },
+    {
+      "name": "Slice C: Planned expenses CRUD + API endpoints",
+      "goal": "Data entry for one-time and recurring future expenses, plus all forecast API routes.",
+      "notes": [
+        "Planned expenses table: simple CRUD, parent-only writes",
+        "Create lib/routes/cash-flow.js with: GET /forecast, GET /monthly-outlook, GET /danger-zones, CRUD /planned-expenses, POST /forecast/refresh",
+        "Forecast caching: compute after sync, serve from cache, invalidate on planned expense changes",
+        "Wire routes into server.js with auth guards"
+      ]
+    },
+    {
+      "name": "Slice D: Frontend — forecast page",
+      "goal": "New forecast.html with trajectory chart, monthly cards, planned expense management, and scenario toggles.",
+      "notes": [
+        "Chart.js line chart with confidence band fill (use filler plugin) and safety floor annotation line",
+        "Load chartjs-plugin-annotation from CDN",
+        "Planned expense list with add form, toggle switches for scenario modeling",
+        "Toggle triggers client-side re-fetch of forecast with modified planned expense set",
+        "Monthly outlook cards below chart with color-coded surplus/deficit",
+        "Danger zone banner at top if any within 30 days",
+        "Add nav entry, theme-aware, responsive"
+      ]
+    },
+    {
+      "name": "Slice E: Dashboard widget + LLM context + What-If enhancement",
+      "goal": "Integrate forecast insights across the app.",
+      "notes": [
+        "Dashboard: 2-3 line forecast summary below coverage indicator",
+        "context-assembler: add forecast summary to weekly/monthly/query contexts",
+        "what-if.js: parse scenario into planned expense equivalent, compute baseline vs modified forecast, include structured comparison in LLM prompt",
+        "Reports page: optional mini chart for what-if scenario comparison",
+        "Verify all new context passes sanitizeForLLM"
+      ]
+    }
+  ],
+  "testPlan": {
+    "automatedNow": [
+      "Seasonal baseline: 14-month fixture data produces correct per-month averages",
+      "Seasonal baseline: excludes current (incomplete) month",
+      "Seasonal baseline: subtracts recurring expenses to isolate discretionary",
+      "Seasonal baseline: sparse month uses overall average as fallback",
+      "Seasonal baseline: uses median not mean to resist outlier skew",
+      "Forecast engine: simple case — 1 biweekly paycheck + 1 monthly expense → correct 30-day trajectory",
+      "Forecast engine: complex case — 2 income streams + 8 recurring expenses + 2 liability payments + 1 planned expense → correct 90-day trajectory",
+      "Forecast engine: recurring income lands on correct frequency dates",
+      "Forecast engine: recurring expenses deducted on correct projected dates",
+      "Forecast engine: liability payments deducted on due dates from account data",
+      "Forecast engine: discretionary burn rate adjusts by calendar month (seasonal)",
+      "Forecast engine: planned expense reduces balance on scheduled date",
+      "Forecast engine: recurring planned expense generates multiple occurrences over horizon",
+      "Forecast engine: confidence bands widen monotonically over horizon",
+      "Forecast engine: pure function — same inputs always produce same output",
+      "Danger zone: detected when projected balance crosses safety floor",
+      "Danger zone: multiple zones detected with recovery between",
+      "Danger zone: 'at_risk' when only pessimistic band crosses",
+      "Danger zone: no false alarm when balance stays healthy",
+      "Monthly outlook: 3 months with correct income/outflow/net/end-balance",
+      "Monthly outlook: month-over-month balance chaining is correct",
+      "Monthly outlook: planned expenses assigned to correct month",
+      "Planned expenses CRUD: create with validation (name required, amount > 0, date required)",
+      "Planned expenses CRUD: reject past dates (except current month)",
+      "Planned expenses CRUD: soft delete sets status='deleted'",
+      "Planned expenses CRUD: parent-only write operations",
+      "Planned expenses: recurring expansion over 90-day horizon",
+      "Forecast cache: returns cached data when fresh (after last sync)",
+      "Forecast cache: recomputes when stale (before last sync)",
+      "Forecast cache: invalidated when planned expenses change",
+      "Forecast cache: force refresh replaces existing cache",
+      "API GET /api/cash-flow/forecast returns projection array with expected fields",
+      "API GET /api/cash-flow/monthly-outlook returns 3 months with expected fields",
+      "API GET /api/cash-flow/danger-zones returns danger and at-risk dates",
+      "API auth guards: all endpoints require authentication, writes require parent",
+      "LLM context: forecast summary present in weekly/monthly context",
+      "LLM context: graceful empty state when no forecast exists",
+      "LLM context: passes sanitizeForLLM",
+      "What-If enhancement: parseable scenario produces baseline + modified trajectories",
+      "What-If enhancement: unparseable scenario falls back to LLM-only approach"
+    ],
+    "recommendedNext": [
+      "Playwright e2e: forecast.html loads, trajectory chart renders, monthly cards present",
+      "Playwright e2e: add planned expense → chart updates",
+      "Playwright e2e: toggle planned expense off → chart updates without it",
+      "Playwright e2e: danger zone banner appears when large planned expense added",
+      "Forecast accuracy tracking: after 30 days of real data, compare actual vs predicted to calibrate confidence bands",
+      "Stress test with 18 months of dense transaction data to verify computation stays under 500ms"
+    ],
+    "manualChecklist": [
+      "Load forecast.html and verify trajectory chart looks reasonable against known income/expenses",
+      "Verify the 'forecast assumptions' section lists detected paychecks and major recurring charges correctly",
+      "Add 'Alex Pacific Rim trip $6,000 October 2026' as planned expense and verify chart shows the impact",
+      "Toggle the trip off and verify trajectory recovers",
+      "Check that danger zone alert appears if adding a large expense would deplete balance",
+      "Verify monthly outlook cards for next 3 months align with mental model",
+      "Check dashboard forecast widget shows correct status and links to forecast page",
+      "Verify the weekly digest references forecast data ('Looking ahead: April projects...')",
+      "Submit a what-if scenario on Reports page and check for structured forecast comparison",
+      "Mobile layout: chart usable, planned expenses scrollable, cards stack cleanly",
+      "Theme toggle: chart, bands, and annotations render correctly in both light and dark"
+    ],
+    "nonGoals": [
+      "Monte Carlo simulation or probabilistic modeling (heuristic confidence bands are sufficient for household use)",
+      "Automatic planned expense creation from detected patterns (manual entry only for now)",
+      "Investment return projections (Schwab/Fidelity/BTC are out of scope)",
+      "Tax withholding or refund forecasting",
+      "Multi-year forecasting (90-day horizon is the sweet spot for household planning)"
+    ]
+  },
+  "metrics": {
+    "estimatedTotalLines": "+1350/-45",
+    "storiesCount": 10,
+    "filesCreated": [
+      "db/migrations/015-cash-flow-forecast.sql",
+      "lib/cash-flow-engine.js",
+      "lib/seasonal-baseline.js",
+      "lib/routes/cash-flow.js",
+      "public/forecast.html",
+      "public/forecast.js",
+      "test/cash-flow-engine.test.js",
+      "test/seasonal-baseline.test.js",
+      "test/cash-flow-api.test.js",
+      "planning/features/feature-20-prd.json",
+      "planning/features/feature-20-summary.md"
+    ],
+    "filesModified": [
+      "server.js",
+      "lib/magic-actions/context-assembler.js",
+      "lib/magic-actions/what-if.js",
+      "public/nav.js",
+      "public/index.html",
+      "public/reports.html",
+      "public/reports.js",
+      "public/style.css",
+      "db/seed.sql",
+      "planning/current-feature.json"
+    ]
+  }
+}

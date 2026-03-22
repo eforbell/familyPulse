@@ -1,0 +1,341 @@
+{
+  "branchName": "feature/recurring-expense-intelligence",
+  "projectName": "Recurring Expense Intelligence",
+  "description": "Background detection engine that identifies recurring charges from transaction history, tracks price changes, projects a forward-looking bill calendar, and splits budget spending into committed (recurring) vs discretionary. Runs silently after every Plaid sync — no interactive prompts.",
+  "timing": {
+    "draftedOn": "2026-03-22",
+    "plannedEarliestExecution": "after Feature 18",
+    "gatingCondition": "Requires stable transaction history with 3+ months of data for reliable frequency detection. Budget calculator and anomaly detector patterns are the architectural templates."
+  },
+  "principles": [
+    "Background-first: detection runs silently after sync, never interrupts the user with 'is this recurring?' prompts",
+    "Conservative classification: 3+ occurrences required for monthly patterns, 2+ for quarterly/annual — false negatives are acceptable, false positives are not",
+    "Merchant normalization must be aggressive but reversible — group 'NETFLIX.COM/1234' with 'NETFLIX.COM/5678' but preserve original names for display",
+    "Idempotent: re-running detection updates existing records, never duplicates. Same pattern as transfer detection and anomaly detection",
+    "Amount tolerance handles real-world variance (tax, tips, plan changes) without losing the signal",
+    "This feature is the data foundation for Feature 20 (Cash Flow Forecasting) — the recurring_expenses table is the source of truth for known future obligations",
+    "SECRETS INVARIANT: recurring expense data surfaces merchant names and amounts only — no account numbers, tokens, or PII in API responses or LLM context"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — new recurring_expenses and recurring_expense_history tables",
+    "charting": "Chart.js 4.x for bill calendar timeline visualization (optional, stretch)",
+    "testing": "node:test for detection engine, normalization, frequency classification, and API coverage"
+  },
+  "userStories": [
+    {
+      "id": "REC-019-001",
+      "title": "Merchant name normalization",
+      "acceptanceCriteria": [
+        "Normalize merchant_name by: lowercase, strip trailing numeric IDs (6+ digits), strip date patterns (MM/DD, YYYY), strip common suffixes (LLC, INC, CO), collapse whitespace",
+        "Preserve original merchant_name for display — normalization is for grouping only",
+        "Handle null merchant_name gracefully (fall back to transaction name field)",
+        "Normalization is deterministic — same input always produces same key",
+        "Edge cases: empty string, unicode, very long names, names that are entirely numeric"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "node:test unit tests with 30+ fixture merchant names covering real Plaid data patterns (Netflix, Spotify, insurance companies, utilities, mortgage servicers, property tax). Test normalization key stability across runs.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-002",
+      "title": "Recurring pattern detection engine",
+      "acceptanceCriteria": [
+        "Group non-transfer, non-pending transactions by normalized merchant key",
+        "For each group with 2+ transactions, compute median interval between consecutive dates",
+        "Classify frequency: weekly (5-9 days), biweekly (12-16 days), monthly (27-34 days), quarterly (85-100 days), semi-annual (170-195 days), annual (350-380 days)",
+        "Require minimum occurrences: 3 for weekly/biweekly/monthly, 2 for quarterly/semi-annual/annual",
+        "Amount clustering: group transactions within ±10% of median amount (configurable via recurring_amount_tolerance_pct)",
+        "Confidence scoring: high (consistent interval ≤15% CV + consistent amount ≤10% CV), medium (interval or amount varies but not both), low (sparse data or high variance)",
+        "Upsert into recurring_expenses table on (account_id, merchant_key, frequency)",
+        "Mark items not seen in 2× expected interval as status='stale'",
+        "Mark items not seen in 4× expected interval as status='likely_cancelled'",
+        "Skip transactions older than recurring_lookback_months (default 18) config setting"
+      ],
+      "priority": 1,
+      "estimatedLines": "+280/-0",
+      "testStrategy": "node:test with fixture transaction sets: monthly subscription (12 charges, consistent), quarterly insurance (4 charges), annual renewal (2 charges), price-changing subscription (amount drift), cancelled subscription (stopped 3 months ago), false positive (3 Amazon purchases that aren't recurring). Test frequency classification, confidence scoring, stale detection.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-003",
+      "title": "Price change tracking",
+      "acceptanceCriteria": [
+        "Each detection run inserts a row into recurring_expense_history with (recurring_expense_id, amount, transaction_date)",
+        "Only insert if the latest transaction is newer than the most recent history entry",
+        "Price change flagged when latest amount differs from prior amount by >$1.00 AND >5%",
+        "recurring_expenses table stores latest_amount, prior_amount, price_change_pct, price_change_date",
+        "Price increases get price_change_direction='up', decreases get 'down'",
+        "History is append-only — never modified or deleted"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "node:test: price change detection with fixture history (stable price, gradual increase, sudden jump, decrease). Verify threshold logic (below $1 or 5% not flagged). Verify history append-only behavior.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-004",
+      "title": "Bill calendar projection",
+      "acceptanceCriteria": [
+        "GET /api/recurring/calendar?days=30 returns expected charges in the next N days (default 30, max 90)",
+        "Each entry: merchant_name, expected_amount, expected_date, account_name, frequency, confidence",
+        "Expected date computed from last_seen_date + frequency interval",
+        "Only active recurring items with confidence >= medium included",
+        "Items with status='stale' or 'likely_cancelled' excluded",
+        "Results sorted by expected_date ascending",
+        "Endpoint requires authentication (any member)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-0",
+      "testStrategy": "node:test: projection accuracy for monthly (last seen March 5 → expect April 5), quarterly (last seen Jan 15 → expect April 15), edge cases (month boundary, leap year). Auth guard test.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-005",
+      "title": "Recurring expenses API endpoints",
+      "acceptanceCriteria": [
+        "GET /api/recurring returns all detected recurring expenses with latest amount, frequency, confidence, status, price change info",
+        "GET /api/recurring/summary returns committed monthly total, count of active items, count of price increases, count of stale items",
+        "GET /api/recurring/:id/history returns amount history for a single recurring item",
+        "PATCH /api/recurring/:id allows parent to update status (active/paused/ignored) or override frequency",
+        "All endpoints require authentication; PATCH requires parent role",
+        "Response excludes account IDs and raw transaction IDs — only display-safe fields"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "node:test integration tests for all endpoints: response shapes, auth guards, parent-only writes, status transitions, history ordering.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-006",
+      "title": "Post-sync detection hook",
+      "acceptanceCriteria": [
+        "After each Plaid sync completes (both 6 AM and 8 PM), recurring detection runs automatically",
+        "Detection runs after transfer detection but before anomaly detection in the sync pipeline",
+        "Detection errors are logged but do not fail the sync",
+        "First run on deployment performs a full historical scan (slower, one-time)",
+        "Subsequent runs are incremental: only re-evaluate merchants with new transactions since last run",
+        "Last detection timestamp stored in app_config as recurring_last_detection_at"
+      ],
+      "priority": 1,
+      "estimatedLines": "+40/-10",
+      "testStrategy": "node:test: verify detection is called after sync. Verify incremental mode skips unchanged merchants. Verify error isolation (detection failure doesn't fail sync).",
+      "passes": false
+    },
+    {
+      "id": "REC-019-007",
+      "title": "Recurring expenses page (frontend)",
+      "acceptanceCriteria": [
+        "New page: recurring.html accessible from nav as 'Recurring'",
+        "Nav entry added between Budget and Reports",
+        "Three sections: Active Recurring (sorted by amount desc), Bill Calendar (next 30 days), Stale/Cancelled",
+        "Each recurring item shows: merchant name, amount, frequency badge, next expected date, account name, confidence indicator, price change badge if applicable",
+        "Price change badge: red up-arrow with dollar and percentage delta for increases",
+        "Bill calendar: timeline or list view of upcoming charges with running total",
+        "Stale section: items not seen recently, with 'last seen' date and suggested action",
+        "Responsive: card layout on mobile, table on desktop",
+        "Parent can click item to see amount history and toggle status (active/paused/ignored)",
+        "Loading state while data fetches, empty state if no recurring items detected yet"
+      ],
+      "priority": 2,
+      "estimatedLines": "+320/-0",
+      "testStrategy": "Playwright e2e: page loads, recurring items render, bill calendar section present. Manual: verify against known subscriptions, price change badges, mobile layout.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-008",
+      "title": "Committed vs discretionary budget integration",
+      "acceptanceCriteria": [
+        "GET /api/budget response gains two new fields: committed_total (sum of active monthly-equivalent recurring amounts) and discretionary_total (total_budgeted - committed_total)",
+        "Budget page shows committed vs discretionary bar or summary line above category cards",
+        "Dashboard summary hero gains a committed/discretionary line: '$3,400 committed · $1,700 discretionary'",
+        "Monthly-equivalent conversion: weekly ×4.33, biweekly ×2.17, quarterly ÷3, semi-annual ÷6, annual ÷12",
+        "Only 'active' recurring items with confidence >= medium count toward committed total"
+      ],
+      "priority": 2,
+      "estimatedLines": "+60/-20",
+      "testStrategy": "node:test: monthly-equivalent conversions for all frequency types. Verify committed total excludes stale/ignored items. Integration test for budget summary response shape.",
+      "passes": false
+    },
+    {
+      "id": "REC-019-009",
+      "title": "LLM context enrichment with recurring data",
+      "acceptanceCriteria": [
+        "context-assembler adds recurring summary to weekly, monthly, and query contexts",
+        "Context includes: committed_monthly_total, count_active, top 5 recurring by amount, any price changes this month, any upcoming annual renewals in next 60 days",
+        "Weekly digest LLM prompt can now reference 'Your $3,400 in committed monthly charges include...'",
+        "What-if scenarios gain recurring expense context for more accurate projections",
+        "All recurring context passes through sanitizeForLLM"
+      ],
+      "priority": 2,
+      "estimatedLines": "+50/-10",
+      "testStrategy": "node:test: verify recurring context structure, verify sanitization, verify empty state when no recurring items exist.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Merchant name normalization quality determines detection accuracy. Mitigation: start conservative (exact lowercased match), iterate normalization rules based on real Plaid merchant data. Ship a manual override escape hatch (PATCH status) for false positives."
+    ],
+    "medium": [
+      "Insufficient transaction history on first run — new Plaid connections may have <3 months. Mitigation: Monarch import data (source='imported') counts toward history; detection gracefully handles sparse data with lower confidence scores.",
+      "Amount variance on recurring charges (taxes, tips, plan tier changes) may prevent clustering. Mitigation: configurable tolerance (default ±10%), and frequency detection weighs interval consistency more than amount consistency."
+    ],
+    "low": [
+      "Detection post-sync adds processing time. Mitigation: incremental mode only re-evaluates merchants with new transactions. Full scan is one-time on deployment.",
+      "Nav bar getting crowded with another entry. Mitigation: Recurring fits naturally between Budget and Reports as a peer financial view."
+    ]
+  },
+  "preFlightChecklist": [
+    "Verify 3+ months of transaction data exist (Plaid + Monarch combined)",
+    "Inspect real merchant_name values from a SELECT DISTINCT to understand normalization needs",
+    "Confirm transfer-detection and anomaly-detector patterns are stable (templates for this feature)",
+    "Check nav.js supports adding a new entry without breaking existing pages",
+    "Verify budget-calculator.js exports are stable for integration points"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Merchant normalization + detection engine",
+      "goal": "Build the core detection algorithm with full test coverage before touching any UI.",
+      "notes": [
+        "Create lib/merchant-normalizer.js — pure function, no DB access, fully unit-testable",
+        "Create lib/recurring-detector.js — queries transactions, groups by merchant key, classifies frequency, computes confidence, upserts to recurring_expenses",
+        "Create migration 014 with recurring_expenses and recurring_expense_history tables",
+        "Test against fixture data representing real household patterns: Netflix, Spotify, mortgage, insurance, property tax, phone bills",
+        "Ensure Monarch-imported transactions (source='imported') participate in detection"
+      ]
+    },
+    {
+      "name": "Slice B: Price tracking + bill calendar + API",
+      "goal": "Price change detection, forward projection, and API endpoints.",
+      "notes": [
+        "Add price change tracking to detection run (append to recurring_expense_history)",
+        "Build bill calendar projection logic (next occurrence from frequency + last_seen)",
+        "Create lib/routes/recurring.js with GET /api/recurring, GET /api/recurring/summary, GET /api/recurring/calendar, GET /api/recurring/:id/history, PATCH /api/recurring/:id",
+        "Wire routes into server.js with appropriate auth guards",
+        "Add recurring config keys to seed.sql: recurring_amount_tolerance_pct, recurring_lookback_months, recurring_last_detection_at"
+      ]
+    },
+    {
+      "name": "Slice C: Sync integration + incremental mode",
+      "goal": "Hook detection into the post-sync pipeline and ensure it runs reliably.",
+      "notes": [
+        "Add recurring detection call to server.js sync pipeline, after transfer detection, before anomaly detection",
+        "First run: full historical scan. Subsequent runs: only merchants with new transactions since recurring_last_detection_at",
+        "Error isolation: detection failures logged, never fail sync",
+        "Test the incremental optimization actually reduces work on subsequent runs"
+      ]
+    },
+    {
+      "name": "Slice D: Frontend — recurring expenses page",
+      "goal": "New recurring.html page with three sections: active recurring, bill calendar, stale items.",
+      "notes": [
+        "Create public/recurring.html and public/recurring.js",
+        "Add nav entry in nav.js between Budget and Reports",
+        "Active section: card/table of recurring items with amount, frequency, next date, confidence, price change",
+        "Bill calendar section: next 30 days with running total",
+        "Stale section: items missing expected cycles",
+        "Parent overlay for item detail: amount history chart (Chart.js line), status toggle",
+        "Theme-aware, mobile responsive"
+      ]
+    },
+    {
+      "name": "Slice E: Budget integration + LLM context",
+      "goal": "Committed vs discretionary split on budget/dashboard, recurring context in LLM prompts.",
+      "notes": [
+        "Add committed_total and discretionary_total to budget summary response",
+        "Monthly-equivalent conversion for all frequency types",
+        "Add summary line to dashboard hero and budget page",
+        "Enrich context-assembler with recurring summary for weekly/monthly/query contexts",
+        "Verify sanitizeForLLM strips any sensitive fields"
+      ]
+    }
+  ],
+  "testPlan": {
+    "automatedNow": [
+      "Merchant normalization: 30+ real merchant names from Plaid data normalized correctly",
+      "Merchant normalization: deterministic (same input → same key across runs)",
+      "Merchant normalization: null/empty/unicode edge cases handled",
+      "Frequency detection: monthly pattern from 4 transactions spaced ~30 days apart",
+      "Frequency detection: quarterly pattern from 3 transactions spaced ~90 days apart",
+      "Frequency detection: annual pattern from 2 transactions spaced ~365 days apart",
+      "Frequency detection: rejects irregular purchases (3 Amazon orders with random intervals)",
+      "Frequency detection: minimum occurrence thresholds enforced (3 for monthly, 2 for annual)",
+      "Amount clustering: groups transactions within ±10% of median",
+      "Amount clustering: splits groups when amounts diverge beyond tolerance",
+      "Confidence scoring: high for consistent interval + amount, medium for partial consistency, low for sparse/irregular",
+      "Stale detection: items missing 2× expected interval flagged as stale",
+      "Stale detection: items missing 4× expected interval flagged as likely_cancelled",
+      "Price change: flagged when >$1 AND >5% change from prior amount",
+      "Price change: not flagged for changes below both thresholds",
+      "Price change: direction correctly identified (up vs down)",
+      "Bill calendar: monthly item last seen March 5 → projected April 5",
+      "Bill calendar: quarterly item last seen Jan 15 → projected April 15",
+      "Bill calendar: excludes stale and cancelled items",
+      "Bill calendar: respects days parameter and max cap",
+      "API GET /api/recurring returns all detected items with expected fields",
+      "API GET /api/recurring/summary returns committed total and counts",
+      "API GET /api/recurring/calendar returns projected charges sorted by date",
+      "API PATCH /api/recurring/:id updates status (parent-only)",
+      "API auth guards: all endpoints require authentication, PATCH requires parent",
+      "Upsert idempotency: re-running detection updates, never duplicates",
+      "Incremental mode: skips merchants without new transactions",
+      "Error isolation: detection failure during sync is caught and logged",
+      "Budget integration: committed_total is sum of monthly-equivalent active recurring",
+      "Budget integration: weekly ×4.33, biweekly ×2.17, quarterly ÷3, annual ÷12 conversions",
+      "LLM context: recurring summary present in weekly/monthly context output",
+      "LLM context: empty gracefully when no recurring items exist"
+    ],
+    "recommendedNext": [
+      "Playwright e2e: recurring.html loads, items render, bill calendar section present",
+      "Playwright e2e: price change badge visible for items with recent increases",
+      "Playwright e2e: stale section shows items with 'last seen' dates",
+      "Tune normalization rules after observing real Plaid merchant names in production"
+    ],
+    "manualChecklist": [
+      "Load recurring.html and verify detected items match actual known household subscriptions",
+      "Verify bill calendar shows reasonable 30-day projections against real upcoming charges",
+      "Check that committed vs discretionary split on budget page matches mental model",
+      "Verify price change badges appear for any subscriptions that actually changed price recently",
+      "Toggle item status (active → paused → ignored) and verify it persists and updates totals",
+      "Check mobile layout for recurring page — cards should stack, no horizontal overflow",
+      "Verify annual items (insurance, property tax) are detected even with only 2 data points"
+    ],
+    "nonGoals": [
+      "Real-time detection during transaction sync (post-sync batch is sufficient)",
+      "Machine learning or NLP-based merchant classification (rule-based normalization is sufficient for household scale)",
+      "Notification/push alerts for recurring items (separate feature)",
+      "Automatic subscription cancellation or payment initiation"
+    ]
+  },
+  "metrics": {
+    "estimatedTotalLines": "+1100/-40",
+    "storiesCount": 9,
+    "filesCreated": [
+      "db/migrations/014-recurring-expenses.sql",
+      "lib/recurring-detector.js",
+      "lib/merchant-normalizer.js",
+      "lib/routes/recurring.js",
+      "public/recurring.html",
+      "public/recurring.js",
+      "test/recurring-detector.test.js",
+      "test/merchant-normalizer.test.js",
+      "test/recurring-api.test.js",
+      "planning/features/feature-19-prd.json",
+      "planning/features/feature-19-summary.md"
+    ],
+    "filesModified": [
+      "server.js",
+      "lib/budget-calculator.js",
+      "lib/magic-actions/context-assembler.js",
+      "public/nav.js",
+      "public/budget.html",
+      "public/index.html",
+      "public/style.css",
+      "db/seed.sql",
+      "planning/current-feature.json"
+    ]
+  }
+}
