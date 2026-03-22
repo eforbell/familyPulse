@@ -29,6 +29,8 @@ npm run status         # last sync time + counts
 
 # Tests
 npm test               # node --test (all test/*.test.js)
+npm run test:e2e       # Playwright browser tests (chromium)
+npm run test:e2e:headed # browser tests with visible browser
 ```
 
 Copy `.env.example` to `.env` and fill in values.
@@ -135,6 +137,30 @@ The app runs at its own root on port 3003; nginx maps `/pulse/ → http://127.0.
 - `planning_goals` / `savings_signals` — Future planning features
 - `family_members` — Eric, Alex, Jordan, Casey
 - `app_config` — Key/value config
+
+## Testing Strategy
+
+Two test tiers:
+
+- **`npm test`** — `node:test` integration tests for API logic, data shaping, auth guards.
+  Fast, no browser needed. Covers `test/*.test.js`.
+- **`npm run test:e2e`** — Playwright browser tests for page rendering, user interactions,
+  and auth gate behavior. Runs Chromium headless against a test server on port 3099.
+  Covers `test/e2e/*.spec.js`.
+
+`npm test` is the default for CI and pre-commit. Browser tests are opt-in via `test:e2e`.
+
+### Auth in browser tests
+
+The global setup (`test/e2e/helpers/global-setup.js`) sets a passphrase on Eric so that
+`authEnabled()` returns true. Without this, the auth gate is bypassed and redirect tests
+silently pass without testing anything. The `loginAs()` helper in `test/e2e/helpers/auth.js`
+injects session cookies directly — no need to go through the login UI.
+
+### Selector conventions
+
+Prefer existing element IDs (`#summary-hero`, `#income-spending-chart`). Avoid adding
+`data-testid` attributes unless an element genuinely has no stable selector.
 
 ## Deployment (Linux / Tailscale)
 
