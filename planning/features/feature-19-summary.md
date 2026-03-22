@@ -1,4 +1,4 @@
-# Feature #19: Recurring Expense Intelligence
+# Feature #19: Recurring Cashflow Intelligence
 
 ## Problem
 Family Pulse treats every transaction as an isolated event. But 60–70% of household outflow
@@ -17,18 +17,20 @@ Without recurring detection:
 
 ## Solution
 A background detection engine that runs after every Plaid sync, analyzing transaction history
-to identify, classify, and track recurring charges. No interactive prompts — the system
+to identify, classify, and track recurring cashflows: recurring expenses and recurring income.
+No interactive prompts — the system
 watches silently and surfaces findings.
 
 ### Core Components
 
 1. **Recurring Detection Engine** (`lib/recurring-detector.js`)
-   - Groups transactions by normalized merchant fingerprint
+   - Groups transactions by normalized merchant fingerprint and direction
    - Analyzes date intervals and amount clustering to detect frequency
    - Classifies: weekly, biweekly, monthly, quarterly, semi-annual, annual
    - Requires 3+ occurrences for monthly or more frequent; 2+ for quarterly and longer
    - Assigns confidence scores (high: consistent interval + amount; medium: interval match
      but amount varies; low: sparse data or irregular)
+   - Persists expected-next date and schedule anchors for projection
    - Runs post-sync as a background pass (like transfer detection)
 
 2. **Price Change Tracking**
@@ -38,7 +40,7 @@ watches silently and surfaces findings.
 
 3. **Bill Calendar**
    - Forward-looking 30-day view of expected charges
-   - Based on detected frequency + last occurrence date
+   - Based on stored schedule anchors with interval fallback
    - Shows: merchant, expected amount, expected date, account, confidence
 
 4. **Committed vs Discretionary Split**
@@ -64,13 +66,18 @@ watches silently and surfaces findings.
   to avoid false positives from one-off repeat purchases
 - **Amount clustering**: allow ±10% variance for "same amount" to handle tax/tip
   fluctuations on recurring charges (configurable)
+- **Directional records**: recurring rows represent either `expense` or `income`
+- **Debt-service exclusion**: credit-card payments, loan principal transfers, and internal
+  account moves are excluded from committed spend and forecast inputs
+- **Schedule-first projection**: forecasting uses stored expected-next dates and schedule
+  anchors, not just raw merchant clusters
 - **Idempotent**: re-running detection updates existing records, never duplicates
 - **Feeds Feature 20**: recurring expense data is the foundation for cash flow forecasting
 
 ## New Database Objects
 | Object | Purpose |
 |--------|---------|
-| `recurring_expenses` table | Detected recurring patterns with frequency, amounts, confidence |
+| `recurring_expenses` table | Detected recurring cashflow patterns with direction, frequency, amounts, confidence |
 | `recurring_expense_history` table | Amount history per recurring item for price tracking |
 | Migration 014 | Schema for both tables |
 
@@ -81,7 +88,7 @@ watches silently and surfaces findings.
 | `lib/recurring-detector.js` | Detection engine |
 | `lib/merchant-normalizer.js` | Merchant name normalization |
 | `lib/routes/recurring.js` | API endpoints |
-| `server.js` | Post-sync hook, cron registration |
+| `lib/sync.js` | Post-sync hook |
 | `public/recurring.html` | Recurring expenses page |
 | `public/recurring.js` | Frontend logic + bill calendar |
 | `public/style.css` | Recurring page styles |
@@ -98,6 +105,7 @@ watches silently and surfaces findings.
 ### Automated now
 - Merchant normalization: strips trailing IDs, lowercases, handles edge cases
 - Frequency detection: monthly, quarterly, annual patterns from fixture data
+- Directional detection: recurring income and recurring expense patterns classified separately
 - Amount clustering: groups within tolerance, splits beyond tolerance
 - Price change detection: flags increases above threshold
 - Bill calendar projection: correct next-expected dates for each frequency

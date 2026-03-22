@@ -1,16 +1,17 @@
 {
   "branchName": "feature/predictive-cash-flow",
   "projectName": "Predictive Cash Flow Engine",
-  "description": "Deterministic 90-day cash flow forecasting engine that synthesizes recurring income/expenses (Feature 19), Plaid liability obligations, seasonal spending patterns, and manually planned expenses into a day-by-day balance projection with confidence bands, danger zone detection, and scenario toggling. Turns Family Pulse from a rearview mirror into a windshield.",
+  "description": "Deterministic 90-day cash flow forecasting engine that synthesizes recurring cashflows (Feature 19), Plaid liability obligations, seasonal discretionary spending patterns, and manually planned one-time expenses into a day-by-day balance projection with confidence bands, danger zone detection, and scenario toggling. Turns Family Pulse from a rearview mirror into a windshield.",
   "timing": {
     "draftedOn": "2026-03-22",
     "plannedEarliestExecution": "after Feature 19",
-    "gatingCondition": "Feature 19 (Recurring Expense Intelligence) must be shipped and running. The recurring_expenses table provides the structured recurring income and expense data that makes the forecast meaningful. Without it, the engine would have to guess at recurring charges."
+    "gatingCondition": "Feature 19 (Recurring Cashflow Intelligence) must be shipped and running. The recurring_expenses table provides the structured recurring income and expense schedules that make the forecast meaningful. Without it, the engine would have to guess at recurring charges."
   },
   "principles": [
     "Deterministic math, not LLM — the forecast is a reproducible day-by-day ledger computation. LLM narrates results but never computes them. This makes forecasts testable, instant, and explainable.",
     "Confidence bands over point estimates — a single line implies false precision. Bands communicate uncertainty honestly and widen over the forecast horizon.",
     "Feature 19 is a hard dependency — recurring detection provides the structured recurring income and expense schedule that is the backbone of the forecast.",
+    "Liability minimum payments are forecasted from Plaid liability data only; matching recurring debt-service transactions are excluded from recurring expense inputs to prevent double-counting.",
     "Planned expenses are simple data entry, not financial planning software — name, amount, date, done.",
     "Forecast refreshes automatically after sync but is cached between syncs — never stale, never wastefully recomputed.",
     "Daily granularity is sufficient — charges post daily, intra-day precision is noise.",
@@ -29,11 +30,11 @@
       "id": "FCF-020-001",
       "title": "Seasonal spending baseline computation",
       "acceptanceCriteria": [
-        "Compute average total non-transfer, non-recurring spending per calendar month from all available history",
+        "Compute historical discretionary spending by calendar month from transactions excluding transfers, income, hidden transactions, and transactions mapped to active recurring cashflow items",
         "Use at least 12 months of data when available (Monarch import + Plaid combined)",
         "For months with <12 months of history, use available data with a wider confidence adjustment",
         "Exclude the current (incomplete) month from the baseline",
-        "Subtract known recurring expense totals from each month's historical spending to isolate the discretionary component",
+        "Use median monthly discretionary spend by calendar month for v1 to reduce outlier skew",
         "Output: { month: 1-12, avg_total: number, avg_recurring: number, avg_discretionary: number, sample_months: number }",
         "Handle edge case: no history for a calendar month (use overall monthly average as fallback)"
       ],
@@ -49,12 +50,14 @@
         "Takes as input: starting_balance, recurring_income (from Feature 19), recurring_expenses (from Feature 19), liability_payments (from accounts table), seasonal_baseline, planned_expenses, horizon_days (default 90)",
         "Produces an array of { date, projected_balance, confidence_low, confidence_high, events: [] } for each day",
         "Starting balance uses balance-policy.js sumAccountBalances for all depository accounts",
-        "Recurring income added on detected frequency dates (e.g., biweekly paycheck pattern)",
-        "Recurring expenses subtracted on projected next-occurrence dates",
+        "Inputs are fully materialized schedules, not raw transactions",
+        "Recurring income added on detected schedule dates (e.g., biweekly paycheck pattern)",
+        "Recurring expenses subtracted on projected next-occurrence dates using expected_next_date and schedule anchors from Feature 19",
         "Liability minimum payments subtracted on due dates from Plaid data",
         "Discretionary daily burn = (seasonal_discretionary_avg for that calendar month) / days_in_month",
         "Planned one-time expenses subtracted on their scheduled date",
-        "Confidence bands: ±(horizon_pct × daily_std_dev) where horizon_pct scales from 5% at day 7 to 25% at day 90",
+        "Month-end and short-month edge cases are handled explicitly for recurring monthly items",
+        "Confidence bands use a deterministic heuristic based on forecast horizon and historical discretionary volatility, or are omitted in v1 if not yet calibrated",
         "Events array lists what happened on each day (income, charge name, planned expense, liability payment)",
         "Engine is a pure function with no side effects — fully testable with fixture inputs"
       ],
@@ -102,13 +105,12 @@
       "id": "FCF-020-005",
       "title": "Planned expenses CRUD",
       "acceptanceCriteria": [
-        "New table: planned_expenses (id, name, amount, scheduled_date, is_recurring, frequency, status, notes, created_by, created_at, updated_at)",
+        "New table: planned_expenses (id, name, amount, scheduled_date, status, notes, created_by, created_at, updated_at)",
         "POST /api/cash-flow/planned-expenses — create (parent-only)",
         "GET /api/cash-flow/planned-expenses — list all active",
         "PATCH /api/cash-flow/planned-expenses/:id — update amount, date, status, notes (parent-only)",
         "DELETE /api/cash-flow/planned-expenses/:id — soft delete via status='deleted' (parent-only)",
         "Validation: amount > 0, scheduled_date in the future (or within current month), name required",
-        "Recurring planned expenses: if is_recurring=true and frequency set, engine generates occurrences over forecast horizon",
         "Status values: active, completed, deleted",
         "Examples: 'Alex Pacific Rim trip' ($6000, Oct 2026), 'New tires' ($800, May 2026)"
       ],
@@ -123,8 +125,8 @@
       "acceptanceCriteria": [
         "After each Plaid sync, forecast is recomputed and cached in cash_flow_snapshots table",
         "Cache stores: computed_at, horizon_days, starting_balance, daily_projections (JSONB), danger_zones (JSONB), monthly_outlook (JSONB)",
-        "GET /api/cash-flow/forecast returns cached forecast if computed_at is after last sync",
-        "If cache is stale (before last sync) or missing, recompute on demand and cache",
+        "GET /api/cash-flow/forecast returns cached forecast if its input fingerprint still matches current sync timestamp, recurring data updated_at, planned expenses updated_at, and relevant config values",
+        "If cache is stale or missing, recompute on demand and cache",
         "Force refresh: POST /api/cash-flow/forecast/refresh (parent-only)",
         "Cache is single-row (latest forecast), old rows cleaned up",
         "Forecast computation targets <500ms for 90-day horizon (pure JS math, no LLM)"
@@ -147,6 +149,7 @@
         "Planned expenses section: list of planned items with add/edit/delete. Toggle switch per item to include/exclude from forecast (scenario toggling)",
         "Toggling a planned expense on/off immediately re-renders the chart with updated projection",
         "Danger zone banner: if any danger zone within 30 days, prominent alert with date and amount",
+        "Forecast assumptions section: expandable list of detected income sources, recurring expenses, liability payments, discretionary baseline, and included planned expenses",
         "Loading state, empty state (no recurring data yet → link to recurring page)",
         "Responsive: chart fills width on mobile, cards stack, planned expenses list scrollable",
         "Theme-aware via CSS variables"
@@ -190,7 +193,7 @@
       "id": "FCF-020-010",
       "title": "What-If enhancement with forecast overlay",
       "acceptanceCriteria": [
-        "POST /api/magic/whatif gains an optional forecast_overlay response field",
+        "POST /api/magic/what-if gains an optional forecast_overlay response field",
         "When a what-if scenario is submitted, the engine: (1) computes baseline forecast, (2) parses the scenario into a planned expense equivalent, (3) computes modified forecast, (4) returns both baseline and modified trajectories",
         "The LLM prompt now includes structured forecast comparison data, not just a text snapshot",
         "Reports page What-If section can optionally show a mini chart comparing baseline vs scenario trajectory",
@@ -218,7 +221,7 @@
     ]
   },
   "preFlightChecklist": [
-    "Feature 19 (Recurring Expense Intelligence) is shipped and recurring_expenses table has data",
+    "Feature 19 (Recurring Cashflow Intelligence) is shipped and recurring_expenses table has data",
     "Verify at least 6 months of transaction history exists for seasonal baseline computation",
     "Confirm liability data (due dates, minimum payments) is populated for credit cards and loans",
     "Verify balance-policy.js sumAccountBalances works correctly for all depository accounts",
@@ -230,7 +233,7 @@
       "name": "Slice A: Seasonal baseline + forecast engine",
       "goal": "Build the core computational engine as a pure, testable function with no side effects.",
       "notes": [
-        "Create lib/seasonal-baseline.js — queries 12+ months of history, computes per-calendar-month discretionary averages",
+        "Create lib/seasonal-baseline.js — queries 12+ months of history, computes per-calendar-month discretionary medians",
         "Create lib/cash-flow-engine.js — pure function: takes structured inputs, produces day-by-day projection array",
         "No DB writes in the engine itself — it's a computation, not a service",
         "Create migration 015 with planned_expenses and cash_flow_snapshots tables",
@@ -249,9 +252,9 @@
     },
     {
       "name": "Slice C: Planned expenses CRUD + API endpoints",
-      "goal": "Data entry for one-time and recurring future expenses, plus all forecast API routes.",
+      "goal": "Data entry for one-time future expenses, plus all forecast API routes.",
       "notes": [
-        "Planned expenses table: simple CRUD, parent-only writes",
+        "Planned expenses table: simple one-time expense CRUD, parent-only writes",
         "Create lib/routes/cash-flow.js with: GET /forecast, GET /monthly-outlook, GET /danger-zones, CRUD /planned-expenses, POST /forecast/refresh",
         "Forecast caching: compute after sync, serve from cache, invalidate on planned expense changes",
         "Wire routes into server.js with auth guards"
@@ -272,12 +275,12 @@
     },
     {
       "name": "Slice E: Dashboard widget + LLM context + What-If enhancement",
-      "goal": "Integrate forecast insights across the app.",
+      "goal": "Integrate forecast insights across the app once the base engine is trusted.",
       "notes": [
         "Dashboard: 2-3 line forecast summary below coverage indicator",
         "context-assembler: add forecast summary to weekly/monthly/query contexts",
-        "what-if.js: parse scenario into planned expense equivalent, compute baseline vs modified forecast, include structured comparison in LLM prompt",
-        "Reports page: optional mini chart for what-if scenario comparison",
+        "what-if.js: this integration is stretch and should follow only after the forecast engine is trusted",
+        "Reports page: optional mini chart for what-if scenario comparison is stretch",
         "Verify all new context passes sanitizeForLLM"
       ]
     }
@@ -286,17 +289,16 @@
     "automatedNow": [
       "Seasonal baseline: 14-month fixture data produces correct per-month averages",
       "Seasonal baseline: excludes current (incomplete) month",
-      "Seasonal baseline: subtracts recurring expenses to isolate discretionary",
+      "Seasonal baseline: excludes recurring cashflow-linked transactions from discretionary baseline",
       "Seasonal baseline: sparse month uses overall average as fallback",
       "Seasonal baseline: uses median not mean to resist outlier skew",
       "Forecast engine: simple case — 1 biweekly paycheck + 1 monthly expense → correct 30-day trajectory",
       "Forecast engine: complex case — 2 income streams + 8 recurring expenses + 2 liability payments + 1 planned expense → correct 90-day trajectory",
-      "Forecast engine: recurring income lands on correct frequency dates",
+      "Forecast engine: recurring income lands on correct schedule dates",
       "Forecast engine: recurring expenses deducted on correct projected dates",
       "Forecast engine: liability payments deducted on due dates from account data",
       "Forecast engine: discretionary burn rate adjusts by calendar month (seasonal)",
       "Forecast engine: planned expense reduces balance on scheduled date",
-      "Forecast engine: recurring planned expense generates multiple occurrences over horizon",
       "Forecast engine: confidence bands widen monotonically over horizon",
       "Forecast engine: pure function — same inputs always produce same output",
       "Danger zone: detected when projected balance crosses safety floor",
@@ -310,7 +312,6 @@
       "Planned expenses CRUD: reject past dates (except current month)",
       "Planned expenses CRUD: soft delete sets status='deleted'",
       "Planned expenses CRUD: parent-only write operations",
-      "Planned expenses: recurring expansion over 90-day horizon",
       "Forecast cache: returns cached data when fresh (after last sync)",
       "Forecast cache: recomputes when stale (before last sync)",
       "Forecast cache: invalidated when planned expenses change",

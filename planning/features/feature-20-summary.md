@@ -19,8 +19,7 @@ rolling cash flow forecast:
 
 ### Inputs (all already available after Feature 19)
 - **Current liquid balance** — checking + savings via balance-policy.js
-- **Recurring income** — detected paychecks from recurring-detector.js (Feature 19)
-- **Recurring expenses** — all active recurring items from Feature 19
+- **Recurring cashflows** — detected recurring income and recurring expenses from Feature 19
 - **Liability obligations** — statement balances, due dates, minimums from Plaid Liabilities
 - **Seasonal patterns** — 12-month historical spending averages by month (from Monarch + Plaid)
 - **Planned one-time expenses** — manually entered by Eric (e.g., "Alex's trip: $6,000 in Oct")
@@ -42,11 +41,11 @@ The forecast engine builds a day-by-day ledger:
 - Each day: add any expected income, subtract any expected recurring charges or liability
   payments scheduled for that date
 - Discretionary spending is estimated as a daily burn rate derived from the seasonal
-  historical average for that calendar month, minus the known recurring charges for that month
-  (to avoid double-counting)
+  historical discretionary average for that calendar month, already excluding recurring
+  cashflows from the baseline
 - Planned one-time expenses are subtracted on their scheduled date
 - Confidence bands widen over time: ±5% at 7 days, ±15% at 30 days, ±25% at 90 days
-  (calibrated from historical variance)
+  (or can be deferred in v1 if the heuristic is not yet trusted)
 
 ### Integration with Feature 9 (Planning & Goals)
 This feature provides the forward-looking engine that Feature 9 needs. After Feature 20 ships:
@@ -62,13 +61,15 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 - **Feature 19 is a hard dependency** — recurring income and expense detection provides the
   structured input that makes the forecast meaningful. Without it, the engine would have to
   guess at recurring charges.
-- **Planned expenses are simple** — name, amount, date, optional recurrence. No complex
-  modeling. Eric enters "Alex's Pacific Rim trip, $6,000, October 2026" and sees its impact.
+- **Planned expenses are simple** — name, amount, date. No complex modeling in v1.
+  Eric enters "Alex's Pacific Rim trip, $6,000, October 2026" and sees its impact.
 - **Confidence bands over point estimates** — a single projected line implies false precision.
   Bands communicate "we're pretty sure about next week, less sure about next month."
 - **Daily granularity, not hourly** — charges post daily; intra-day precision is noise.
 - **Safety floor is configurable** — default $3,000 (app_config), since that's roughly
   1× monthly committed obligations for the Forbell household.
+- **No liability double-counting** — liability minimum payments come from Plaid liability data;
+  matching recurring debt-service transactions are excluded from forecast expense inputs
 
 ## New Database Objects
 | Object | Purpose |
@@ -84,7 +85,8 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 | `lib/cash-flow-engine.js` | Core forecast computation engine |
 | `lib/seasonal-baseline.js` | Historical spending patterns by calendar month |
 | `lib/routes/cash-flow.js` | API endpoints |
-| `server.js` | Post-sync forecast refresh, cron registration |
+| `server.js` | Route wiring and refresh trigger registration |
+| `lib/sync.js` | Post-sync forecast refresh |
 | `public/forecast.html` | Cash flow forecast page |
 | `public/forecast.js` | Frontend — trajectory chart, planned expenses, scenario toggles |
 | `public/style.css` | Forecast page styles |
@@ -102,7 +104,7 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 - Expense subtraction: recurring charges deducted on expected dates
 - Liability payments: due dates from Plaid data correctly scheduled
 - Seasonal baseline: historical averages computed correctly per calendar month
-- Discretionary estimation: seasonal average minus recurring = daily discretionary burn
+- Discretionary estimation: seasonal discretionary baseline = daily discretionary burn
 - Planned expense impact: one-time charge reduces balance on scheduled date
 - Danger zone detection: flags correct date when balance crosses safety floor
 - Confidence bands: width increases proportionally over forecast horizon

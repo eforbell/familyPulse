@@ -1,7 +1,7 @@
 {
   "branchName": "feature/recurring-expense-intelligence",
-  "projectName": "Recurring Expense Intelligence",
-  "description": "Background detection engine that identifies recurring charges from transaction history, tracks price changes, projects a forward-looking bill calendar, and splits budget spending into committed (recurring) vs discretionary. Runs silently after every Plaid sync — no interactive prompts.",
+  "projectName": "Recurring Cashflow Intelligence",
+  "description": "Background detection engine that identifies recurring cashflows from transaction history, tracks price changes, projects a forward-looking bill calendar, and splits budget spending into committed (recurring) vs discretionary. Runs silently after every Plaid sync — no interactive prompts.",
   "timing": {
     "draftedOn": "2026-03-22",
     "plannedEarliestExecution": "after Feature 18",
@@ -13,8 +13,10 @@
     "Merchant normalization must be aggressive but reversible — group 'NETFLIX.COM/1234' with 'NETFLIX.COM/5678' but preserve original names for display",
     "Idempotent: re-running detection updates existing records, never duplicates. Same pattern as transfer detection and anomaly detection",
     "Amount tolerance handles real-world variance (tax, tips, plan changes) without losing the signal",
-    "This feature is the data foundation for Feature 20 (Cash Flow Forecasting) — the recurring_expenses table is the source of truth for known future obligations",
-    "SECRETS INVARIANT: recurring expense data surfaces merchant names and amounts only — no account numbers, tokens, or PII in API responses or LLM context"
+    "Recurring records are directional: each row represents either expense or income cashflow",
+    "Debt-service and internal transfers are excluded from committed spend and forecast inputs unless represented as liability obligations",
+    "This feature is the data foundation for Feature 20 (Cash Flow Forecasting) — the recurring_expenses table is the source of truth for known recurring schedules",
+    "SECRETS INVARIANT: recurring cashflow data surfaces merchant names and amounts only — no account numbers, tokens, or PII in API responses or LLM context"
   ],
   "techStack": {
     "language": "Node.js + vanilla JS",
@@ -43,13 +45,17 @@
       "id": "REC-019-002",
       "title": "Recurring pattern detection engine",
       "acceptanceCriteria": [
-        "Group non-transfer, non-pending transactions by normalized merchant key",
+        "Group non-transfer, non-pending, non-hidden transactions by normalized merchant key and transaction direction",
         "For each group with 2+ transactions, compute median interval between consecutive dates",
         "Classify frequency: weekly (5-9 days), biweekly (12-16 days), monthly (27-34 days), quarterly (85-100 days), semi-annual (170-195 days), annual (350-380 days)",
         "Require minimum occurrences: 3 for weekly/biweekly/monthly, 2 for quarterly/semi-annual/annual",
         "Amount clustering: group transactions within ±10% of median amount (configurable via recurring_amount_tolerance_pct)",
         "Confidence scoring: high (consistent interval ≤15% CV + consistent amount ≤10% CV), medium (interval or amount varies but not both), low (sparse data or high variance)",
-        "Upsert into recurring_expenses table on (account_id, merchant_key, frequency)",
+        "Persist cashflow_type='expense' or 'income' on each recurring record",
+        "Persist schedule metadata: first_seen_date, last_seen_date, expected_next_date, interval_days, tolerance_days, and schedule anchor fields when inferable",
+        "Monthly patterns persist a day-of-month anchor or last-day-of-month flag when inferable; biweekly patterns persist weekday anchor when inferable",
+        "Exclude credit-card payments, loan principal transfers, and internal account moves from recurring expense detection",
+        "Upsert into recurring_expenses table on a stable recurring key built from merchant_key, cashflow_type, and schedule anchor metadata",
         "Mark items not seen in 2× expected interval as status='stale'",
         "Mark items not seen in 4× expected interval as status='likely_cancelled'",
         "Skip transactions older than recurring_lookback_months (default 18) config setting"
@@ -81,7 +87,7 @@
       "acceptanceCriteria": [
         "GET /api/recurring/calendar?days=30 returns expected charges in the next N days (default 30, max 90)",
         "Each entry: merchant_name, expected_amount, expected_date, account_name, frequency, confidence",
-        "Expected date computed from last_seen_date + frequency interval",
+        "Expected date computed from stored schedule anchor and tolerance rules, with last_seen_date + interval as fallback only",
         "Only active recurring items with confidence >= medium included",
         "Items with status='stale' or 'likely_cancelled' excluded",
         "Results sorted by expected_date ascending",
@@ -96,10 +102,10 @@
       "id": "REC-019-005",
       "title": "Recurring expenses API endpoints",
       "acceptanceCriteria": [
-        "GET /api/recurring returns all detected recurring expenses with latest amount, frequency, confidence, status, price change info",
-        "GET /api/recurring/summary returns committed monthly total, count of active items, count of price increases, count of stale items",
+        "GET /api/recurring returns all detected recurring expenses with latest amount, frequency, confidence, status, expected next date, cashflow_type, and price change info",
+        "GET /api/recurring/summary returns committed monthly total, recurring income monthly total, count of active items, count of price increases, count of stale items",
         "GET /api/recurring/:id/history returns amount history for a single recurring item",
-        "PATCH /api/recurring/:id allows parent to update status (active/paused/ignored) or override frequency",
+        "PATCH /api/recurring/:id allows parent to update status (active/paused/ignored), override frequency, or override expected_next_date",
         "All endpoints require authentication; PATCH requires parent role",
         "Response excludes account IDs and raw transaction IDs — only display-safe fields"
       ],
@@ -113,7 +119,7 @@
       "title": "Post-sync detection hook",
       "acceptanceCriteria": [
         "After each Plaid sync completes (both 6 AM and 8 PM), recurring detection runs automatically",
-        "Detection runs after transfer detection but before anomaly detection in the sync pipeline",
+        "Detection runs inside lib/sync.js after transfer detection and auto-categorization, before anomaly detection",
         "Detection errors are logged but do not fail the sync",
         "First run on deployment performs a full historical scan (slower, one-time)",
         "Subsequent runs are incremental: only re-evaluate merchants with new transactions since last run",
@@ -148,7 +154,7 @@
       "id": "REC-019-008",
       "title": "Committed vs discretionary budget integration",
       "acceptanceCriteria": [
-        "GET /api/budget response gains two new fields: committed_total (sum of active monthly-equivalent recurring amounts) and discretionary_total (total_budgeted - committed_total)",
+        "GET /api/budget response gains two new fields: committed_total (sum of active monthly-equivalent recurring expense amounts excluding liability payments and ignored items) and discretionary_total (total_budgeted - committed_total)",
         "Budget page shows committed vs discretionary bar or summary line above category cards",
         "Dashboard summary hero gains a committed/discretionary line: '$3,400 committed · $1,700 discretionary'",
         "Monthly-equivalent conversion: weekly ×4.33, biweekly ×2.17, quarterly ÷3, semi-annual ÷6, annual ÷12",
@@ -177,7 +183,7 @@
   ],
   "riskAssessment": {
     "high": [
-      "Merchant name normalization quality determines detection accuracy. Mitigation: start conservative (exact lowercased match), iterate normalization rules based on real Plaid merchant data. Ship a manual override escape hatch (PATCH status) for false positives."
+      "Merchant name normalization quality determines detection accuracy. Mitigation: start conservative (exact lowercased match), iterate normalization rules based on real Plaid merchant data. Ship a manual override escape hatch (PATCH status and expected_next_date) for false positives."
     ],
     "medium": [
       "Insufficient transaction history on first run — new Plaid connections may have <3 months. Mitigation: Monarch import data (source='imported') counts toward history; detection gracefully handles sparse data with lower confidence scores.",
@@ -185,7 +191,7 @@
     ],
     "low": [
       "Detection post-sync adds processing time. Mitigation: incremental mode only re-evaluates merchants with new transactions. Full scan is one-time on deployment.",
-      "Nav bar getting crowded with another entry. Mitigation: Recurring fits naturally between Budget and Reports as a peer financial view."
+      "Nav bar getting crowded with another entry. Mitigation: Recurring fits naturally between Budget and Reports as a peer financial view, but mobile 'More' sheet copy and ordering must be updated alongside nav.js."
     ]
   },
   "preFlightChecklist": [
@@ -201,10 +207,11 @@
       "goal": "Build the core detection algorithm with full test coverage before touching any UI.",
       "notes": [
         "Create lib/merchant-normalizer.js — pure function, no DB access, fully unit-testable",
-        "Create lib/recurring-detector.js — queries transactions, groups by merchant key, classifies frequency, computes confidence, upserts to recurring_expenses",
+        "Create lib/recurring-detector.js — queries transactions, groups by merchant key and direction, classifies frequency, computes confidence, and upserts to recurring_expenses",
         "Create migration 014 with recurring_expenses and recurring_expense_history tables",
         "Test against fixture data representing real household patterns: Netflix, Spotify, mortgage, insurance, property tax, phone bills",
-        "Ensure Monarch-imported transactions (source='imported') participate in detection"
+        "Ensure Monarch-imported transactions (source='imported') participate in detection",
+        "Persist schedule anchors and expected_next_date for projection consumers"
       ]
     },
     {
@@ -212,7 +219,7 @@
       "goal": "Price change detection, forward projection, and API endpoints.",
       "notes": [
         "Add price change tracking to detection run (append to recurring_expense_history)",
-        "Build bill calendar projection logic (next occurrence from frequency + last_seen)",
+        "Build bill calendar projection logic from stored schedule anchors with interval fallback",
         "Create lib/routes/recurring.js with GET /api/recurring, GET /api/recurring/summary, GET /api/recurring/calendar, GET /api/recurring/:id/history, PATCH /api/recurring/:id",
         "Wire routes into server.js with appropriate auth guards",
         "Add recurring config keys to seed.sql: recurring_amount_tolerance_pct, recurring_lookback_months, recurring_last_detection_at"
@@ -222,7 +229,7 @@
       "name": "Slice C: Sync integration + incremental mode",
       "goal": "Hook detection into the post-sync pipeline and ensure it runs reliably.",
       "notes": [
-        "Add recurring detection call to server.js sync pipeline, after transfer detection, before anomaly detection",
+        "Add recurring detection call to lib/sync.js sync pipeline, after transfer detection and auto-categorization, before anomaly detection",
         "First run: full historical scan. Subsequent runs: only merchants with new transactions since recurring_last_detection_at",
         "Error isolation: detection failures logged, never fail sync",
         "Test the incremental optimization actually reduces work on subsequent runs"
@@ -275,6 +282,8 @@
       "Bill calendar: quarterly item last seen Jan 15 → projected April 15",
       "Bill calendar: excludes stale and cancelled items",
       "Bill calendar: respects days parameter and max cap",
+      "Recurring detection: recurring income and recurring expense patterns remain separate",
+      "Recurring detection: debt-service and transfer-like flows are excluded from committed totals",
       "API GET /api/recurring returns all detected items with expected fields",
       "API GET /api/recurring/summary returns committed total and counts",
       "API GET /api/recurring/calendar returns projected charges sorted by date",
