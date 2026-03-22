@@ -62,3 +62,25 @@
 - Feature 13 (Balance Policy) drafted as the next feature.
   - Added planning artifacts for household `available_preferred` vs `current_only` balance basis
   - Scope includes centralized balance policy helper, settings toggle, cash-view alignment, and coverage integration
+
+2026-03-22
+- Feature 17 (Visual Reports) complete and merged to main.
+  - Three Chart.js visualizations: income vs spending bar chart, spending-by-category doughnut, category trends line chart
+  - New GET /api/budget/trends endpoint returning 6 months of aggregated data
+  - Ask Pulse and What-If retained below charts on Reports page
+- Feature 18 (Browser Test Foundation) complete and merged to main.
+  - Playwright with Chromium, global auth setup, parent session helpers
+  - Initial specs for Reports page rendering and theme toggle
+  - npm run test:e2e / test:e2e:headed commands
+- Planning session: evaluated 3 candidate features for next phase of development.
+  - Goal: highly accretive features that transform Family Pulse from rearview mirror to windshield.
+  - Selected Feature 19 (Recurring Expense Intelligence) and Feature 20 (Predictive Cash Flow Engine).
+  - Rejected Feature 21 (Telegram push alerts) — Eric opens the app daily; pull-based is sufficient.
+  - Key insight: Feature 19 → 20 → 9 forms a pipeline. Recurring detection provides the structured
+    data that makes cash flow forecasting meaningful, and the forecast engine provides the forward-looking
+    intelligence that the deferred Planning & Goals feature (Feature 9) needs.
+  - Monarch Money parity: recurring detection is table stakes (Monarch has it), but Pulse will do it
+    background-first with no interactive "is this recurring?" prompts. Silent watching, always analyzing.
+  - MCP server exists (Feature 8) but Claude Desktop can't connect to it, so forecast analysis must
+    live within the app UI — not depend on external Claude access.
+  - Full PRD specs (JSON + summary MD) written for both features.

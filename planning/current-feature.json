@@ -1,6 +1,6 @@
 {
-  "currentFeature": "Feature #17: Visual Reports",
-  "status": "in-progress",
+  "currentFeature": "Feature #19: Recurring Expense Intelligence",
+  "status": "planned",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
@@ -16,10 +16,14 @@
     "Feature #12: Liability Coverage",
     "Feature #13: Balance Policy",
     "Feature #14: Plaid Disconnect Lifecycle",
-    "Feature #15: Plaid Liability Permission Upgrade"
+    "Feature #15: Plaid Liability Permission Upgrade",
+    "Feature #16: Plaid Account Selection Management",
+    "Feature #17: Visual Reports",
+    "Feature #18: Browser Test Foundation (Playwright)"
   ],
   "skippedFeatures": [],
   "futureFeatures": [
-    "Feature #9: Planning & Goals"
+    "Feature #20: Predictive Cash Flow Engine (after Feature 19)",
+    "Feature #9: Planning & Goals (after Feature 20 provides the forward-looking engine)"
   ]
 }
