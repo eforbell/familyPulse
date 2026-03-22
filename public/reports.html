@@ -30,11 +30,30 @@
     <!-- Parent content -->
     <div id="reports-content" class="hidden">
 
-      <!-- Monthly Close Reports -->
+      <!-- Income vs Spending Chart -->
       <section>
-        <h2 class="section-heading">Monthly Reports</h2>
-        <div id="monthly-reports-list" class="reports-list">
-          <div class="empty-state loading-pulse">Loading...</div>
+        <h2 class="section-heading">Income vs Spending</h2>
+        <div class="chart-card">
+          <canvas id="income-spending-chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Spending by Category Chart -->
+      <section>
+        <h2 class="section-heading">
+          Spending by Category
+          <select id="doughnut-month-select" class="chart-month-select"></select>
+        </h2>
+        <div id="doughnut-container" class="chart-card" style="max-width:400px;margin:0 auto">
+          <canvas id="category-doughnut-chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Category Trends Chart -->
+      <section>
+        <h2 class="section-heading">Category Trends</h2>
+        <div class="chart-card">
+          <canvas id="category-trends-chart"></canvas>
         </div>
       </section>
 
@@ -70,6 +89,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="nav.js"></script>
   <script src="reports.js"></script>
 </body>

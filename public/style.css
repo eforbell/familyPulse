@@ -1636,6 +1636,31 @@ header h1 {
   gap: 0.5rem;
 }
 
+/* Chart cards */
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.chart-month-select {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  font-size: var(--text-sm);
+  margin-left: 0.75rem;
+  cursor: pointer;
+}
+.chart-month-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .report-card {
   background: var(--surface);
   border: 1px solid var(--border);

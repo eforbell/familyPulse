@@ -3,6 +3,10 @@
 
 let currentMember = null;
 let magicDisclaimer = '';
+let trendsData = null;
+let incomeSpendingChart = null;
+let categoryDoughnutChart = null;
+let categoryTrendsChart = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -42,52 +46,309 @@ async function loadReports() {
     ).join('');
   } catch { /* ignore */ }
 
-  // Load history
+  // Load query history
+  loadQueryHistory();
+
+  // Load charts
+  loadCharts();
+
+  // Re-render charts on theme toggle
+  window.addEventListener('pulse:theme-change', () => {
+    if (!trendsData) return;
+    renderIncomeSpendingChart();
+    renderCategoryDoughnut($('doughnut-month-select')?.value || trendsData.periods[trendsData.periods.length - 1]);
+    renderCategoryTrends();
+  });
+}
+
+async function loadQueryHistory() {
   try {
     const data = await api('api/magic/history');
-    renderHistory(data.reports || [], data.queries || []);
+    renderQueryHistory(data.queries || []);
   } catch (err) {
-    $('monthly-reports-list').innerHTML = '<div class="empty-state">Error loading reports</div>';
     $('query-history-list').innerHTML = '<div class="empty-state">Error loading history</div>';
   }
 }
 
-// ── Render ───────────────────────────────────────────────────
-
-function renderHistory(reports, queries) {
-  const list = $('monthly-reports-list');
-  const queryList = $('query-history-list');
-
-  const monthly = reports.filter(r => r.type === 'monthly');
-  const weekly = reports.filter(r => r.type === 'weekly');
-
-  if (monthly.length === 0 && weekly.length === 0) {
-    list.innerHTML = '<div class="empty-state">No reports generated yet. Reports are created automatically at the start of each month.</div>';
-  } else {
-    const all = [...monthly, ...weekly].sort((a, b) =>
-      new Date(b.created_at) - new Date(a.created_at)
-    );
-
-    list.innerHTML = all.map(r => {
-      const typeLabel = r.type === 'monthly' ? 'Monthly Close' : 'Weekly Digest';
-      const date = new Date(r.created_at).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric'
-      });
-      return `
-        <div class="report-card">
-          <div class="report-card-header" onclick="toggleReport(this)">
-            <div>
-              <span class="report-type-badge ${r.type}">${typeLabel}</span>
-              <span class="report-period">${formatPeriod(r.period)}</span>
-            </div>
-            <span class="report-date">${date}</span>
-          </div>
-          <div class="report-card-body hidden">
-            <div class="digest-content">${renderMarkdown(r.content)}</div>
-          </div>
-        </div>`;
-    }).join('');
+async function loadCharts() {
+  try {
+    trendsData = await api('api/budget/trends?months=6');
+    renderIncomeSpendingChart();
+    populateMonthSelector();
+    renderCategoryDoughnut(trendsData.periods[trendsData.periods.length - 1]);
+    renderCategoryTrends();
+  } catch (err) {
+    console.error('Charts load failed:', err);
   }
+}
+
+// ── Charts ───────────────────────────────────────────────────
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function formatMonthLabel(period) {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+}
+
+function currencyTooltip(context) {
+  const val = context.parsed.y ?? context.parsed;
+  return `${context.dataset.label}: $${Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+function renderIncomeSpendingChart() {
+  if (!trendsData) return;
+  const canvas = $('income-spending-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const labels = trendsData.periods.map(formatMonthLabel);
+  const income = trendsData.monthly.map(m => m.income);
+  const spending = trendsData.monthly.map(m => m.spending);
+  const netCashFlow = trendsData.monthly.map(m => m.net_cash_flow);
+
+  if (incomeSpendingChart) incomeSpendingChart.destroy();
+  incomeSpendingChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Income',
+          data: income,
+          backgroundColor: '#10b98188',
+          borderColor: '#10b981',
+          borderWidth: 1,
+          borderRadius: 4,
+          order: 2
+        },
+        {
+          label: 'Spending',
+          data: spending,
+          backgroundColor: '#f8717188',
+          borderColor: '#f87171',
+          borderWidth: 1,
+          borderRadius: 4,
+          order: 2
+        },
+        {
+          label: 'Net Cash Flow',
+          data: netCashFlow,
+          type: 'line',
+          borderColor: '#60a5fa',
+          backgroundColor: '#60a5fa33',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#60a5fa',
+          tension: 0.3,
+          fill: false,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: { color: cssVar('--muted') },
+          grid: { color: cssVar('--border') + '44' }
+        },
+        y: {
+          ticks: {
+            color: cssVar('--muted'),
+            callback: v => '$' + Number(v).toLocaleString()
+          },
+          grid: { color: cssVar('--border') + '44' }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: cssVar('--muted'), font: { size: 12 }, padding: 16 }
+        },
+        tooltip: {
+          callbacks: { label: currencyTooltip }
+        }
+      }
+    }
+  });
+}
+
+function populateMonthSelector() {
+  const select = $('doughnut-month-select');
+  if (!select || !trendsData) return;
+
+  select.innerHTML = trendsData.periods
+    .slice()
+    .reverse()
+    .map(p => {
+      const [y, m] = p.split('-').map(Number);
+      const label = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      return `<option value="${p}">${label}</option>`;
+    })
+    .join('');
+
+  select.addEventListener('change', (e) => {
+    renderCategoryDoughnut(e.target.value);
+  });
+}
+
+function renderCategoryDoughnut(period) {
+  if (!trendsData) return;
+  const container = $('doughnut-container');
+  if (!container || typeof Chart === 'undefined') return;
+
+  const monthData = trendsData.monthly.find(m => m.period === period);
+  if (!monthData) return;
+
+  // Filter to categories with spending, sort by spent desc
+  const allCats = monthData.categories
+    .filter(c => c.spent > 0)
+    .sort((a, b) => b.spent - a.spent);
+
+  if (allCats.length === 0) {
+    if (categoryDoughnutChart) categoryDoughnutChart.destroy();
+    categoryDoughnutChart = null;
+    container.innerHTML = '<canvas id="category-doughnut-chart"></canvas><div class="empty-state">No spending data for this month</div>';
+    return;
+  }
+
+  // Show top 8 categories, group the rest as "Other"
+  const top = allCats.slice(0, 8);
+  const rest = allCats.slice(8);
+  const cats = [...top];
+  if (rest.length > 0) {
+    cats.push({
+      name: 'Other',
+      icon: '',
+      spent: rest.reduce((s, c) => s + c.spent, 0),
+      color: '#6b7280'
+    });
+  }
+
+  // Restore canvas if it was replaced by empty state
+  if (!$('category-doughnut-chart')) {
+    container.innerHTML = '<canvas id="category-doughnut-chart"></canvas>';
+  }
+  const canvas = $('category-doughnut-chart');
+
+  const labels = cats.map(c => `${c.icon || ''} ${c.name}`.trim());
+  const data = cats.map(c => c.spent);
+  const colors = cats.map(c => c.color || '#10b981');
+
+  if (categoryDoughnutChart) categoryDoughnutChart.destroy();
+  categoryDoughnutChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: cssVar('--muted'),
+            font: { size: 12 },
+            padding: 12
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const val = ctx.parsed;
+              const total = ctx.dataset.data.reduce((s, v) => s + v, 0);
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return `${ctx.label}: $${val.toLocaleString()} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCategoryTrends() {
+  if (!trendsData) return;
+  const canvas = $('category-trends-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  // Find top 5 categories by total spending across all months
+  const totals = {};
+  const catMeta = {};
+  for (const month of trendsData.monthly) {
+    for (const cat of month.categories) {
+      totals[cat.id] = (totals[cat.id] || 0) + cat.spent;
+      catMeta[cat.id] = { name: cat.name, color: cat.color, icon: cat.icon };
+    }
+  }
+
+  const topIds = Object.entries(totals)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([id]) => parseInt(id));
+
+  const labels = trendsData.periods.map(formatMonthLabel);
+
+  const datasets = topIds.map(id => {
+    const meta = catMeta[id];
+    const data = trendsData.periods.map(period => {
+      const month = trendsData.monthly.find(m => m.period === period);
+      const cat = month ? month.categories.find(c => c.id === id) : null;
+      return cat ? cat.spent : 0;
+    });
+
+    return {
+      label: `${meta.icon || ''} ${meta.name}`.trim(),
+      data,
+      borderColor: meta.color || '#10b981',
+      backgroundColor: (meta.color || '#10b981') + '22',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: meta.color || '#10b981',
+      tension: 0.3,
+      fill: false
+    };
+  });
+
+  if (categoryTrendsChart) categoryTrendsChart.destroy();
+  categoryTrendsChart = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          ticks: { color: cssVar('--muted') },
+          grid: { color: cssVar('--border') + '44' }
+        },
+        y: {
+          ticks: {
+            color: cssVar('--muted'),
+            callback: v => '$' + Number(v).toLocaleString()
+          },
+          grid: { color: cssVar('--border') + '44' }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: cssVar('--muted'), font: { size: 12 }, padding: 16 }
+        },
+        tooltip: {
+          callbacks: { label: currencyTooltip }
+        }
+      }
+    }
+  });
+}
+
+// ── Render Query History ─────────────────────────────────────
+
+function renderQueryHistory(queries) {
+  const queryList = $('query-history-list');
 
   if (!queries.length) {
     queryList.innerHTML = '<div class="empty-state">No Ask Pulse or What-If history yet.</div>';
@@ -122,13 +383,6 @@ function toggleReport(header) {
   body.classList.toggle('hidden');
 }
 
-function formatPeriod(period) {
-  if (!period) return '';
-  const [y, m] = period.split('-').map(Number);
-  const d = new Date(y, m - 1, 1);
-  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
 // ── Ask Pulse ───────────────────────────────────────────────
 
 function reportAskPreset(btn) {
@@ -158,7 +412,7 @@ async function submitReportAsk() {
     });
     result.innerHTML = renderMarkdown(data.answer || 'No response.');
     showDisclaimer();
-    loadReports();
+    loadQueryHistory();
   } catch (err) {
     result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
   }
@@ -183,7 +437,7 @@ async function submitReportWhatIf() {
     });
     result.innerHTML = renderMarkdown(data.forecast || 'No response.');
     showDisclaimer();
-    loadReports();
+    loadQueryHistory();
   } catch (err) {
     result.innerHTML = `<div style="color:var(--red)">${esc(err.message)}</div>`;
   }

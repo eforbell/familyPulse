@@ -1,0 +1,193 @@
+{
+  "branchName": "feature/visual-reports",
+  "projectName": "Visual Reports",
+  "description": "Replace the dense LLM text reports on the Reports page with three interactive Chart.js visualizations: income vs spending bar chart, spending-by-category doughnut, and category trends line chart. Keep Ask Pulse and What-If below the charts. Add a new multi-month trends API endpoint to power all three charts from a single request.",
+  "timing": {
+    "draftedOn": "2026-03-21",
+    "plannedEarliestExecution": "after Feature 16",
+    "gatingCondition": "None. Budget snapshots and categories are already stable."
+  },
+  "principles": [
+    "Charts should communicate financial patterns at a glance, replacing paragraph-form LLM summaries",
+    "One API call should power all three charts to minimize database round-trips",
+    "Dark and light theme support must work automatically via CSS variables",
+    "Reuse existing Chart.js 4.x dependency and category color data from the database",
+    "Ask Pulse and What-If remain available as interactive tools below the visualizations"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "charting": "Chart.js 4.x (already loaded on kids.html)",
+    "database": "PostgreSQL budget_snapshots + transactions for aggregated trend data",
+    "testing": "node:test for API and data-shaping coverage; manual chart rendering checks in browser until a DOM/browser harness is added"
+  },
+  "userStories": [
+    {
+      "id": "VIZ-017-001",
+      "title": "Multi-month trends API endpoint",
+      "acceptanceCriteria": [
+        "GET /api/budget/trends returns 6 months of data by default",
+        "Response includes per-month income, spending, net cash flow, and category breakdown",
+        "Current (in-progress) month uses a fresh snapshot for live data",
+        "months query param is capped at 12",
+        "Endpoint requires parent authentication"
+      ],
+      "priority": 1,
+      "estimatedLines": "+80/-0",
+      "testStrategy": "node:test integration coverage for response shape, month clamping, snapshot generation behavior, and parent auth guard.",
+      "passes": true
+    },
+    {
+      "id": "VIZ-017-002",
+      "title": "Income vs Spending bar chart",
+      "acceptanceCriteria": [
+        "Bar chart shows income (green) and spending (red) per month for 6 months",
+        "Net cash flow line overlays the bars",
+        "Month labels formatted as short names (Oct, Nov, etc.)",
+        "Tooltips show currency-formatted values",
+        "Works in both dark and light themes"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-0",
+      "testStrategy": "Automate dataset-shaping helpers with node:test once extracted; until then use manual browser checks for canvas rendering, tooltips, and theme toggle.",
+      "passes": false
+    },
+    {
+      "id": "VIZ-017-003",
+      "title": "Spending by category doughnut chart",
+      "acceptanceCriteria": [
+        "Doughnut chart shows category breakdown for a selected month",
+        "Month selector dropdown defaults to current month",
+        "Uses category colors from the database",
+        "Changing month re-renders only the doughnut chart",
+        "Same destroy/recreate pattern as kids.js"
+      ],
+      "priority": 1,
+      "estimatedLines": "+50/-0",
+      "testStrategy": "node:test coverage for category grouping rules (top 8 plus Other) if extracted into helpers, plus manual browser verification for month switching and no-data recovery.",
+      "passes": false
+    },
+    {
+      "id": "VIZ-017-004",
+      "title": "Category trends line chart",
+      "acceptanceCriteria": [
+        "Line chart shows top 5 spending categories over 6 months",
+        "Each line uses the category's database color",
+        "Smooth curves with tension",
+        "Legend identifies each category",
+        "Readable in both themes"
+      ],
+      "priority": 1,
+      "estimatedLines": "+50/-0",
+      "testStrategy": "node:test coverage for top-5 category selection if extracted into helpers, plus manual browser verification for legend readability and theme contrast.",
+      "passes": false
+    },
+    {
+      "id": "VIZ-017-005",
+      "title": "Reports page restructure",
+      "acceptanceCriteria": [
+        "Monthly Reports and Weekly Digest accordion sections are removed",
+        "Three chart sections appear above Ask Pulse",
+        "Ask Pulse, What-If, and Query History remain functional",
+        "Charts are responsive on mobile",
+        "Loading state while charts fetch data"
+      ],
+      "priority": 1,
+      "estimatedLines": "+30/-40",
+      "testStrategy": "node:test integration coverage for retained Ask/What-If history APIs; manual verification on desktop/mobile viewport for layout, chart stacking, and interaction continuity.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Budget snapshots may not exist for older months if backfill was never run — endpoint should handle sparse data gracefully"
+    ],
+    "low": [
+      "Chart.js CDN availability — already accepted risk from kids.html usage",
+      "Category colors may be null for some categories — fallback to accent color"
+    ]
+  },
+  "preFlightChecklist": [
+    "Verify budget_snapshots table has data for recent months",
+    "Confirm Chart.js CDN script loads correctly on reports.html",
+    "Check that category colors exist in the database for major categories"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Backend trends endpoint",
+      "goal": "Add getBudgetTrends() and GET /api/budget/trends route.",
+      "notes": [
+        "Query budget_snapshots + income from transactions in 2-3 SQL queries",
+        "Generate fresh snapshot for current month before querying"
+      ]
+    },
+    {
+      "name": "Slice B: Frontend charts",
+      "goal": "Replace report sections with three Chart.js visualizations.",
+      "notes": [
+        "Single API call powers all three charts",
+        "Theme-aware via CSS variable reads",
+        "Month selector for doughnut chart"
+      ]
+    },
+    {
+      "name": "Slice C: Testing strategy",
+      "goal": "Cover stable logic in node:test and document manual checks for browser-only behavior.",
+      "notes": [
+        "Add endpoint integration tests for /api/budget/trends covering defaults, auth, month bounds, and live snapshot refresh behavior",
+        "Prefer extracting pure dataset-building helpers from public/reports.js and test those helpers with node:test rather than trying to unit test Chart.js rendering",
+        "Do not add Playwright or jsdom as part of this feature; this repo currently uses zero test dependencies",
+        "Document a short manual checklist for canvas rendering, month switching, no-data recovery, theme toggle, and mobile layout"
+      ]
+    }
+  ],
+  "testPlan": {
+    "automatedNow": [
+      "GET /api/budget/trends returns expected periods and monthly objects for seeded data",
+      "months query parameter clamps to the supported range (1-12)",
+      "months=1 minimum bound returns exactly 1 period",
+      "Non-numeric months param (e.g. abc) falls back to default 6",
+      "Periods are chronological (oldest first) with current month last",
+      "Spending total equals sum of category spent values per month",
+      "net_cash_flow equals income minus spending per month",
+      "Category entries include id, name, spent, color, icon fields",
+      "Endpoint remains parent-only (401/403 without session)",
+      "Missing prior snapshots are generated on demand before trend data is returned",
+      "Current month snapshot is refreshed so current-period data stays live",
+      "Ask Pulse and What-If backend history remains covered by existing API tests"
+    ],
+    "recommendedNext": [
+      "Extract pure helper functions from public/reports.js for income/spending datasets, doughnut category grouping, and top-category trend selection",
+      "Add node:test unit coverage for those helpers, including empty months and top-8/top-5 truncation rules",
+      "If the team later wants DOM automation, add a lightweight DOM harness only after multiple pages need it"
+    ],
+    "manualChecklist": [
+      "Load reports.html as a parent and confirm all three chart canvases render",
+      "Switch the doughnut month selector to a populated month and a no-data month, then back again",
+      "Toggle light and dark theme and confirm axis labels, legends, and grid lines remain readable after the toggle without reload",
+      "Submit an Ask Pulse prompt and a What-If scenario and confirm the history list refreshes immediately",
+      "Check a narrow mobile viewport to confirm cards stack cleanly and charts remain visible without horizontal overflow"
+    ],
+    "nonGoals": [
+      "Pixel-perfect screenshot testing of Chart.js output",
+      "Adding Playwright or another browser test framework solely for this feature"
+    ]
+  },
+  "metrics": {
+    "estimatedTotalLines": "+320/-60",
+    "storiesCount": 5,
+    "filesCreated": [
+      "planning/features/feature-17-prd.json",
+      "planning/features/feature-17-summary.md"
+    ],
+    "filesModified": [
+      "lib/budget-calculator.js",
+      "lib/routes/budget.js",
+      "public/reports.html",
+      "public/reports.js",
+      "public/style.css",
+      "planning/current-feature.json"
+    ]
+  }
+}
