@@ -257,9 +257,9 @@ if (require.main === module) {
 
   // Sunday 6 PM — weekly spending digest
   cron.schedule('0 18 * * 0', () => {
-    const { generateWeeklyDigest } = require('./lib/magic-actions/weekly-digest');
+    const { generateWeeklyDigest, currentWeeklyDigestPeriod } = require('./lib/magic-actions/weekly-digest');
     logger.info('Weekly digest cron triggered');
-    generateWeeklyDigest(null, cfg).catch(err => logger.error('Weekly digest failed', { error: err.message }));
+    generateWeeklyDigest(currentWeeklyDigestPeriod(), cfg).catch(err => logger.error('Weekly digest failed', { error: err.message }));
   }, { timezone: TZ });
 
   // 1st of month at 7 AM — monthly close report (after the 6 AM snapshot)

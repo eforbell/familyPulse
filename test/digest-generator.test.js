@@ -5,6 +5,7 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { pool } = require('../lib/db');
 const { sanitizeForLLM } = require('../lib/secrets-guard');
+const { currentWeeklyDigestPeriod } = require('../lib/magic-actions/weekly-digest');
 
 const TEST_PERIOD = '2025-06';
 
@@ -82,5 +83,20 @@ describe('digest-generator', () => {
     } finally {
       if (savedKey) process.env.OPENAI_API_KEY = savedKey;
     }
+  });
+
+  it('uses the prior Sunday before the Sunday evening release window', () => {
+    const period = currentWeeklyDigestPeriod(new Date('2026-03-22T17:59:00'));
+    assert.equal(period, '2026-03-15');
+  });
+
+  it('uses the current Sunday once the release window starts', () => {
+    const period = currentWeeklyDigestPeriod(new Date('2026-03-22T18:00:00'));
+    assert.equal(period, '2026-03-22');
+  });
+
+  it('uses the most recent Sunday during the week', () => {
+    const period = currentWeeklyDigestPeriod(new Date('2026-03-25T09:30:00'));
+    assert.equal(period, '2026-03-22');
   });
 });
