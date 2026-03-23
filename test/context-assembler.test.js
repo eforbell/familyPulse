@@ -1,9 +1,45 @@
 'use strict';
 
 require('dotenv').config();
-const { describe, it } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
 const { sanitizeForLLM } = require('../lib/secrets-guard');
+const { getRecurringContextSummary } = require('../lib/magic-actions/context-assembler');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+let recurringId;
+
+before(async () => {
+  const migrationSql = fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '014-recurring-expenses.sql'),
+    'utf8'
+  );
+  await pool.query(migrationSql);
+  const { rows: [row] } = await pool.query(`
+    INSERT INTO recurring_expenses (
+      merchant_key, merchant_name, cashflow_type, frequency, confidence, status,
+      latest_amount, price_change_pct, price_change_direction, price_change_date,
+      first_seen_date, last_seen_date, expected_next_date, interval_days, tolerance_days,
+      schedule_anchor_type, schedule_anchor_value, source_txn_count
+    )
+    VALUES (
+      'netflix com', 'Netflix', 'expense', 'monthly', 'high', 'active',
+      22.99, 48.42, 'up', current_date,
+      '2026-01-05', '2026-04-05', current_date + 20, 30, 3,
+      'day_of_month', '5', 4
+    )
+    RETURNING id
+  `);
+  recurringId = row.id;
+});
+
+after(async () => {
+  await pool.query('DELETE FROM recurring_expenses WHERE id = $1', [recurringId]);
+  await pool.end();
+});
 
 describe('context-assembler', () => {
   it('assembleWeeklyContext returns sanitized data', async () => {
@@ -78,5 +114,14 @@ describe('context-assembler', () => {
     const sanitized = sanitizeForLLM(snapshot);
     assert.equal(sanitized.savings_rate_pct, 31);
     assert.equal(sanitized.net_position, 71500);
+  });
+
+  it('getRecurringContextSummary returns recurring context shape', async () => {
+    const context = await getRecurringContextSummary();
+    assert.ok(typeof context.committed_monthly_total === 'number');
+    assert.ok(typeof context.count_active === 'number');
+    assert.ok(Array.isArray(context.top_recurring));
+    assert.ok(Array.isArray(context.price_increases));
+    assert.ok(Array.isArray(context.upcoming_annual_renewals));
   });
 });

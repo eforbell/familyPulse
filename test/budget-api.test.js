@@ -60,6 +60,10 @@ describe('budget API', () => {
     assert.ok(typeof data.spending.actual === 'number');
     assert.ok(typeof data.spending.budgeted === 'number');
     assert.ok(typeof data.net_cash_flow === 'object');
+    assert.ok(typeof data.committed_total === 'number');
+    assert.ok(typeof data.discretionary_total === 'number');
+    assert.ok(typeof data.recurring_income_total === 'number');
+    assert.ok(typeof data.recurring_count === 'number');
     assert.ok(typeof data.uncategorized === 'object');
     assert.ok(typeof data.uncategorized.spent === 'number');
     assert.ok(typeof data.uncategorized.count === 'number');

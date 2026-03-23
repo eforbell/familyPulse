@@ -53,6 +53,25 @@ function renderSummary() {
   $('summary-net').textContent = fmtMoney(net);
   $('summary-net').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
   $('summary-net-prior').textContent = `Prior: ${fmtMoney(d.net_cash_flow.prior)}`;
+
+  const strip = $('commitment-strip');
+  if (strip) {
+    strip.classList.remove('hidden');
+    strip.innerHTML = `
+      <div class="commitment-pill">
+        <span class="commitment-pill-label">Committed</span>
+        <strong>${fmtMoney(d.committed_total)}</strong>
+      </div>
+      <div class="commitment-pill">
+        <span class="commitment-pill-label">Discretionary</span>
+        <strong>${fmtMoney(d.discretionary_total)}</strong>
+      </div>
+      <div class="commitment-pill">
+        <span class="commitment-pill-label">Recurring Income</span>
+        <strong>${fmtMoney(d.recurring_income_total)}</strong>
+      </div>
+    `;
+  }
 }
 
 // ── Render: Obligations ──────────────────────────────────────

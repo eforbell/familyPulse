@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Family Pulse | Recurring</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-nav-page="recurring">
+  <div id="recurring-detail-overlay" class="overlay hidden">
+    <div class="overlay-box recurring-detail-box">
+      <h2 id="recurring-detail-title">Recurring Detail</h2>
+      <div id="recurring-detail-meta" class="recurring-detail-meta"></div>
+      <div id="recurring-detail-status-group" class="recurring-status-group hidden"></div>
+      <div id="recurring-detail-feedback" class="recurring-detail-feedback hidden"></div>
+      <div id="recurring-detail-history" class="detail-txn-list"></div>
+      <button class="btn-ghost" style="width:100%;margin-top:0.75rem" onclick="closeRecurringDetail()">Close</button>
+    </div>
+  </div>
+
+  <div id="app">
+    <header>
+      <h1>Recurring</h1>
+      <div></div>
+    </header>
+
+    <div id="recurring-summary" class="budget-summary loading-pulse">
+      <div class="summary-row">
+        <div class="summary-item">
+          <div class="summary-label">COMMITTED MONTHLY</div>
+          <div id="recurring-committed" class="summary-value">--</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">RECURRING INCOME</div>
+          <div id="recurring-income" class="summary-value" style="color:var(--green)">--</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">ACTIVE PATTERNS</div>
+          <div id="recurring-active" class="summary-value">--</div>
+        </div>
+      </div>
+      <div id="commitment-strip" class="commitment-strip hidden"></div>
+    </div>
+
+    <section>
+      <h2 class="section-heading">Upcoming 30 Days</h2>
+      <div id="bill-calendar" class="recurring-section-card">
+        <div class="empty-state loading-pulse">Loading calendar…</div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-heading">Active Recurring</h2>
+      <div id="recurring-list" class="recurring-list">
+        <div class="empty-state loading-pulse">Loading recurring items…</div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-heading">Stale Or Paused</h2>
+      <div id="recurring-stale" class="recurring-list">
+        <div class="empty-state loading-pulse">Loading stale items…</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="nav.js"></script>
+  <script src="recurring.js"></script>
+</body>
+</html>

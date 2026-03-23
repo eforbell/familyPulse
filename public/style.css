@@ -1103,6 +1103,34 @@ header h1 {
   margin-top: 0.2rem;
 }
 
+.commitment-strip {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.commitment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.commitment-pill-label {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
 .budget-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1248,6 +1276,187 @@ header h1 {
   cursor: default;
 }
 .budget-card-uncat:hover { background: rgba(234,179,8,0.06); border-color: var(--yellow); transform: none; box-shadow: var(--shadow-card); }
+
+/* ── Recurring page ───────────────────────────────────────── */
+
+.recurring-section-card,
+.recurring-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.recurring-section-card {
+  padding: 0.35rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.recurring-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 1.5rem;
+}
+
+.recurring-card {
+  padding: 0.95rem 1rem;
+}
+
+.recurring-card-top,
+.recurring-card-bottom,
+.calendar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.recurring-card-bottom {
+  margin-top: 0.65rem;
+}
+
+.recurring-merchant,
+.calendar-merchant {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.recurring-meta,
+.calendar-meta,
+.calendar-running,
+.recurring-account {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.recurring-amount,
+.calendar-amount {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recurring-amount.credit {
+  color: var(--green);
+}
+
+.recurring-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.recurring-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recurring-badge-income {
+  color: var(--green);
+  border-color: rgba(34,197,94,0.28);
+  background: rgba(34,197,94,0.12);
+}
+
+.recurring-badge-confidence {
+  color: var(--accent);
+  border-color: var(--accent-border-soft);
+  background: var(--accent-soft);
+}
+
+.recurring-badge-alert {
+  color: var(--red);
+  border-color: rgba(248,113,113,0.28);
+  background: rgba(248,113,113,0.1);
+}
+
+.recurring-badge-muted {
+  color: var(--dim);
+}
+
+.calendar-row {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.calendar-row:last-child {
+  border-bottom: none;
+}
+
+.calendar-date {
+  width: 4.5rem;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.calendar-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-side {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.recurring-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.recurring-card-action {
+  margin-top: 0.85rem;
+  width: 100%;
+}
+
+.recurring-detail-box {
+  max-width: 540px;
+}
+
+.recurring-detail-meta {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.recurring-status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.recurring-status-group.hidden {
+  display: none;
+}
+
+.recurring-status-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.recurring-detail-feedback {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+
+.recurring-detail-feedback.error {
+  color: var(--red);
+}
 
 /* Budget detail overlay */
 .detail-txn-list {
@@ -2179,6 +2388,12 @@ header h1 {
   .budget-grid { grid-template-columns: 1fr; }
   .summary-row { flex-direction: column; gap: 0.75rem; }
   .theme-switch { grid-template-columns: 1fr; }
+  .commitment-strip { flex-direction: column; }
+  .calendar-row,
+  .recurring-card-top,
+  .recurring-card-bottom { flex-direction: column; align-items: flex-start; }
+  .calendar-date,
+  .calendar-side { width: auto; text-align: left; }
 
   /* Hide account name on mobile tx rows — saves horizontal space */
   .tx-account { display: none; }

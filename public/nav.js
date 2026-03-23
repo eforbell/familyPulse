@@ -12,6 +12,7 @@
     'building-columns': '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17h16M3 14h14M10 3L2 8h16L10 3z"/><path d="M5 8v6M8 8v6M12 8v6M15 8v6"/></svg>',
     'credit-card': '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 9h16"/><path d="M5 13h3"/></svg>',
     wallet: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="16" height="13" rx="2"/><path d="M2 7h16"/><path d="M14 11.5a.5.5 0 100-1 .5.5 0 000 1z" fill="currentColor"/></svg>',
+    repeat: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9a3 3 0 013 3v1"/><path d="M13.5 4.5 16 7l-2.5 2.5"/><path d="M16 14H7a3 3 0 01-3-3v-1"/><path d="M6.5 15.5 4 13l2.5-2.5"/></svg>',
     'chart-bar': '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17V9M7 17V5M11 17V8M15 17V3"/></svg>',
     tag: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10.5V4a2 2 0 012-2h6.5L18 9.5 10.5 17 2 10.5z"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/></svg>',
     gear: '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v2M10 16.5v2M3.5 3.5l1.4 1.4M15.1 15.1l1.4 1.4M1.5 10h2M16.5 10h2M3.5 16.5l1.4-1.4M15.1 4.9l1.4-1.4"/></svg>',
@@ -25,6 +26,7 @@
     { id: 'accounts',      label: 'Accounts',     icon: 'building-columns', href: 'accounts.html' },
     { id: 'transactions',  label: 'Transactions', icon: 'credit-card',      href: 'transactions.html' },
     { id: 'budget',        label: 'Budget',       icon: 'wallet',           href: 'budget.html' },
+    { id: 'recurring',     label: 'Recurring',    icon: 'repeat',           href: 'recurring.html' },
     { id: 'reports',       label: 'Reports',      icon: 'chart-bar',        href: 'reports.html' },
     { id: 'categories',    label: 'Categories',   icon: 'tag',              href: 'admin.html' },
     { id: 'settings',      label: 'Settings',     icon: 'gear',             href: 'settings.html' }
@@ -98,7 +100,7 @@
           <img src="icon-32.png" alt="Pulse" width="34" height="34">
           <div>
             <div class="more-sheet-brand-title">Family Pulse</div>
-            <div class="more-sheet-brand-copy">Reports, categories, settings</div>
+            <div class="more-sheet-brand-copy">Recurring, reports, categories, settings</div>
           </div>
         </div>
         ${moreItems.map(item => {

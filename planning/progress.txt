@@ -84,3 +84,13 @@
   - MCP server exists (Feature 8) but Claude Desktop can't connect to it, so forecast analysis must
     live within the app UI — not depend on external Claude access.
   - Full PRD specs (JSON + summary MD) written for both features.
+
+2026-03-22 (Feature 19 kickoff)
+- Feature 19 renamed from "Recurring Expense Intelligence" to "Recurring Cashflow Intelligence"
+  to make recurring income and recurring expense schedules first-class inputs for Feature 20.
+- Created implementation branch: `feature/recurring-cashflow-intelligence`.
+- Implementation plan set:
+  - Slice A: migration 014, merchant normalization, recurring detector core, unit tests
+  - Slice B: price history, bill calendar, recurring API routes
+  - Slice C: sync integration in `lib/sync.js`, incremental detection, error isolation
+  - Slice D/E: recurring UI, budget/dashboard integration, LLM context enrichment

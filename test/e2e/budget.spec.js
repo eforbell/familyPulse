@@ -30,6 +30,7 @@ test.describe('Budget page (parent)', () => {
     await expect(page.locator('#summary-income')).toBeVisible();
     await expect(page.locator('#summary-spending')).toBeVisible();
     await expect(page.locator('#summary-net')).toBeVisible();
+    await expect(page.locator('#commitment-strip')).toBeVisible();
   });
 
   test('month navigation changes the label', async ({ page }) => {

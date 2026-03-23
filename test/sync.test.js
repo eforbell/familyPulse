@@ -9,6 +9,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { syncAll, classifyItemFailure } = require('../lib/sync');
 const plaid = require('../lib/plaid-client');
 const { LIABILITY_ACCESS_STATUS } = require('../lib/liability-access');
+const recurringDetector = require('../lib/recurring-detector');
 
 after(async () => {
   await pool.end();
@@ -345,5 +346,60 @@ describe('sync — disconnected items', () => {
       [disconnectedItemId]
     );
     assert.equal(row.status, 'disconnected');
+  });
+});
+
+describe('sync — recurring detection integration', () => {
+  const originalGetAccounts = plaid.getAccounts;
+  const originalSyncTransactions = plaid.syncTransactions;
+  const originalDetectRecurringCashflows = recurringDetector.detectRecurringCashflows;
+  let recurringItemId;
+
+  before(async () => {
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-recurring-sync', 'test-item-recurring-sync', 'ins_recurring_sync', 'Recurring Sync Bank', 'good')
+      ON CONFLICT (item_id) DO UPDATE SET status = 'good'
+      RETURNING id
+    `);
+    recurringItemId = item.id;
+  });
+
+  after(async () => {
+    plaid.getAccounts = originalGetAccounts;
+    plaid.syncTransactions = originalSyncTransactions;
+    recurringDetector.detectRecurringCashflows = originalDetectRecurringCashflows;
+    await pool.query("DELETE FROM items WHERE item_id = 'test-item-recurring-sync'");
+  });
+
+  it('includes recurring_detected in sync results', async () => {
+    plaid.getAccounts = async () => ({ accounts: [] });
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-recurring-sync'
+    });
+    recurringDetector.detectRecurringCashflows = async () => ({ candidates: [{ id: 1 }, { id: 2 }] });
+
+    const result = await syncAll();
+    assert.equal(result.recurring_detected, 2);
+  });
+
+  it('isolates recurring detection failures from sync success', async () => {
+    plaid.getAccounts = async () => ({ accounts: [] });
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-recurring-sync-fail'
+    });
+    recurringDetector.detectRecurringCashflows = async () => {
+      throw new Error('Recurring detector boom');
+    };
+
+    const result = await syncAll();
+    assert.equal(result.recurring_detected, 0);
+    assert.ok(result.items >= 1);
   });
 });

@@ -40,7 +40,7 @@ app.use(async (req, res, next) => {
 
 const HTML_PAGES = new Set([
   '/', '/index.html', '/accounts.html', '/transactions.html',
-  '/budget.html', '/reports.html', '/admin.html', '/settings.html', '/import.html',
+  '/budget.html', '/recurring.html', '/reports.html', '/admin.html', '/settings.html', '/import.html',
   '/kids.html'
 ]);
 
@@ -180,6 +180,7 @@ app.use(require('./lib/routes/categories'));
 app.use(require('./lib/routes/link'));
 app.use(require('./lib/routes/import'));
 app.use(require('./lib/routes/budget'));
+app.use(require('./lib/routes/recurring'));
 app.use(require('./lib/routes/anomalies'));
 app.use(require('./lib/routes/magic-actions'));
 app.use(require('./lib/routes/kids'));

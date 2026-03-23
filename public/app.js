@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   updateWhoBtn();
-  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator()]);
+  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator(), loadRecurringIndicator()]);
   await loadTransactions();
   loadMagicPanel();
   bindMagicInputShortcuts();
@@ -71,6 +71,25 @@ async function loadCoverageIndicator() {
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Coverage indicator failed:', err);
+  }
+}
+
+async function loadRecurringIndicator() {
+  try {
+    const data = await api('api/recurring/summary');
+    const el = $('recurring-indicator');
+    if (!el) return;
+    if (!data || (!data.committed_monthly_total && !data.active_count)) {
+      el.classList.add('hidden');
+      return;
+    }
+    el.innerHTML = `<a href="recurring.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
+      <span>Recurring plan: <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</span>
+      <span style="color:var(--muted)">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</span>
+    </a>`;
+    el.classList.remove('hidden');
+  } catch (err) {
+    console.error('Recurring indicator failed:', err);
   }
 }
 

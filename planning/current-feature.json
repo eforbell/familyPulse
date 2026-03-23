@@ -1,6 +1,6 @@
 {
-  "currentFeature": "Feature #19: Recurring Expense Intelligence",
-  "status": "planned",
+  "currentFeature": "Feature #19: Recurring Cashflow Intelligence",
+  "status": "in_progress",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",

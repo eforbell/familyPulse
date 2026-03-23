@@ -58,5 +58,8 @@ INSERT INTO app_config (key, value) VALUES
   ('magic_rate_limit_daily', '10'),
   ('magic_disclaimer', 'AI-generated analysis — not financial advice.'),
   ('coverage_alert_threshold', '0.70'),
-  ('balance_basis', 'available_preferred')
+  ('balance_basis', 'available_preferred'),
+  ('recurring_amount_tolerance_pct', '10'),
+  ('recurring_lookback_months', '18'),
+  ('recurring_last_detection_at', '')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

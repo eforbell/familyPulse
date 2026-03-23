@@ -4,6 +4,8 @@ require('dotenv').config();
 const { describe, it, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 // Requires a running Postgres with the schema applied
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -13,10 +15,21 @@ after(async () => {
 });
 
 describe('database schema', () => {
+  it('applies migration 014 for recurring schema checks', async () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '014-recurring-expenses.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+    });
+  });
+
   const expectedTables = [
     'items', 'accounts', 'transactions', 'categories', 'category_rules',
     'budget_snapshots', 'planning_goals', 'savings_signals',
     'magic_actions_log', 'anomalies', 'import_runs', 'dedup_runs', 'family_members', 'app_config',
+    'recurring_expenses', 'recurring_expense_history',
     'schema_migrations'
   ];
 
@@ -56,6 +69,19 @@ describe('database schema', () => {
       WHERE table_name = 'app_config' AND constraint_type = 'PRIMARY KEY'
     `);
     assert.equal(rows.length, 1);
+  });
+
+  it('recurring_expenses identity index coalesces nullable anchor fields', async () => {
+    const { rows } = await pool.query(`
+      SELECT indexdef
+      FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'recurring_expenses'
+        AND indexname = 'ux_recurring_expenses_identity'
+    `);
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].indexdef, /COALESCE\(schedule_anchor_type, ''(?:::text)?\)/);
+    assert.match(rows[0].indexdef, /COALESCE\(schedule_anchor_value, ''(?:::text)?\)/);
   });
 
   it('migration is idempotent (re-run does not fail)', async () => {
