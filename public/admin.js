@@ -42,7 +42,9 @@ function renderCategories() {
         <span class="cat-swatch" style="background:${c.color}"></span>
         <div class="admin-row-copy">
           <span class="name">${c.icon || ''} ${esc(c.name)}</span>
-          <span class="meta">${c.transaction_count} txns${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · baseline excluded' : ''}</span>
+          <span class="meta">
+            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · baseline excluded' : ''}
+          </span>
         </div>
       </div>
       <div class="admin-row-actions">

@@ -777,6 +777,14 @@ header h1 {
 
 .admin-row .name { font-weight: 600; }
 .admin-row .meta { font-size: var(--text-sm); color: var(--muted); }
+.admin-inline-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+}
+.admin-inline-link:hover {
+  color: var(--accent);
+}
 .admin-inline-toggle {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--border);
