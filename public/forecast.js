@@ -186,7 +186,7 @@ function renderChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1e1e1e',
+          backgroundColor: style.getPropertyValue('--surface2').trim() || '#1e1e1e',
           titleColor: textColor,
           bodyColor: textColor,
           borderColor: gridColor,
