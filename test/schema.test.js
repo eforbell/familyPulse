@@ -35,6 +35,16 @@ describe('database schema', () => {
     });
   });
 
+  it('applies migration 016 for category baseline exclusion', async () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '016-category-baseline-exclusion.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+    });
+  });
+
   const expectedTables = [
     'items', 'accounts', 'transactions', 'categories', 'category_rules',
     'budget_snapshots', 'planning_goals', 'savings_signals',

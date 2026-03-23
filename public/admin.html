@@ -39,6 +39,9 @@
       <label class="checkbox-row">
         <input type="checkbox" id="cat-income"> Is income
       </label>
+      <label class="checkbox-row" style="margin-top:0.75rem">
+        <input type="checkbox" id="cat-exclude-from-baseline"> Exclude from forecast discretionary baseline
+      </label>
       <div class="form-actions">
         <button class="btn-primary" onclick="saveCategory()">Save</button>
         <button class="btn-ghost" onclick="closeCategoryForm()">Cancel</button>
@@ -90,6 +93,9 @@
         <h2 class="section-heading" style="margin:0">Categories</h2>
         <button class="btn-primary" onclick="openCategoryForm()">+ New</button>
       </div>
+      <p class="settings-help-copy" style="margin-bottom:0.75rem">
+        Exclude categories like healthcare or travel when they distort the forecast's discretionary baseline.
+      </p>
       <div id="category-admin-list" class="admin-list"></div>
     </section>
 

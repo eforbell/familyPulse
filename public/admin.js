@@ -40,10 +40,22 @@ function renderCategories() {
     <div class="admin-row">
       <div class="admin-row-info">
         <span class="cat-swatch" style="background:${c.color}"></span>
-        <span class="name">${c.icon || ''} ${esc(c.name)}</span>
-        <span class="meta">${c.transaction_count} txns${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}</span>
+        <div class="admin-row-copy">
+          <span class="name">${c.icon || ''} ${esc(c.name)}</span>
+          <span class="meta">${c.transaction_count} txns${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · baseline excluded' : ''}</span>
+        </div>
       </div>
       <div class="admin-row-actions">
+        ${!c.is_income && !c.is_transfer_class ? `
+          <label class="checkbox-row admin-inline-toggle" title="Exclude this category from forecast baseline">
+            <input
+              type="checkbox"
+              ${c.exclude_from_baseline ? 'checked' : ''}
+              onchange="toggleBaselineExclusion(${c.id}, this.checked)"
+            >
+            Baseline
+          </label>
+        ` : ''}
         <button class="btn-ghost" onclick="openCategoryForm(${c.id})">Edit</button>
         <button class="btn-danger" onclick="deleteCategory(${c.id})">Delete</button>
       </div>
@@ -59,6 +71,7 @@ function openCategoryForm(id) {
   $('cat-budget').value = cat?.budget_amount || '';
   $('cat-icon').value = cat?.icon || '';
   $('cat-income').checked = cat?.is_income || false;
+  $('cat-exclude-from-baseline').checked = cat?.exclude_from_baseline || false;
   selectedColor = cat?.color || '#6b7280';
 
   // Render color palette
@@ -88,7 +101,8 @@ async function saveCategory() {
     budget_amount: $('cat-budget').value ? parseFloat($('cat-budget').value) : null,
     icon: $('cat-icon').value.trim() || null,
     is_income: $('cat-income').checked,
-    is_transfer_class: false
+    is_transfer_class: false,
+    exclude_from_baseline: $('cat-exclude-from-baseline').checked
   };
 
   if (!body.name) return alert('Name is required');
@@ -122,6 +136,23 @@ async function deleteCategory(id) {
     await loadCategories();
   } catch (err) {
     alert(err.message);
+  }
+}
+
+async function toggleBaselineExclusion(id, checked) {
+  const cat = categories.find(c => c.id === id);
+  if (!cat) return;
+
+  try {
+    await api(`api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exclude_from_baseline: checked })
+    });
+    await loadCategories();
+  } catch (err) {
+    alert(err.message);
+    await loadCategories();
   }
 }
 

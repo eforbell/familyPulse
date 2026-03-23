@@ -761,13 +761,30 @@ header h1 {
   gap: 0.6rem;
 }
 
+.admin-row-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .admin-row-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .admin-row .name { font-weight: 600; }
 .admin-row .meta { font-size: var(--text-sm); color: var(--muted); }
+.admin-inline-toggle {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
 
 /* ── Form overlay fields ───────────────────────────────────── */
 

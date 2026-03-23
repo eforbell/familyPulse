@@ -13,9 +13,17 @@ let protectedCategoryId;
 let ruleCategoryId;
 
 before(async () => {
+  const fs = require('fs');
+  const path = require('path');
   server = app.listen(0);
   const port = server.address().port;
   baseUrl = `http://127.0.0.1:${port}`;
+
+  const migrationSql = fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '016-category-baseline-exclusion.sql'),
+    'utf8'
+  );
+  await pool.query(migrationSql);
 
   const { rows: [protectedCategory] } = await pool.query(`
     INSERT INTO categories (name, color, icon)
@@ -75,12 +83,13 @@ describe('POST /api/categories', () => {
     const res = await fetch(`${baseUrl}/api/categories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Test Cat Alpha', color: '#ff0000', icon: '🧪' })
+      body: JSON.stringify({ name: 'Test Cat Alpha', color: '#ff0000', icon: '🧪', exclude_from_baseline: true })
     });
     assert.equal(res.status, 201);
     const data = await res.json();
     assert.equal(data.name, 'Test Cat Alpha');
     assert.equal(data.color, '#ff0000');
+    assert.equal(data.exclude_from_baseline, true);
   });
 
   it('rejects duplicate name', async () => {
@@ -112,12 +121,13 @@ describe('PUT /api/categories/:id', () => {
     const res = await fetch(`${baseUrl}/api/categories/${cat.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Test Cat Alpha Updated', color: '#0000ff' })
+      body: JSON.stringify({ name: 'Test Cat Alpha Updated', color: '#0000ff', exclude_from_baseline: false })
     });
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.name, 'Test Cat Alpha Updated');
     assert.equal(data.color, '#0000ff');
+    assert.equal(data.exclude_from_baseline, false);
   });
 });
 

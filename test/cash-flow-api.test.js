@@ -56,6 +56,11 @@ describe('planned expenses API', () => {
       'utf8'
     );
     await pool.query(migrationSql);
+    const migration016Sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '016-category-baseline-exclusion.sql'),
+      'utf8'
+    );
+    await pool.query(migration016Sql);
 
     // Create sessions
     const { rows: parents } = await pool.query(
@@ -308,6 +313,26 @@ describe('planned expenses API', () => {
     it('rejects kid session', async () => {
       const res = await kidReq('api/cash-flow/forecast');
       assert.ok([401, 403].includes(res.status));
+    });
+
+    it('invalidates cached forecast when category baseline exclusion changes', async () => {
+      await pool.query('DELETE FROM cash_flow_snapshots');
+      const firstRes = await req('api/cash-flow/forecast');
+      assert.equal(firstRes.status, 200);
+
+      const { rows: [category] } = await pool.query(
+        "SELECT id, exclude_from_baseline FROM categories WHERE is_income = false AND is_transfer_class = false ORDER BY id LIMIT 1"
+      );
+      assert.ok(category, 'Expected at least one spending category');
+
+      const updateRes = await req(`api/categories/${category.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ exclude_from_baseline: !category.exclude_from_baseline })
+      });
+      assert.equal(updateRes.status, 200);
+
+      const { rows: snapshotRows } = await pool.query('SELECT count(*)::int AS count FROM cash_flow_snapshots');
+      assert.equal(snapshotRows[0].count, 0);
     });
   });
 
