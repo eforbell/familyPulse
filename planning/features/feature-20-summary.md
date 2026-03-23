@@ -31,9 +31,12 @@ rolling cash flow forecast:
    flag the exact date and deficit amount
 3. **Monthly surplus/deficit cards** — for each of the next 3 months: expected income,
    expected outflow, projected net, and end-of-month balance
-4. **Planned expense manager** — simple UI to add/remove one-time future expenses that overlay
+4. **Excess liquidity guidance** — if the projected minimum balance stays well above the
+   household reserve target, show how much cash could be moved productively without putting
+   near-term obligations at risk
+5. **Planned expense manager** — simple UI to add/remove one-time future expenses that overlay
    onto the forecast
-5. **Scenario toggles** — turn planned expenses on/off to see their impact on the trajectory
+6. **Scenario toggles** — turn planned expenses on/off to see their impact on the trajectory
 
 ### How It Computes
 The forecast engine builds a day-by-day ledger:
@@ -44,6 +47,10 @@ The forecast engine builds a day-by-day ledger:
   historical discretionary average for that calendar month, already excluding recurring
   cashflows from the baseline
 - Planned one-time expenses are subtracted on their scheduled date
+- Reserve target is computed from the safety floor and a configurable number of months of
+  committed recurring expenses
+- If the projected minimum balance over the full 90-day horizon stays meaningfully above that
+  reserve target, the engine emits an excess-liquidity opportunity estimate
 - Confidence bands widen over time: ±5% at 7 days, ±15% at 30 days, ±25% at 90 days
   (or can be deferred in v1 if the heuristic is not yet trusted)
 
@@ -68,6 +75,8 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 - **Daily granularity, not hourly** — charges post daily; intra-day precision is noise.
 - **Safety floor is configurable** — default $3,000 (app_config), since that's roughly
   1× monthly committed obligations for the Forbell household.
+- **Good-state guidance matters too** — the forecast should not only warn about shortfalls;
+  it should also say when idle cash appears safely above the household reserve target.
 - **No liability double-counting** — liability minimum payments come from Plaid liability data;
   matching recurring debt-service transactions are excluded from forecast expense inputs
 
@@ -107,6 +116,7 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 - Discretionary estimation: seasonal discretionary baseline = daily discretionary burn
 - Planned expense impact: one-time charge reduces balance on scheduled date
 - Danger zone detection: flags correct date when balance crosses safety floor
+- Excess-liquidity detection: flags when projected minimum balance stays materially above reserve target
 - Confidence bands: width increases proportionally over forecast horizon
 - Monthly summary cards: income/outflow/net/end-balance computed correctly
 - API endpoint response shapes and auth guards
@@ -118,6 +128,7 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
 - Add a planned expense and verify the chart updates with the impact
 - Toggle a planned expense off and verify the trajectory recovers
 - Check danger zone alert appears when a large planned expense would deplete balance
+- Check that a healthy forecast surfaces a reasonable excess-cash recommendation instead of only a neutral/healthy status
 - Verify monthly summary cards align with mental model of upcoming months
 - Mobile layout: chart remains usable, planned expenses list is scrollable
 - Dashboard widget shows a concise forecast summary

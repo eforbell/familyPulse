@@ -1,7 +1,7 @@
 {
   "branchName": "feature/predictive-cash-flow",
   "projectName": "Predictive Cash Flow Engine",
-  "description": "Deterministic 90-day cash flow forecasting engine that synthesizes recurring cashflows (Feature 19), Plaid liability obligations, seasonal discretionary spending patterns, and manually planned one-time expenses into a day-by-day balance projection with confidence bands, danger zone detection, and scenario toggling. Turns Family Pulse from a rearview mirror into a windshield.",
+  "description": "Deterministic 90-day cash flow forecasting engine that synthesizes recurring cashflows (Feature 19), Plaid liability obligations, seasonal discretionary spending patterns, and manually planned one-time expenses into a day-by-day balance projection with confidence bands, danger zone detection, excess-liquidity guidance, and scenario toggling. Turns Family Pulse from a rearview mirror into a windshield.",
   "timing": {
     "draftedOn": "2026-03-22",
     "plannedEarliestExecution": "after Feature 19",
@@ -15,6 +15,7 @@
     "Planned expenses are simple data entry, not financial planning software — name, amount, date, done.",
     "Forecast refreshes automatically after sync but is cached between syncs — never stale, never wastefully recomputed.",
     "Daily granularity is sufficient — charges post daily, intra-day precision is noise.",
+    "The forecast should help in both bad and good states — not just warn when cash is tight, but also point out when excess idle cash can be moved safely without compromising near-term obligations.",
     "The forecast is the foundation for deferred Feature 9 (Planning & Goals) — savings signal, goal projections, and tuition horizons all derive from forecast data.",
     "SECRETS INVARIANT: forecast data contains only derived amounts and dates — no account numbers, tokens, or raw Plaid data in API responses or LLM context."
   ],
@@ -102,6 +103,24 @@
       "passes": false
     },
     {
+      "id": "FCF-020-004A",
+      "title": "Excess liquidity opportunity detection",
+      "acceptanceCriteria": [
+        "Configurable target reserve via app_config key cash_reserve_target_months (default 3.0 months of committed recurring expenses) or cash_reserve_target_amount override if explicitly set",
+        "Compute reserve target as: max(safety_floor, committed_monthly_total × cash_reserve_target_months, cash_reserve_target_amount when present)",
+        "If the 90-day projected minimum balance remains above reserve target by a meaningful margin, flag an excess-liquidity opportunity",
+        "Opportunity output: { reserve_target, projected_min_balance, excess_amount, recommendation_level }",
+        "recommendation_level values: none, modest, strong",
+        "Modest recommendation when excess amount is positive but <1 month of committed recurring expenses; strong when excess amount is >=1 month of committed recurring expenses",
+        "Opportunity calculation is conservative: uses projected minimum balance over the full 90-day horizon, not current balance or month-end snapshots",
+        "GET /api/cash-flow/forecast and GET /api/cash-flow/monthly-outlook include excess-liquidity summary fields for UI and LLM consumers"
+      ],
+      "priority": 1,
+      "estimatedLines": "+70/-0",
+      "testStrategy": "node:test: (1) no recommendation when projected minimum sits below reserve target. (2) modest recommendation when projected minimum exceeds target by a small amount. (3) strong recommendation when projected minimum materially exceeds target. (4) cash_reserve_target_amount override beats month-based target.",
+      "passes": false
+    },
+    {
       "id": "FCF-020-005",
       "title": "Planned expenses CRUD",
       "acceptanceCriteria": [
@@ -146,10 +165,11 @@
         "Balance trajectory chart: Chart.js line chart with projected balance line, confidence band as filled area, safety floor as horizontal dashed line, danger zones highlighted in red",
         "Chart x-axis: dates. Chart y-axis: dollar amounts. Tooltip shows date, projected balance, events",
         "Monthly outlook cards below chart: 3 cards for next 3 months, each showing income/outflow/net/end-balance with color coding (green surplus, red deficit)",
+        "When excess-liquidity opportunity exists, hero or assumptions panel shows a positive recommendation such as 'You could move about $X without dropping below your reserve target'",
         "Planned expenses section: list of planned items with add/edit/delete. Toggle switch per item to include/exclude from forecast (scenario toggling)",
         "Toggling a planned expense on/off immediately re-renders the chart with updated projection",
         "Danger zone banner: if any danger zone within 30 days, prominent alert with date and amount",
-        "Forecast assumptions section: expandable list of detected income sources, recurring expenses, liability payments, discretionary baseline, and included planned expenses",
+        "Forecast assumptions section: expandable list of detected income sources, recurring expenses, liability payments, discretionary baseline, reserve target, and included planned expenses",
         "Loading state, empty state (no recurring data yet → link to recurring page)",
         "Responsive: chart fills width on mobile, cards stack, planned expenses list scrollable",
         "Theme-aware via CSS variables"
@@ -165,6 +185,7 @@
       "acceptanceCriteria": [
         "Dashboard gains a forecast summary section below the existing coverage indicator",
         "Shows: 90-day outlook status badge (healthy/caution/danger), next danger zone if any, next month projected surplus/deficit",
+        "If outlook is healthy and excess-liquidity opportunity exists, widget can swap the warning slot for a positive 'excess cash available' summary",
         "Clicking the widget navigates to forecast.html",
         "If no forecast data exists yet (Feature 19 hasn't run), shows a muted 'Forecast available after first sync' placeholder",
         "Does not add more than 3 lines to the dashboard — information density matters"
@@ -179,8 +200,9 @@
       "title": "LLM context enrichment with forecast data",
       "acceptanceCriteria": [
         "context-assembler adds forecast summary to weekly, monthly, and query contexts",
-        "Context includes: 90_day_outlook_status, next_danger_zone (date + deficit), monthly_outlook (next 3 months surplus/deficit), planned_expenses_total, current_liquid_balance, projected_90_day_balance",
+        "Context includes: 90_day_outlook_status, next_danger_zone (date + deficit), monthly_outlook (next 3 months surplus/deficit), planned_expenses_total, current_liquid_balance, projected_90_day_balance, and excess_liquidity_opportunity when present",
         "Weekly digest can now say: 'Looking ahead: April projects a $340 deficit due to car insurance renewal. Current trajectory keeps you above your $3,000 safety floor through June.'",
+        "Weekly digest can also say: 'Your projected minimum cash over the next 90 days stays about $9,000 above your reserve target, so some idle cash could be moved productively if you want.'",
         "What-if scenarios gain structured forecast baseline: instead of LLM guessing, the what-if prompt includes actual forecast numbers as the starting point",
         "All forecast context passes through sanitizeForLLM"
       ],
@@ -212,7 +234,8 @@
     "medium": [
       "Seasonal baseline may be skewed by one-time large expenses in historical data (e.g., a $5,000 medical bill in March 2025 inflates March's average). Mitigation: use median rather than mean for seasonal baseline, and cap discretionary at 2× the 12-month overall average to limit outlier impact.",
       "Confidence bands are heuristic, not statistically derived. Mitigation: clearly label them as 'estimated range' not 'confidence interval'. Calibrate the scaling factor after observing real forecast-vs-actual divergence over 2-3 months.",
-      "Planned expenses are manual data entry — Eric has to remember to add them. Mitigation: the forecast page should prompt 'Any upcoming large expenses?' and the LLM digest can remind him when the planned expenses list is empty."
+      "Planned expenses are manual data entry — Eric has to remember to add them. Mitigation: the forecast page should prompt 'Any upcoming large expenses?' and the LLM digest can remind him when the planned expenses list is empty.",
+      "Excess-liquidity guidance could feel too aggressive if phrased as a command. Mitigation: frame it as an opportunity estimate ('could move up to $X while staying above reserve target') rather than an instruction to invest."
     ],
     "low": [
       "Chart.js annotation plugin needed for danger zone markers and confidence bands. Mitigation: chartjs-plugin-annotation is a well-maintained CDN-loadable plugin, same loading pattern as Chart.js itself.",
@@ -246,6 +269,7 @@
       "notes": [
         "Danger zone scanner walks the projection array and flags crossings below safety floor",
         "Distinguish 'danger' (projected crosses) from 'at_risk' (only pessimistic band crosses)",
+        "Compute reserve target and excess-liquidity opportunity from the full-horizon projected minimum balance",
         "Monthly outlook aggregates daily projections into month-level summaries",
         "Chained computation: end-of-month balance carries forward as next month's start"
       ]
