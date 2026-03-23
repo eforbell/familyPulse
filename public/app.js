@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   updateWhoBtn();
-  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator(), loadRecurringIndicator()]);
+  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator(), loadRecurringIndicator(), loadForecastIndicator()]);
   await loadTransactions();
   loadMagicPanel();
   bindMagicInputShortcuts();
@@ -91,6 +91,69 @@ async function loadRecurringIndicator() {
   } catch (err) {
     console.error('Recurring indicator failed:', err);
   }
+}
+
+async function loadForecastIndicator() {
+  try {
+    const el = $('forecast-indicator');
+    if (!el) return;
+    const data = await api('api/cash-flow/forecast');
+    if (!data || !data.projections || data.projections.length === 0) {
+      el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
+        <span style="color:var(--muted)">Forecast available after first sync</span>
+        <span style="color:var(--muted)">&#8250;</span>
+      </a>`;
+      el.classList.remove('hidden');
+      return;
+    }
+    const zones = data.danger_zones || [];
+    const excess = data.excess_liquidity || {};
+    const outlook = data.monthly_outlook || [];
+    const nearDanger = zones.filter(z => z.severity === 'danger' && withinDays(z.date, 30));
+
+    let statusText, statusColor, rightText;
+
+    if (nearDanger.length > 0) {
+      statusColor = 'var(--red)';
+      statusText = `Danger on ${fmtShortDate(nearDanger[0].date)}`;
+      rightText = `${fmtMoney(nearDanger[0].deficit_below_floor)} below floor`;
+    } else if (excess.recommendation_level && excess.recommendation_level !== 'none') {
+      statusColor = 'var(--accent)';
+      statusText = `Excess cash: ${fmtMoney(excess.excess_amount)}`;
+      rightText = 'available to move';
+    } else if (outlook.length > 0) {
+      const nextMonth = outlook[0];
+      const isPositive = nextMonth.net_surplus_or_deficit >= 0;
+      statusColor = isPositive ? 'var(--green)' : 'var(--yellow)';
+      const sign = isPositive ? '+' : '';
+      statusText = `Next month: ${sign}${fmtMoney(nextMonth.net_surplus_or_deficit)}`;
+      rightText = `end bal ${fmtMoney(nextMonth.projected_end_balance)}`;
+    } else {
+      statusColor = 'var(--green)';
+      statusText = '90-day outlook: Healthy';
+      rightText = '';
+    }
+
+    el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
+      <span>Forecast: <strong style="color:${statusColor}">${statusText}</strong></span>
+      <span style="color:var(--muted)">${rightText} &#8250;</span>
+    </a>`;
+    el.classList.remove('hidden');
+  } catch (err) {
+    console.error('Forecast indicator failed:', err);
+  }
+}
+
+function withinDays(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const diff = (d - new Date()) / 86400000;
+  return diff >= 0 && diff <= days;
+}
+
+function fmtShortDate(dateStr) {
+  const [, m, d] = (dateStr || '').split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
 }
 
 async function loadCategories() {

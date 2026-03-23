@@ -2441,3 +2441,130 @@ header h1 {
   background: var(--accent-soft-strong);
   color: var(--text);
 }
+
+/* ── Forecast Page ────────────────────────────────────────── */
+
+.danger-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: var(--red);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.danger-banner-icon {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.excess-banner {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-border-soft);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.monthly-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.monthly-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.monthly-card-header {
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+.monthly-card-rows { padding: 0.5rem 0.75rem; }
+.monthly-row {
+  display: flex; justify-content: space-between;
+  font-size: var(--text-sm);
+  padding: 0.2rem 0;
+  color: var(--text);
+}
+.monthly-net {
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+  font-weight: 600;
+}
+.monthly-card-footer {
+  padding: 0.4rem 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+  text-align: right;
+}
+
+.planned-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.planned-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+}
+.planned-item-info { flex: 1; min-width: 0; }
+.planned-item-name { font-weight: 500; font-size: var(--text-base); }
+.planned-item-meta { font-size: var(--text-sm); color: var(--muted); margin-top: 0.15rem; }
+.planned-item-notes { font-size: var(--text-xs); color: var(--muted); margin-top: 0.15rem; font-style: italic; }
+.planned-item-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+
+.assumptions-details { margin-bottom: 1rem; }
+.assumptions-body {
+  padding: 0.75rem 0;
+}
+.assumptions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.assumptions-list li {
+  font-size: var(--text-sm);
+  padding: 0.3rem 0;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.assumptions-list li:last-child { border-bottom: none; }
+
+.form-error {
+  color: var(--red);
+  font-size: var(--text-sm);
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .monthly-cards-grid { grid-template-columns: 1fr; }
+}

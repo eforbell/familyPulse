@@ -40,12 +40,12 @@ app.use(async (req, res, next) => {
 
 const HTML_PAGES = new Set([
   '/', '/index.html', '/accounts.html', '/transactions.html',
-  '/budget.html', '/recurring.html', '/reports.html', '/admin.html', '/settings.html', '/import.html',
+  '/budget.html', '/recurring.html', '/forecast.html', '/reports.html', '/admin.html', '/settings.html', '/import.html',
   '/kids.html'
 ]);
 
 const PARENT_ONLY_PAGES = new Set([
-  '/settings.html', '/admin.html', '/import.html'
+  '/settings.html', '/admin.html', '/import.html', '/forecast.html'
 ]);
 
 function memberSlug(name) {
@@ -184,6 +184,7 @@ app.use(require('./lib/routes/recurring'));
 app.use(require('./lib/routes/anomalies'));
 app.use(require('./lib/routes/magic-actions'));
 app.use(require('./lib/routes/kids'));
+app.use(require('./lib/routes/cash-flow'));
 
 // Expose cfg/setCfg on app so route modules can access them
 app.set('cfg', cfg);

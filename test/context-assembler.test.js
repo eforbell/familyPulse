@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 const { sanitizeForLLM } = require('../lib/secrets-guard');
-const { getRecurringContextSummary } = require('../lib/magic-actions/context-assembler');
+const { getRecurringContextSummary, getForecastContextSummary } = require('../lib/magic-actions/context-assembler');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 let recurringId;
@@ -123,5 +123,92 @@ describe('context-assembler', () => {
     assert.ok(Array.isArray(context.top_recurring));
     assert.ok(Array.isArray(context.price_increases));
     assert.ok(Array.isArray(context.upcoming_annual_renewals));
+  });
+
+  it('getForecastContextSummary returns null when no cached forecast exists', async () => {
+    // Clear any cached forecasts
+    await pool.query('DELETE FROM cash_flow_snapshots');
+    const context = await getForecastContextSummary();
+    assert.equal(context, null);
+  });
+
+  it('getForecastContextSummary returns forecast context shape when cached', async () => {
+    // Insert a minimal cached forecast
+    await pool.query(`
+      INSERT INTO cash_flow_snapshots (horizon_days, starting_balance, daily_projections, danger_zones, monthly_outlook, excess_liquidity)
+      VALUES (90, 15000, $1, $2, $3, $4)
+    `, [
+      JSON.stringify([
+        { date: '2026-04-01', projected_balance: 15000, confidence_low: 14250, confidence_high: 15750, events: [] },
+        { date: '2026-06-29', projected_balance: 12000, confidence_low: 9000, confidence_high: 15000, events: [] }
+      ]),
+      JSON.stringify([]),
+      JSON.stringify([
+        { month: '2026-04', net_surplus_or_deficit: 1200, projected_end_balance: 16200, planned_expenses_total: 300 },
+        { month: '2026-05', net_surplus_or_deficit: -500, projected_end_balance: 15700, planned_expenses_total: 0 }
+      ]),
+      JSON.stringify({ recommendation_level: 'modest', excess_amount: 4000, reserve_target: 10000 })
+    ]);
+
+    const context = await getForecastContextSummary();
+    assert.ok(context, 'Should return a context object');
+    assert.equal(context['90_day_outlook_status'], 'healthy');
+    assert.equal(context.current_liquid_balance, 15000);
+    assert.equal(context.projected_90_day_balance, 12000);
+    assert.equal(context.next_danger_zone, null);
+    assert.ok(Array.isArray(context.monthly_outlook));
+    assert.equal(context.monthly_outlook.length, 2);
+    assert.equal(context.monthly_outlook[0].net_surplus_or_deficit, 1200);
+    assert.equal(context.planned_expenses_total, 300);
+    assert.ok(context.excess_liquidity_opportunity);
+    assert.equal(context.excess_liquidity_opportunity.level, 'modest');
+    assert.equal(context.excess_liquidity_opportunity.excess_amount, 4000);
+
+    // Clean up
+    await pool.query('DELETE FROM cash_flow_snapshots');
+  });
+
+  it('getForecastContextSummary includes danger zone when present', async () => {
+    await pool.query(`
+      INSERT INTO cash_flow_snapshots (horizon_days, starting_balance, daily_projections, danger_zones, monthly_outlook, excess_liquidity)
+      VALUES (90, 5000, $1, $2, $3, $4)
+    `, [
+      JSON.stringify([
+        { date: '2026-04-01', projected_balance: 5000, confidence_low: 4750, confidence_high: 5250, events: [] },
+        { date: '2026-04-15', projected_balance: 1500, confidence_low: 1000, confidence_high: 2000, events: [] }
+      ]),
+      JSON.stringify([
+        { date: '2026-04-15', projected_balance: 1500, deficit_below_floor: 1500, severity: 'danger', trigger_event: { type: 'planned_expense', name: 'Car insurance', amount: 3500 } }
+      ]),
+      JSON.stringify([]),
+      JSON.stringify({ recommendation_level: 'none' })
+    ]);
+
+    const context = await getForecastContextSummary();
+    assert.equal(context['90_day_outlook_status'], 'danger');
+    assert.ok(context.next_danger_zone);
+    assert.equal(context.next_danger_zone.date, '2026-04-15');
+    assert.equal(context.next_danger_zone.deficit_below_floor, 1500);
+    assert.equal(context.next_danger_zone.trigger, 'Car insurance');
+    assert.equal(context.excess_liquidity_opportunity, null);
+
+    await pool.query('DELETE FROM cash_flow_snapshots');
+  });
+
+  it('forecast context passes sanitization', async () => {
+    const forecastShape = {
+      '90_day_outlook_status': 'healthy',
+      current_liquid_balance: 15000,
+      projected_90_day_balance: 12000,
+      next_danger_zone: null,
+      monthly_outlook: [{ month: '2026-04', net_surplus_or_deficit: 1200 }],
+      excess_liquidity_opportunity: null,
+      // inject secret
+      access_token: 'access-sandbox-abc123'
+    };
+    const sanitized = sanitizeForLLM(forecastShape);
+    assert.equal(sanitized.access_token, '[REDACTED]');
+    assert.equal(sanitized['90_day_outlook_status'], 'healthy');
+    assert.equal(sanitized.current_liquid_balance, 15000);
   });
 });

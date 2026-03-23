@@ -26,6 +26,14 @@
     "charting": "Chart.js 4.x with chartjs-plugin-annotation for danger zone markers and confidence band fills",
     "testing": "node:test for forecast engine (deterministic inputs → expected outputs), seasonal baseline, danger zone detection, and API coverage"
   },
+  "executionStatus": {
+    "mode": "Maintain this PRD during development. Update story status and acceptance notes as each execution slice lands.",
+    "branch": "feature/predictive-cash-flow",
+    "lastUpdatedOn": "2026-03-22",
+    "summary": "Feature 20 complete. All 9 core stories (001-009) shipped. FCF-020-010 (What-If enhancement) deferred to v2.",
+    "currentFocus": "Complete — ready for merge and deploy",
+    "deferredForV1": []
+  },
   "userStories": [
     {
       "id": "FCF-020-001",
@@ -42,7 +50,9 @@
       "priority": 1,
       "estimatedLines": "+120/-0",
       "testStrategy": "node:test with fixture transaction data spanning 14 months. Verify per-month averages, recurring subtraction, sparse month fallback, and current month exclusion.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Implemented in lib/seasonal-baseline.js with pure-function computeSeasonalBaselineFromData for testing. 17 unit tests covering median, sparse data, recurring subtraction, outlier resistance, and empty input. Migration 015 and seed config keys added."
     },
     {
       "id": "FCF-020-002",
@@ -65,7 +75,9 @@
       "priority": 1,
       "estimatedLines": "+250/-0",
       "testStrategy": "node:test with deterministic fixture inputs. Test: (1) simple case — one paycheck, one expense, 30 days. (2) Complex — multiple income streams, recurring at different frequencies, liability payments, seasonal adjustment, planned expense. (3) Edge: paycheck on weekend, month boundary, leap year. (4) Verify balance never goes negative without danger zone flagging. (5) Confidence band width increases monotonically.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Implemented in lib/cash-flow-engine.js as a pure function with zero DB calls. Reuses computeExpectedNextDate/addDays/addMonths from recurring-detector. 29 unit tests covering simple, complex, and edge cases (month boundaries, leap year, short months, last-day-of-month anchoring, negative balance, confidence band monotonicity)."
     },
     {
       "id": "FCF-020-003",
@@ -82,7 +94,9 @@
       "priority": 1,
       "estimatedLines": "+80/-0",
       "testStrategy": "node:test: (1) no danger zone when balance stays healthy. (2) Danger zone triggered by large planned expense. (3) Multiple danger zones with recovery between. (4) At-risk when only pessimistic band crosses. (5) Dashboard banner logic for 30-day window.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Added detectDangerZones() to lib/cash-flow-engine.js — pure function layered on forecast output. Supports danger (balance < floor) and at_risk (pessimistic band < floor) severities with trigger event identification. 7 new tests, 36 total passing. API route and dashboard banner deferred to FCF-020-007/008."
     },
     {
       "id": "FCF-020-004",
@@ -100,7 +114,9 @@
       "priority": 1,
       "estimatedLines": "+80/-0",
       "testStrategy": "node:test: verify month-over-month chaining (end balance of month 1 = start of month 2). Verify all components sum correctly. Edge: planned expense spanning month boundary assigned to correct month.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "computeMonthlyOutlook() added to cash-flow-engine.js — aggregates forecast events by month, chains end balances. 4 new tests covering event aggregation, month chaining, cross-month planned expenses, and empty input."
     },
     {
       "id": "FCF-020-004A",
@@ -118,7 +134,9 @@
       "priority": 1,
       "estimatedLines": "+70/-0",
       "testStrategy": "node:test: (1) no recommendation when projected minimum sits below reserve target. (2) modest recommendation when projected minimum exceeds target by a small amount. (3) strong recommendation when projected minimum materially exceeds target. (4) cash_reserve_target_amount override beats month-based target.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "detectExcessLiquidity() added to cash-flow-engine.js — uses projected minimum balance over full horizon, reserve target = max(safetyFloor, committed×months, explicit override). 5 new tests covering none/modest/strong levels, override, and empty input."
     },
     {
       "id": "FCF-020-005",
@@ -136,7 +154,9 @@
       "priority": 1,
       "estimatedLines": "+100/-0",
       "testStrategy": "node:test: CRUD operations, validation (missing name, negative amount, past date), parent-only auth, soft delete, recurring expansion over horizon.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Routes in lib/routes/cash-flow.js, registered in server.js. Full CRUD with parent-only auth guards. Validation: name required, amount>0, date in current month or future. Soft delete via status='deleted'. 17 API tests covering CRUD, validation, auth, and edge cases."
     },
     {
       "id": "FCF-020-006",
@@ -153,7 +173,9 @@
       "priority": 1,
       "estimatedLines": "+80/-0",
       "testStrategy": "node:test: cache hit returns stored data. Cache miss triggers recomputation. Force refresh replaces cache. Stale detection based on sync timestamp.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Forecast service in lib/forecast-service.js orchestrates all DB inputs and calls pure engine. Single-row cache in cash_flow_snapshots with input fingerprinting. API routes: GET /forecast (cache-first), POST /forecast/refresh, GET /danger-zones, GET /monthly-outlook. Post-sync hook in sync.js. 6 new API tests (23 total in cash-flow-api)."
     },
     {
       "id": "FCF-020-007",
@@ -177,7 +199,9 @@
       "priority": 2,
       "estimatedLines": "+400/-0",
       "testStrategy": "Playwright e2e: page loads, chart renders, monthly cards present, planned expense add/toggle works. Manual: verify trajectory matches mental model, danger zone highlights visible, scenario toggles responsive.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "forecast.html + forecast.js created. Chart.js line chart with confidence bands and safety floor. Hero with balance/outlook/danger. Monthly outlook cards (3 months). Planned expenses CRUD with modal. Assumptions collapsible. Nav updated with Forecast after Recurring. 9 Playwright e2e tests (7 pass, 2 skip on empty test DB). CSS for danger banner, excess banner, monthly cards, planned items, assumptions."
     },
     {
       "id": "FCF-020-008",
@@ -193,7 +217,9 @@
       "priority": 2,
       "estimatedLines": "+40/-10",
       "testStrategy": "node:test: forecast summary API returns correct status badge logic. Playwright: widget renders on dashboard with link to forecast page.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Forecast widget added to dashboard below recurring indicator. Shows danger warning, excess cash opportunity, or next month surplus/deficit. Links to forecast.html. Placeholder state for no forecast data."
     },
     {
       "id": "FCF-020-009",
@@ -209,7 +235,9 @@
       "priority": 2,
       "estimatedLines": "+60/-15",
       "testStrategy": "node:test: verify forecast context structure, verify sanitization, verify graceful empty state when no forecast exists.",
-      "passes": false
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "getForecastContextSummary() added to context-assembler.js, included in all 4 context types (weekly, monthly, query, financial snapshot). Provides 90_day_outlook_status, danger zones, monthly outlook, planned expenses total, excess liquidity opportunity. 4 new tests covering null state, shape, danger zone, and sanitization."
     },
     {
       "id": "FCF-020-010",

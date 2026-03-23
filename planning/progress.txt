@@ -94,3 +94,125 @@
   - Slice B: price history, bill calendar, recurring API routes
   - Slice C: sync integration in `lib/sync.js`, incremental detection, error isolation
   - Slice D/E: recurring UI, budget/dashboard integration, LLM context enrichment
+
+2026-03-22 (Feature 19 complete, Feature 20 kickoff)
+- Feature 19 shipped to production and merged via PR #16.
+  - 20 active recurring patterns detected on first full scan (4–5 months of data)
+  - $3,477 committed monthly, $8,068 recurring income, 5 price increases, 3 stale items
+  - Chase mortgage captured via recurring detection (Plaid liability not available for that account)
+  - PR review identified two fixes: nullable unique constraint (COALESCE index) and config callback missing lastDetectionAt — both fixed before merge
+- Feature 20 (Predictive Cash Flow Engine) kicked off.
+  - Created feature branch: `feature/predictive-cash-flow`
+  - Implementation plan: 5 slices (A: seasonal baseline + engine, B: danger zones + monthly outlook + excess liquidity, C: planned expenses CRUD + API + cache, D: forecast page UI, E: dashboard widget + LLM context + what-if enhancement)
+  - Key design decision: engine is a pure function — all inputs pre-fetched, no DB calls during computation, <500ms target
+  - Sparse data constraint: 4–5 months of history means seasonal baseline must degrade gracefully (overall average fallback, wider confidence bands)
+  - Reusing Feature 19 schedule projection helpers: computeExpectedNextDate, addDays, addMonths, monthlyEquivalent
+
+## 2026-03-22 - FCF-020-001
+- Implemented seasonal spending baseline computation
+- Files created: lib/seasonal-baseline.js, test/seasonal-baseline.test.js, db/migrations/015-cash-flow-forecast.sql
+- Files modified: db/seed.sql, test/schema.test.js
+- **Learnings:**
+  - Merchant normalizer TRAILING_ID_RE requires 6+ digits to strip trailing IDs — test fixtures must use long numeric suffixes (e.g., 'NETFLIX.COM/123456789' not 'NETFLIX.COM/111')
+  - Pure function pattern (computeSeasonalBaselineFromData) makes testing trivial — no DB needed for 17 unit tests
+  - Migration 015 adds planned_expenses and cash_flow_snapshots tables for later stories
+  - Three new config keys: cash_flow_safety_floor (3000), cash_flow_horizon_days (90), cash_reserve_target_months (3.0)
+---
+
+## 2026-03-22 - FCF-020-002
+- Implemented core forecast engine — day-by-day projection
+- Files created: lib/cash-flow-engine.js, test/cash-flow-engine.test.js
+- **Learnings:**
+  - Pure function pattern continues to pay off — computeForecast takes fully materialized inputs, 29 tests run in <500ms with zero DB setup
+  - Reused computeExpectedNextDate, addDays, addMonths, parseDateOnly from recurring-detector.js — no duplication
+  - Liability payments need manual monthly re-anchoring (addMonths + Math.min for short months) since they don't use Feature 19 schedule anchors
+  - Safety counter (500 iterations) prevents infinite loops in recurring projection when frequency produces unexpected null
+  - Confidence band formula: linear interpolation between anchor points (0→0%, 7→5%, 30→15%, 90→25%), capped at 25%
+---
+
+## 2026-03-22 - FCF-020-003
+- Implemented danger zone detection as pure function layered on forecast output
+- Files modified: lib/cash-flow-engine.js, test/cash-flow-engine.test.js
+- **Learnings:**
+  - detectDangerZones naturally layers on computeForecast output — no need for a separate module
+  - Two severity levels: 'danger' (balance < floor) and 'at_risk' (only pessimistic band crosses floor)
+  - findTriggerEvent picks the largest non-income event on the danger day as the likely cause
+  - API route (GET /api/cash-flow/danger-zones) and dashboard banner will be wired in FCF-020-007/008 when the UI layer is built
+---
+
+## 2026-03-22 - FCF-020-004 + FCF-020-004A
+- Implemented monthly outlook summaries and excess liquidity detection as pure functions
+- Files modified: lib/cash-flow-engine.js, test/cash-flow-engine.test.js
+- **Learnings:**
+  - computeMonthlyOutlook aggregates forecast events by type using a switch on event.type — clean separation of income/recurring/discretionary/liability/planned
+  - Month chaining: end balance of month N = start of month N+1 via running accumulator
+  - detectExcessLiquidity uses projected MINIMUM balance (conservative), not current or month-end
+  - Reserve target formula: max(safety_floor, committed_monthly × reserve_months, explicit_override)
+  - recommendation_level thresholds: none (excess=0), modest (0 < excess < committed), strong (excess >= committed)
+---
+
+## 2026-03-22 - FCF-020-005
+- Implemented planned expenses CRUD API
+- Files created: lib/routes/cash-flow.js, test/cash-flow-api.test.js
+- Files modified: server.js (registered route)
+- **Learnings:**
+  - Followed existing route pattern: Router(), requireAuth/requireParent, pool.query
+  - PATCH uses dynamic SET clause construction — only updates provided fields
+  - Soft delete: status='deleted', excluded from GET list and PATCH/DELETE targets
+  - Date validation allows current month (not just future) to handle mid-month entries
+  - 17 API tests: CRUD, validation (name/amount/date), auth guards (parent, kid, unauth), soft delete idempotency
+---
+
+## 2026-03-22 - FCF-020-006
+- Implemented forecast caching and refresh + API routes
+- Files created: lib/forecast-service.js
+- Files modified: lib/routes/cash-flow.js (added forecast routes), lib/sync.js (post-sync forecast refresh)
+- **Learnings:**
+  - accounts table has NO is_hidden column — initial query used a non-existent column, caught by integration test
+  - forecast-service.js is the orchestrator: fetches all inputs from DB, calls pure engine functions, caches result
+  - Single-row cache pattern: DELETE all + INSERT (simple, no race conditions for single-user app)
+  - Post-sync hook uses inline cfgReader since syncAll() doesn't accept cfg parameter
+  - Cache hit detected by getCachedForecast() returning non-null; marked with meta.cached=true
+  - monthlyEquivalent from recurring-detector used to compute committedMonthly for excess liquidity
+---
+
+## 2026-03-22 - FCF-020-007
+- Implemented cash flow forecast page (frontend)
+- Files created: public/forecast.html, public/forecast.js, test/e2e/forecast.spec.js
+- Files modified: public/nav.js (added Forecast nav item with trend-up icon), public/style.css (forecast CSS)
+- **Learnings:**
+  - Chart.js fill: '-2' fills between dataset indices — used for confidence band area between high and low
+  - Planned expense CRUD uses the existing API from FCF-020-005 — add/edit/delete with modal overlay
+  - refreshForecast() calls POST /forecast/refresh then re-renders — gives immediate feedback
+  - Monthly outlook cards use grid with auto-fit minmax for responsive layout
+  - Playwright tests: some tests skip on clean test DB (no accounts/transactions = empty state) — this is correct behavior
+  - Nav order: Dashboard, Accounts, Transactions, Budget, Recurring, Forecast, Reports, Categories, Settings
+---
+
+## 2026-03-22 - FCF-020-008
+- Implemented dashboard forecast widget
+- Files modified: public/index.html (added forecast-indicator div), public/app.js (loadForecastIndicator)
+- **Learnings:**
+  - Widget follows coverage-indicator/recurring-indicator pattern: single-line with link
+  - Priority order in widget: danger > excess liquidity > next month surplus/deficit > healthy
+  - fmtShortDate and withinDays helpers added to app.js for dashboard use
+  - Widget fetches from GET /api/cash-flow/forecast (same cached endpoint as forecast page)
+---
+
+## 2026-03-23 - FCF-020-009
+- Implemented LLM context enrichment with forecast data
+- Files modified: lib/magic-actions/context-assembler.js, test/context-assembler.test.js
+- **Learnings:**
+  - getForecastContextSummary reads from getCachedForecast (no recomputation) — fast and cache-friendly
+  - Forecast context added to all 4 context types: weekly, monthly, query, financial snapshot
+  - Context shape: 90_day_outlook_status, current_liquid_balance, projected_90_day_balance, next_danger_zone, monthly_outlook, planned_expenses_total, excess_liquidity_opportunity
+  - Graceful null return when no cached forecast exists — LLM gets no forecast section rather than an error
+  - 4 new tests covering null state, full shape, danger zone presence, and sanitization pass-through
+
+## Feature 20 Complete
+- All 9 core stories shipped (FCF-020-001 through FCF-020-009)
+- FCF-020-010 (What-If enhancement with forecast overlay) deferred to v2
+- Total test count: 94 (62 unit + 23 API + 9 e2e) + 4 context tests = 98
+- Files created: lib/cash-flow-engine.js, lib/seasonal-baseline.js, lib/forecast-service.js, lib/routes/cash-flow.js, public/forecast.html, public/forecast.js, test/cash-flow-engine.test.js, test/seasonal-baseline.test.js, test/cash-flow-api.test.js, test/e2e/forecast.spec.js, db/migrations/015-cash-flow-forecast.sql
+- Files modified: server.js, lib/sync.js, public/nav.js, public/style.css, public/index.html, public/app.js, lib/magic-actions/context-assembler.js, test/context-assembler.test.js, test/schema.test.js, db/seed.sql
+---

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Family Pulse | Forecast</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-nav-page="forecast">
+
+  <!-- Planned expense modal -->
+  <div id="planned-overlay" class="overlay hidden">
+    <div class="overlay-box" style="max-width:400px">
+      <h2 id="planned-modal-title">Add Planned Expense</h2>
+      <form id="planned-form" autocomplete="off">
+        <label class="field-label">Name
+          <input id="planned-name" type="text" class="field-input" required placeholder="e.g. New tires">
+        </label>
+        <label class="field-label">Amount ($)
+          <input id="planned-amount" type="number" class="field-input" required min="0.01" step="0.01" placeholder="0.00">
+        </label>
+        <label class="field-label">Date
+          <input id="planned-date" type="date" class="field-input" required>
+        </label>
+        <label class="field-label">Notes (optional)
+          <input id="planned-notes" type="text" class="field-input" placeholder="Optional notes">
+        </label>
+        <div id="planned-error" class="form-error hidden"></div>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem">
+          <button type="submit" class="btn-primary" style="flex:1">Save</button>
+          <button type="button" class="btn-ghost" style="flex:1" onclick="closePlannedModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="app">
+    <header>
+      <h1>Forecast</h1>
+      <div>
+        <button id="refresh-btn" class="btn-ghost btn-sm" onclick="refreshForecast()">Refresh</button>
+      </div>
+    </header>
+
+    <!-- Loading state -->
+    <div id="forecast-loading" class="loading-pulse" style="padding:2rem;text-align:center">
+      <div style="color:var(--muted)">Loading forecast...</div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="forecast-empty" class="empty-state hidden" style="padding:4rem 1rem">
+      <div style="font-size:2rem;margin-bottom:0.75rem">No Forecast Yet</div>
+      <p style="color:var(--muted);font-size:0.9rem">The forecast needs recurring patterns to work. <a href="recurring.html" style="color:var(--accent)">View Recurring</a> or run a sync first.</p>
+    </div>
+
+    <!-- Main content -->
+    <div id="forecast-content" class="hidden">
+
+      <!-- Danger banner (within 30 days) -->
+      <div id="danger-banner" class="danger-banner hidden">
+        <div class="danger-banner-icon">!</div>
+        <div id="danger-banner-text"></div>
+      </div>
+
+      <!-- Hero section -->
+      <div id="forecast-hero" class="budget-summary">
+        <div class="summary-row">
+          <div class="summary-item">
+            <div class="summary-label">LIQUID BALANCE</div>
+            <div id="hero-balance" class="summary-value">--</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">90-DAY OUTLOOK</div>
+            <div id="hero-outlook" class="summary-value">--</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">NEXT DANGER</div>
+            <div id="hero-danger" class="summary-value" style="color:var(--muted)">None</div>
+          </div>
+        </div>
+        <div id="hero-excess" class="excess-banner hidden"></div>
+      </div>
+
+      <!-- Balance trajectory chart -->
+      <section>
+        <h2 class="section-heading">Balance Trajectory</h2>
+        <div class="chart-card">
+          <canvas id="forecast-chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Monthly outlook cards -->
+      <section>
+        <h2 class="section-heading">Monthly Outlook</h2>
+        <div id="monthly-cards" class="monthly-cards-grid"></div>
+      </section>
+
+      <!-- Planned expenses -->
+      <section>
+        <h2 class="section-heading">
+          Planned Expenses
+          <button class="btn-ghost btn-sm" onclick="openPlannedModal()">+ Add</button>
+        </h2>
+        <div id="planned-list" class="planned-list"></div>
+        <div id="planned-empty" class="hidden" style="color:var(--muted);font-size:var(--text-sm);padding:1rem 0">
+          No planned expenses. Add one to see its impact on your forecast.
+        </div>
+      </section>
+
+      <!-- Forecast assumptions (collapsible) -->
+      <section>
+        <details class="assumptions-details">
+          <summary class="section-heading" style="cursor:pointer;list-style:none">
+            Forecast Assumptions <span style="color:var(--muted);font-size:var(--text-sm);margin-left:0.5rem">(expand)</span>
+          </summary>
+          <div id="assumptions-body" class="assumptions-body"></div>
+        </details>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="nav.js"></script>
+  <script src="forecast.js"></script>
+</body>
+</html>

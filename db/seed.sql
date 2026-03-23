@@ -61,5 +61,8 @@ INSERT INTO app_config (key, value) VALUES
   ('balance_basis', 'available_preferred'),
   ('recurring_amount_tolerance_pct', '10'),
   ('recurring_lookback_months', '18'),
-  ('recurring_last_detection_at', '')
+  ('recurring_last_detection_at', ''),
+  ('cash_flow_safety_floor', '3000'),
+  ('cash_flow_horizon_days', '90'),
+  ('cash_reserve_target_months', '3.0')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
