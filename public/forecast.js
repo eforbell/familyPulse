@@ -482,7 +482,7 @@ async function toggleDiscretionaryDrilldown(calMonth) {
     const data = await res.json();
 
     if (!data.merchants.length) {
-      panel.innerHTML = '<div class="drilldown-empty">No discretionary data for this month.</div>';
+      panel.innerHTML = '<div class="drilldown-empty">No discretionary data available.</div>';
       return;
     }
 
@@ -490,7 +490,11 @@ async function toggleDiscretionaryDrilldown(calMonth) {
     const remaining = data.merchants.slice(15);
     const remainingTotal = remaining.reduce((s, m) => s + m.monthly_avg, 0);
 
-    let html = `<div class="drilldown-header">
+    let html = '';
+    if (data.fallback) {
+      html += `<div class="drilldown-fallback">No history for this calendar month yet. Showing overall average across all ${data.months_sampled} months of data.</div>`;
+    }
+    html += `<div class="drilldown-header">
       <span>Top merchants</span>
       <span>Monthly avg (${data.months_sampled} mo)</span>
     </div>`;

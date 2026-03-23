@@ -2588,6 +2588,13 @@ header h1 {
   color: var(--muted);
   text-align: center;
 }
+.drilldown-fallback {
+  padding: 0.4rem 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-style: italic;
+  border-bottom: 1px solid var(--border);
+}
 
 .planned-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .planned-item {
