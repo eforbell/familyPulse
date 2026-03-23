@@ -253,6 +253,7 @@ function renderMonthlyCards() {
     const netColor = isPositive ? 'var(--green)' : 'var(--red)';
     const netSign = isPositive ? '+' : '';
 
+    const calMonth = parseInt(m.month.split('-')[1], 10);
     const card = document.createElement('div');
     card.className = 'monthly-card';
     card.innerHTML = `
@@ -260,13 +261,19 @@ function renderMonthlyCards() {
       <div class="monthly-card-rows">
         <div class="monthly-row"><span>Income</span><span style="color:var(--green)">${fmtMoney(m.expected_income)}</span></div>
         <div class="monthly-row"><span>Recurring</span><span>-${fmtMoney(m.expected_recurring)}</span></div>
-        <div class="monthly-row"><span>Discretionary</span><span>-${fmtMoney(m.expected_discretionary)}</span></div>
+        <div class="monthly-row monthly-row-clickable" data-drilldown-month="${calMonth}"><span>Discretionary <span class="drilldown-hint">&#9662;</span></span><span>-${fmtMoney(m.expected_discretionary)}</span></div>
+        <div class="discretionary-drilldown" id="drilldown-${calMonth}" style="display:none"></div>
         <div class="monthly-row"><span>Liabilities</span><span>-${fmtMoney(m.expected_liability_payments)}</span></div>
         ${m.planned_expenses_total > 0 ? `<div class="monthly-row"><span>Planned</span><span>-${fmtMoney(m.planned_expenses_total)}</span></div>` : ''}
         <div class="monthly-row monthly-net" style="color:${netColor}"><span>Net</span><span>${netSign}${fmtMoney(m.net_surplus_or_deficit)}</span></div>
       </div>
       <div class="monthly-card-footer">End Balance: ${fmtMoney(m.projected_end_balance)}</div>
     `;
+
+    // Wire up drilldown click
+    const discRow = card.querySelector('[data-drilldown-month]');
+    discRow.addEventListener('click', () => toggleDiscretionaryDrilldown(calMonth));
+
     container.appendChild(card);
   }
 }
@@ -451,6 +458,65 @@ function escHtml(str) {
 
 function escAttr(str) {
   return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ── Discretionary Drilldown ──────────────────────────────────
+
+async function toggleDiscretionaryDrilldown(calMonth) {
+  const panel = document.getElementById(`drilldown-${calMonth}`);
+  if (!panel) return;
+
+  // Toggle visibility
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Show loading state
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="drilldown-loading">Loading breakdown...</div>';
+
+  try {
+    const res = await fetch(`api/cash-flow/discretionary-breakdown?month=${calMonth}`);
+    if (!res.ok) throw new Error('Failed to load breakdown');
+    const data = await res.json();
+
+    if (!data.merchants.length) {
+      panel.innerHTML = '<div class="drilldown-empty">No discretionary data for this month.</div>';
+      return;
+    }
+
+    const topMerchants = data.merchants.slice(0, 15);
+    const remaining = data.merchants.slice(15);
+    const remainingTotal = remaining.reduce((s, m) => s + m.monthly_avg, 0);
+
+    let html = `<div class="drilldown-header">
+      <span>Top merchants</span>
+      <span>Monthly avg (${data.months_sampled} mo)</span>
+    </div>`;
+
+    for (const m of topMerchants) {
+      html += `<div class="drilldown-row">
+        <span class="drilldown-merchant" title="${escAttr(m.category)}">${escHtml(m.merchant)}</span>
+        <span class="drilldown-amount">${fmtMoney(m.monthly_avg)}</span>
+      </div>`;
+    }
+
+    if (remaining.length) {
+      html += `<div class="drilldown-row drilldown-other">
+        <span>${remaining.length} other merchants</span>
+        <span class="drilldown-amount">${fmtMoney(remainingTotal)}</span>
+      </div>`;
+    }
+
+    html += `<div class="drilldown-footer">
+      Recurring excluded: ${fmtMoney(data.recurring_total_excluded / data.months_sampled)}/mo
+    </div>`;
+
+    panel.innerHTML = html;
+  } catch (err) {
+    panel.innerHTML = `<div class="drilldown-empty">Could not load breakdown.</div>`;
+  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────

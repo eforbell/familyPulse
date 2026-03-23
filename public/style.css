@@ -2525,6 +2525,70 @@ header h1 {
   text-align: right;
 }
 
+.monthly-row-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.monthly-row-clickable:hover {
+  background: var(--surface2);
+}
+.drilldown-hint {
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-left: 0.15rem;
+}
+.discretionary-drilldown {
+  padding: 0.25rem 0;
+  margin: 0 -0.75rem;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.drilldown-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.drilldown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0.75rem;
+  font-size: var(--text-sm);
+}
+.drilldown-merchant {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.drilldown-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.drilldown-other {
+  color: var(--muted);
+  font-style: italic;
+}
+.drilldown-footer {
+  padding: 0.3rem 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+}
+.drilldown-loading, .drilldown-empty {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-align: center;
+}
+
 .planned-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .planned-item {
   display: flex;
