@@ -491,6 +491,10 @@ async function toggleDiscretionaryDrilldown(calMonth) {
     const remainingTotal = remaining.reduce((s, m) => s + m.monthly_avg, 0);
 
     let html = '';
+    if (data.proration) {
+      const p = data.proration;
+      html += `<div class="drilldown-fallback">${p.days_remaining} of ${p.days_in_month} days remaining &middot; ${fmtMoney(p.daily_rate)}/day &middot; Prorated: ${fmtMoney(p.prorated_amount)} of ${fmtMoney(data.discretionary_monthly_avg)} monthly baseline</div>`;
+    }
     if (data.fallback) {
       html += `<div class="drilldown-fallback">No history for this calendar month yet. Showing overall average across all ${data.months_sampled} months of data.</div>`;
     }
