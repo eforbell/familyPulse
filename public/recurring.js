@@ -91,7 +91,7 @@ function renderRecurringLists(rows) {
     .filter(row => row.status === 'active')
     .sort((a, b) => (b.latest_amount || 0) - (a.latest_amount || 0));
   const stale = rows
-    .filter(row => row.status !== 'active')
+    .filter(row => row.status !== 'active' && row.status !== 'ignored')
     .sort((a, b) => String(b.last_seen_date).localeCompare(String(a.last_seen_date)));
 
   $('recurring-list').innerHTML = active.length
@@ -100,7 +100,7 @@ function renderRecurringLists(rows) {
 
   $('recurring-stale').innerHTML = stale.length
     ? stale.map(renderRecurringCard).join('')
-    : '<div class="empty-state">No stale or paused recurring items</div>';
+    : '<div class="empty-state">No paused recurring items</div>';
 }
 
 function renderRecurringCard(row) {
