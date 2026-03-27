@@ -235,4 +235,116 @@ test.describe('Transaction identity overrides', () => {
     await expect(page.locator('#tx-display-name-rule-check')).not.toBeChecked();
     await expect(page.locator('#tx-display-name-rule-hint')).toContainText('Check-style text defaults to one-off rename only.');
   });
+
+  test('merchant suggestions fill the rename input without auto-saving', async ({ page }) => {
+    const detail = {
+      id: 303,
+      merchant_name: 'Crateandbar',
+      name: 'CRATEANDBAR 00482',
+      effective_display_name: 'Crateandbar',
+      raw_display_name: 'Crateandbar',
+      raw_display_name_is_check_like: false,
+      display_name_override: null,
+      rename_rule: null,
+      amount: 52.19,
+      date: '2026-03-24',
+      account_name: 'Household Checking',
+      account_mask: '1111',
+      category_name: 'Shopping',
+      source: 'plaid',
+      pending: false,
+      source_removed: false,
+      note: null,
+      attachments: []
+    };
+
+    await page.route('**/api/auth/me', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 1, name: 'Eric', role: 'parent', avatar_emoji: '🧑' })
+      });
+    });
+
+    await page.route('**/api/accounts/dashboard', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ groups: { Household: [] }, historical_groups: {} })
+      });
+    });
+
+    await page.route('**/api/categories', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ id: 9, name: 'Shopping', color: '#10b981', icon: '🛍️' }])
+      });
+    });
+
+    await page.route('**/api/transactions?**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          transactions: [{
+            id: 303,
+            merchant_name: 'Crateandbar',
+            name: 'CRATEANDBAR 00482',
+            effective_display_name: detail.effective_display_name,
+            raw_display_name: detail.raw_display_name,
+            amount: 52.19,
+            date: '2026-03-24',
+            account_name: 'Household Checking',
+            account_mask: '1111',
+            category_name: 'Shopping',
+            category_color: '#10b981',
+            category_icon: '🛍️',
+            source: 'plaid',
+            pending: false,
+            is_hidden: false,
+            account_sync_status: 'active'
+          }],
+          total: 1,
+          sum: 52.19,
+          limit: 50,
+          offset: 0
+        })
+      });
+    });
+
+    await page.route('**/api/transactions/303', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ transaction: detail })
+      });
+    });
+
+    await page.route('**/api/transactions/merchant-suggestions?**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          suggestions: [
+            { label: 'Crate & Barrel', usage_count: 8, last_seen_date: '2026-03-26' },
+            { label: 'Crate Coffee', usage_count: 2, last_seen_date: '2026-03-18' }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/transactions.html');
+    await page.locator('.tx-row').first().click();
+    await page.locator('#tx-display-name-input').fill('Cr');
+    await expect(page.locator('#tx-display-name-suggestions')).toBeVisible();
+    await page.locator('#tx-display-name-input').press('Enter');
+    await expect(page.locator('#tx-display-name-input')).toHaveValue('Cr');
+    await page.locator('#tx-display-name-input').press('ArrowDown');
+    await page.locator('#tx-display-name-input').press('ArrowDown');
+    await page.locator('#tx-display-name-suggestions [data-suggestion-index="1"]').click();
+    await expect(page.locator('#tx-display-name-input')).toHaveValue('Crate Coffee');
+    await expect(page.locator('#tx-display-name-suggestions')).toBeHidden();
+    await expect(page.locator('#tx-detail-title')).toHaveText('Crateandbar');
+  });
 });

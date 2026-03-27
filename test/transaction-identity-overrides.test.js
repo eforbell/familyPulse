@@ -256,6 +256,33 @@ describe('transaction identity overrides', () => {
     assert.equal(tx.raw_display_name, 'Crateandbar');
   });
 
+  it('parents can fetch ranked merchant rename suggestions from effective display names', async () => {
+    await pool.query(
+      `INSERT INTO transactions
+        (plaid_transaction_id, account_id, amount, date, merchant_name, name, display_name_override, pending, is_transfer, source)
+       VALUES
+        ('tx-suggest-1', $1, 10.00, '2026-03-20', 'Crateandbar', 'CRATEANDBAR 10000', 'Crate & Barrel', false, false, 'plaid'),
+        ('tx-suggest-2', $1, 12.00, '2026-03-22', 'Crateandbar', 'CRATEANDBAR 10001', 'Crate & Barrel', false, false, 'plaid'),
+        ('tx-suggest-3', $1, 9.00, '2026-03-26', 'Cratecoffee', 'CRATECOFFEE 10002', 'Crate Coffee', false, false, 'plaid')
+       ON CONFLICT (plaid_transaction_id) DO NOTHING`,
+      [accountId]
+    );
+
+    const res = await parentReq('api/transactions/merchant-suggestions?q=Crate%20');
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.suggestions[0].label, 'Crate & Barrel');
+    assert.ok(data.suggestions[0].usage_count >= 2);
+    assert.equal(data.suggestions[1].label, 'Crate Coffee');
+
+    await pool.query("DELETE FROM transactions WHERE plaid_transaction_id IN ('tx-suggest-1', 'tx-suggest-2', 'tx-suggest-3')");
+  });
+
+  it('kids cannot fetch merchant rename suggestions', async () => {
+    const res = await kidReq('api/transactions/merchant-suggestions?q=Cr');
+    assert.equal(res.status, 403);
+  });
+
   it('parents can list, disable, and delete rename rules', async () => {
     await pool.query(
       `INSERT INTO merchant_rename_rules (raw_source_text, display_name, match_type, enabled, created_by)

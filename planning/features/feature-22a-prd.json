@@ -1,0 +1,149 @@
+{
+  "branchName": "feature/merchant-rename-suggestions",
+  "projectName": "Merchant Rename Suggestions",
+  "description": "Help parents quickly choose consistent, household-friendly merchant names by suggesting existing effective merchant names while they type in the transaction display-name editor. Suggestions should reduce retyping and drift without introducing fuzzy matching, schema churn, or automatic normalization behavior.",
+  "timing": {
+    "draftedOn": "2026-03-27",
+    "plannedEarliestExecution": "after Feature 22",
+    "gatingCondition": "Feature 22 transaction identity overrides is merged because the suggestion UI builds directly on the display-name edit surface."
+  },
+  "principles": [
+    "Suggestions assist naming; they do not replace deliberate parent choice",
+    "Selecting a suggestion fills the edit field only and does not silently create a future rename rule",
+    "Suggestion source data comes from existing household transaction history, not external normalization services",
+    "V1 uses prefix search only; no fuzzy matching or spelling correction",
+    "Suggestions rank likely household conventions ahead of rare one-offs using frequency and recency",
+    "Parent-only editing remains intact; kid surfaces stay read-only",
+    "SECRETS INVARIANT: suggestion responses expose only displayable merchant text already visible in Family Pulse transaction history"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL query over existing transactions using effective display name projection",
+    "integrationPoints": "Transaction detail overlays on dashboard and transactions page, plus a small suggestions API",
+    "testing": "node:test for suggestion ranking/query behavior and Playwright for keyboard/mouse suggestion selection in the display-name editor"
+  },
+  "executionStatus": {
+    "mode": "Seed stories with passes false and update during implementation.",
+    "branch": "feature/merchant-rename-suggestions",
+    "lastUpdatedOn": "2026-03-27",
+    "summary": "Feature complete: parent-only merchant rename suggestions now appear in the existing display-name editor, ranked from household history, and fill the input without changing save semantics.",
+    "currentFocus": "All Feature 22a stories pass. Await commit/push or follow-up review.",
+    "deferredForV1": [
+      "Fuzzy or typo-tolerant matching",
+      "Dedicated merchant dictionary management",
+      "Suggestion personalization per family member",
+      "Automatic background normalization of existing merchants"
+    ]
+  },
+  "userStories": [
+    {
+      "id": "MRS-022A-001",
+      "title": "Parent sees existing merchant suggestions while typing",
+      "acceptanceCriteria": [
+        "When a parent types into the display-name input in transaction detail, Family Pulse requests suggestions after a short debounce once at least 2 characters are present",
+        "Suggestions are built from existing effective merchant names already stored in Family Pulse transaction history",
+        "The suggestion list is hidden for kids and hidden when the input is empty or below the minimum prefix length",
+        "The API and UI return at most a small fixed number of suggestions suitable for an inline dropdown"
+      ],
+      "priority": 1,
+      "estimatedLines": "+90/-0",
+      "testStrategy": "node:test for API query shape and auth; Playwright for dropdown visibility and debounce-driven suggestions.",
+      "passes": true
+    },
+    {
+      "id": "MRS-022A-002",
+      "title": "Suggestions rank consistent household names first",
+      "acceptanceCriteria": [
+        "Prefix matches are returned only when the suggestion text starts with the typed prefix, case-insensitive",
+        "Suggestions are ranked by a pragmatic combination of frequency and recency so the household's common naming convention tends to appear first",
+        "Duplicate suggestion labels are collapsed so the dropdown does not show the same cleaned merchant name repeatedly",
+        "The current transaction's already-selected effective display name may appear, but duplicates are removed from the final list"
+      ],
+      "priority": 1,
+      "estimatedLines": "+60/-0",
+      "testStrategy": "node:test for prefix filtering, deduplication, and ordering logic.",
+      "passes": true
+    },
+    {
+      "id": "MRS-022A-003",
+      "title": "Selecting a suggestion is assistive only",
+      "acceptanceCriteria": [
+        "Clicking or keyboard-selecting a suggestion fills the display-name input with that merchant name",
+        "Choosing a suggestion does not itself save the transaction or create/update a future rename rule",
+        "The parent must still explicitly click Save Name to persist the transaction-level override",
+        "The apply-to-future checkbox state remains under explicit parent control after a suggestion is chosen"
+      ],
+      "priority": 1,
+      "estimatedLines": "+50/-0",
+      "testStrategy": "Playwright coverage for click and keyboard selection, plus confirmation that save is still explicit.",
+      "passes": true
+    },
+    {
+      "id": "MRS-022A-004",
+      "title": "Suggestion UI stays lightweight and non-disruptive",
+      "acceptanceCriteria": [
+        "The dropdown appears directly under the display-name input and dismisses on blur, Escape, or suggestion selection",
+        "The existing transaction detail overlay behavior remains intact, including Save/Clear actions and note/attachment interactions",
+        "The suggestion UI works on both dashboard and transactions-page detail overlays without introducing a separate page-level merchant editor"
+      ],
+      "priority": 2,
+      "estimatedLines": "+55/-10",
+      "testStrategy": "Playwright for visibility/dismissal behavior on both parent entry points plus targeted regression checks.",
+      "passes": true
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Naive prefix queries could drift toward a full-table scan if the transaction table grows. Mitigation: keep the result cap low, minimum query length above 1 character, and start with a simple indexed/coalesced query."
+    ],
+    "low": [
+      "Suggestions may reinforce slightly inconsistent household naming if past data is messy. Mitigation: rank by frequency/recency and keep selection optional.",
+      "Autocomplete UI can feel noisy if shown too early. Mitigation: debounce requests and require a minimum typed prefix."
+    ],
+    "operational": [
+      "If merchant naming later gets a dedicated dictionary, this API should be able to switch sources behind the same UI contract."
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm whether the minimum prefix length should be 2 or 3 characters; default to 2 for responsiveness",
+    "Choose a fixed suggestion cap, likely 5 to 8",
+    "Inspect the current display-name save flow so suggestion dropdown state does not interfere with existing Escape/overlay behavior",
+    "Decide whether frequency, recency, or a blended score should dominate ranking in v1"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Suggestions API + query logic",
+      "goal": "Expose ranked, distinct effective merchant suggestions for parent rename flows.",
+      "notes": [
+        "Add a parent-scoped suggestions endpoint",
+        "Use existing effective display name projection from transactions",
+        "Cap and rank results by prefix match, count, and recency"
+      ]
+    },
+    {
+      "name": "Slice B: Parent autocomplete UI",
+      "goal": "Add an inline dropdown to the existing display-name input without changing save semantics.",
+      "notes": [
+        "Debounced fetch after minimum prefix length",
+        "Click and keyboard selection support",
+        "Dismiss cleanly on Escape, blur, or save"
+      ]
+    },
+    {
+      "name": "Slice C: Regression coverage + polish",
+      "goal": "Verify that the suggestion layer improves naming speed without disturbing the transaction detail surface.",
+      "notes": [
+        "Playwright checks on both dashboard and transactions page",
+        "Targeted regression coverage for existing rename workflow",
+        "Keep CSS/JS localized to the current detail overlay"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+255/-10",
+    "storiesCount": 4,
+    "filesCreated": []
+  }
+}

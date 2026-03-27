@@ -1,7 +1,7 @@
 {
-  "currentFeature": "Feature #22: Transaction Identity Overrides",
+  "currentFeature": "Feature #22a: Merchant Rename Suggestions",
   "status": "complete",
-  "prdPath": "planning/features/feature-22-prd.json",
+  "prdPath": "planning/features/feature-22a-prd.json",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
@@ -24,7 +24,8 @@
     "Feature #19: Recurring Cashflow Intelligence",
     "Feature #20: Predictive Cash Flow Engine",
     "Feature #21: Transaction Memory",
-    "Feature #22: Transaction Identity Overrides"
+    "Feature #22: Transaction Identity Overrides",
+    "Feature #22a: Merchant Rename Suggestions"
   ],
   "skippedFeatures": [],
   "futureFeatures": [

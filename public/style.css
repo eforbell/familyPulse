@@ -731,6 +731,40 @@ header h1 {
   padding: 0.8rem 0.9rem;
 }
 
+.tx-display-name-suggestions {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+
+.tx-display-name-suggestion {
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+}
+
+.tx-display-name-suggestion.active,
+.tx-display-name-suggestion:hover {
+  background: var(--accent-soft);
+}
+
+.tx-display-name-suggestion-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .tx-note-input:focus {
   outline: none;
   border-color: var(--accent);

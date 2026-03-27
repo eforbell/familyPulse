@@ -16,6 +16,7 @@ let assignTarget = null; // { id, merchant } for single, null for bulk
 let dedupRunFilter = null;
 let currentDetailId = null;
 let currentDetail = null;
+let displayNameSuggestionController = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('filter-transfers').addEventListener('change', resetAndLoad);
   $('filter-hidden').addEventListener('change', resetAndLoad);
   $('btn-dedup').addEventListener('click', runDedup);
+  initDisplayNameSuggestionController();
 });
 
 // ── URL params → filters ─────────────────────────────────────
@@ -524,6 +526,7 @@ async function openTransactionDetail(id) {
   $('tx-detail-raw').textContent = '—';
   $('tx-detail-feedback').className = 'recurring-detail-feedback hidden';
   $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
+  hideDisplayNameSuggestions();
   $('tx-detail-overlay').classList.remove('hidden');
 
   try {
@@ -539,6 +542,7 @@ async function openTransactionDetail(id) {
 function closeTransactionDetail() {
   currentDetailId = null;
   currentDetail = null;
+  hideDisplayNameSuggestions();
   $('tx-detail-overlay').classList.add('hidden');
 }
 
@@ -593,6 +597,7 @@ function renderTransactionDetail() {
     $('tx-display-name-readonly').textContent = tx.display_name_override || '';
     $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
   }
+  hideDisplayNameSuggestions();
 
   const canEditNote = currentMember?.role === 'parent';
   $('tx-note-input').classList.toggle('hidden', !canEditNote);
@@ -650,7 +655,32 @@ async function clearTransactionDisplayName() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   $('tx-display-name-input').value = '';
   $('tx-display-name-rule-check').checked = false;
+  hideDisplayNameSuggestions();
   await submitTransactionDisplayName({ displayName: '', applyToFuture: false });
+}
+
+function bindDisplayNameSuggestionInput() {
+  if (displayNameSuggestionController) displayNameSuggestionController.bind();
+}
+
+function initDisplayNameSuggestionController() {
+  if (typeof window.createDisplayNameSuggestionController !== 'function') return;
+  displayNameSuggestionController = window.createDisplayNameSuggestionController({
+    getInput: () => $('tx-display-name-input'),
+    getRoot: () => $('tx-display-name-suggestions'),
+    shouldSuggest: () => currentMember?.role === 'parent',
+    fetchSuggestions: async (query) => {
+      const data = await api(`api/transactions/merchant-suggestions?q=${encodeURIComponent(query)}`);
+      return data.suggestions || [];
+    },
+    escapeHtml: esc,
+    formatDate
+  });
+  bindDisplayNameSuggestionInput();
+}
+
+function hideDisplayNameSuggestions() {
+  if (displayNameSuggestionController) displayNameSuggestionController.hide();
 }
 
 function renderAttachmentList(attachments) {

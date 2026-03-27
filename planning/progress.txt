@@ -264,3 +264,13 @@
   - Search needs to look at both `COALESCE(display_name_override, merchant_name, name)` and the raw fields so renamed transactions are easier to find without making the original synced text disappear
   - A lightweight Settings list is enough for v1 rule management; enable/disable/delete covers the operational needs without requiring a dedicated normalization page
 ---
+
+## 2026-03-27 - MRS-022A-001 + MRS-022A-002 + MRS-022A-003 + MRS-022A-004
+- Implemented parent-only merchant rename suggestions with a prefix-ranked suggestions API and inline autocomplete behavior on both parent transaction detail entry points
+- Files changed: lib/routes/transactions.js, public/transactions.html, public/transactions.js, public/index.html, public/app.js, public/style.css, test/transaction-identity-overrides.test.js, test/e2e/transaction-identity.spec.js, planning/current-feature.json, planning/features/feature-22a-prd.json
+- **Learnings:**
+  - Merchant suggestions do not need new schema in v1; querying distinct `COALESCE(display_name_override, merchant_name, name)` values from transaction history is enough to bootstrap useful household naming reuse
+  - Prefix search with a small result cap and frequency/recency ordering is a pragmatic middle ground that feels helpful without opening the complexity of fuzzy matching
+  - Suggestion selection should only fill the editor field, not save or toggle future-rule behavior; keeping save explicit preserves the mental model from Feature 22
+  - Reusing the existing detail overlay on both dashboard and transactions page keeps the feature accretive rather than spawning a new merchant-management surface
+---
