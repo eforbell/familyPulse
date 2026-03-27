@@ -25,6 +25,54 @@
     </div>
   </div>
 
+  <div id="kid-tx-detail-overlay" class="overlay hidden">
+    <div class="overlay-box tx-detail-box">
+      <div class="tx-detail-header">
+        <div>
+          <h2 id="kid-tx-detail-title">Transaction Detail</h2>
+          <p id="kid-tx-detail-meta">Loading…</p>
+        </div>
+        <button class="btn-ghost tx-detail-close" type="button" onclick="closeTransactionDetail()">Close</button>
+      </div>
+
+      <div class="tx-detail-summary">
+        <div class="tx-detail-summary-row">
+          <span class="tx-detail-summary-label">Amount</span>
+          <strong id="kid-tx-detail-amount">—</strong>
+        </div>
+        <div class="tx-detail-summary-row">
+          <span class="tx-detail-summary-label">Category</span>
+          <span id="kid-tx-detail-category">—</span>
+        </div>
+        <div class="tx-detail-summary-row">
+          <span class="tx-detail-summary-label">Raw synced text</span>
+          <span id="kid-tx-detail-raw">—</span>
+        </div>
+      </div>
+
+      <div class="tx-detail-actions">
+        <button id="kid-tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Assign Category</button>
+      </div>
+
+      <section class="tx-detail-section">
+        <div class="tx-detail-section-head">
+          <h3>Note</h3>
+          <span id="kid-tx-note-meta" class="tx-detail-subtle"></span>
+        </div>
+        <div id="kid-tx-note-readonly" class="tx-note-readonly hidden"></div>
+        <div id="kid-tx-note-empty" class="tx-detail-subtle">No note yet.</div>
+      </section>
+
+      <section class="tx-detail-section">
+        <div class="tx-detail-section-head">
+          <h3>Attachments</h3>
+          <span class="tx-detail-subtle">Receipts, invoices, or photos</span>
+        </div>
+        <div id="kid-tx-attachment-list" class="tx-attachment-list"></div>
+      </section>
+    </div>
+  </div>
+
   <div id="app">
 
     <!-- Header -->

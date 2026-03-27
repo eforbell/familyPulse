@@ -143,6 +143,7 @@ Run a monthly restore drill to prove backups are fully recoverable:
 - [planning/restore-drill.md](/home/forbell/workspace/homeApps/familyPulse/planning/restore-drill.md)
 
 The runbook is written for `pg_dump -Fc` backups and `pg_restore` validation into an isolated drill database.
+If transaction attachments are in use, include `/data/apps/familyPulse/transaction-files` in the same backup window as the database dump.
 
 ## Testing
 

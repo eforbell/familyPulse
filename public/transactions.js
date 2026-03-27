@@ -3,6 +3,7 @@
 
 // ── State ────────────────────────────────────────────────────
 
+let currentMember = { role: 'parent' };
 let accounts = [];
 let categories = [];
 let transactions = [];
@@ -13,10 +14,13 @@ const PAGE_SIZE = 50;
 let selectedIds = new Set();
 let assignTarget = null; // { id, merchant } for single, null for bulk
 let dedupRunFilter = null;
+let currentDetailId = null;
+let currentDetail = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await loadCurrentMember();
   await Promise.all([loadAccounts(), loadCategories()]);
   populateFilterDropdowns();
   applyUrlParams();
@@ -143,6 +147,19 @@ async function loadCategories() {
     categories = await api('api/categories');
   } catch (err) {
     console.error('Categories load failed:', err);
+  }
+}
+
+async function loadCurrentMember() {
+  try {
+    const res = await fetch('api/auth/me');
+    if (res.ok) {
+      currentMember = await res.json();
+    } else {
+      currentMember = { role: 'parent', name: 'Local' };
+    }
+  } catch {
+    currentMember = { role: 'parent', name: 'Local' };
   }
 }
 
@@ -303,9 +320,7 @@ function nextPage() { currentPage++; loadTransactions(); }
 function onTxClick(event, id) {
   if (event.target.classList.contains('tx-check')) return;
   if (event.target.closest('.tx-inline-action')) return;
-  const tx = transactions.find(t => t.id === id);
-  if (!tx) return;
-  openCategoryOverlay(id, tx.merchant_name || tx.name);
+  openTransactionDetail(id);
 }
 
 function openCategoryOverlay(txId, merchant) {
@@ -373,6 +388,9 @@ async function pickCategory(categoryId) {
       updateBulkBar();
     }
     await loadTransactions();
+    if (currentDetailId) {
+      await refreshCurrentDetail();
+    }
   } catch (err) {
     console.error('Category assignment failed:', err);
   }
@@ -493,6 +511,193 @@ async function unhideTx(event, id) {
   }
 }
 
+// ── Transaction detail ───────────────────────────────────────
+
+async function openTransactionDetail(id) {
+  currentDetailId = id;
+  currentDetail = null;
+  $('tx-detail-title').textContent = 'Transaction Detail';
+  $('tx-detail-meta').textContent = 'Loading…';
+  $('tx-detail-amount').textContent = '—';
+  $('tx-detail-category').textContent = '—';
+  $('tx-detail-raw').textContent = '—';
+  $('tx-detail-feedback').className = 'recurring-detail-feedback hidden';
+  $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
+  $('tx-detail-overlay').classList.remove('hidden');
+
+  try {
+    const data = await api(`api/transactions/${id}`);
+    currentDetail = data.transaction;
+    renderTransactionDetail();
+  } catch (err) {
+    $('tx-detail-feedback').className = 'recurring-detail-feedback error';
+    $('tx-detail-feedback').textContent = err.message || 'Could not load transaction detail';
+  }
+}
+
+function closeTransactionDetail() {
+  currentDetailId = null;
+  currentDetail = null;
+  $('tx-detail-overlay').classList.add('hidden');
+}
+
+async function refreshCurrentDetail() {
+  if (!currentDetailId) return;
+  const data = await api(`api/transactions/${currentDetailId}`);
+  currentDetail = data.transaction;
+  renderTransactionDetail();
+}
+
+function renderTransactionDetail() {
+  if (!currentDetail) return;
+  const tx = currentDetail;
+  const merchant = tx.merchant_name || tx.name || 'Transaction Detail';
+  const rawParts = [tx.merchant_name, tx.name].filter(Boolean);
+  const note = tx.note || null;
+
+  $('tx-detail-title').textContent = merchant;
+  $('tx-detail-meta').textContent = [
+    formatDate(tx.date),
+    tx.account_name ? `${tx.account_name}${tx.account_mask ? ` ···${tx.account_mask}` : ''}` : '',
+    tx.source || '',
+    tx.pending ? 'pending' : '',
+    tx.source_removed ? 'removed upstream, kept locally' : ''
+  ].filter(Boolean).join(' · ');
+  $('tx-detail-amount').textContent = fmtTxAmount(tx.amount);
+  $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
+  $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
+
+  const canEditNote = currentMember?.role === 'parent';
+  $('tx-note-input').classList.toggle('hidden', !canEditNote);
+  $('tx-note-actions').classList.toggle('hidden', !canEditNote);
+  $('tx-note-readonly').classList.toggle('hidden', canEditNote);
+  $('tx-note-meta').textContent = note?.updated_at
+    ? `Last updated ${formatDate(note.updated_at)}${note.updated_by_name ? ` by ${note.updated_by_name}` : ''}`
+    : '';
+
+  if (canEditNote) {
+    $('tx-note-input').value = note?.text || '';
+    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
+  } else {
+    $('tx-note-readonly').textContent = note?.text || '';
+    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
+  }
+
+  $('tx-attachment-upload').classList.toggle('hidden', currentMember?.role !== 'parent');
+  renderAttachmentList(tx.attachments || []);
+}
+
+function renderAttachmentList(attachments) {
+  const root = $('tx-attachment-list');
+  if (!attachments.length) {
+    root.innerHTML = '<div class="empty-state">No attachments yet</div>';
+    return;
+  }
+
+  root.innerHTML = attachments.map(att => `
+    <div class="tx-attachment-row">
+      <div class="tx-attachment-main">
+        <div class="tx-attachment-name">${esc(att.original_filename)}</div>
+        <div class="tx-detail-subtle">${formatDate(att.created_at)} · ${formatBytes(att.byte_size)}${att.uploaded_by_name ? ` · ${esc(att.uploaded_by_name)}` : ''}</div>
+      </div>
+      <div class="tx-attachment-actions">
+        <a class="btn-ghost tx-attachment-link" href="api/transaction-attachments/${att.id}/download">Download</a>
+        ${currentMember?.role === 'parent'
+          ? `<button class="btn-ghost" type="button" onclick="deleteTransactionAttachment(${att.id})">Delete</button>`
+          : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCurrentCategoryEditor() {
+  if (!currentDetail) return;
+  openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
+}
+
+async function saveTransactionNote() {
+  if (!currentDetailId || currentMember?.role !== 'parent') return;
+  const feedback = $('tx-detail-feedback');
+  feedback.className = 'recurring-detail-feedback';
+  feedback.textContent = 'Saving note…';
+
+  try {
+    const data = await api(`api/transactions/${currentDetailId}/note`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: $('tx-note-input').value })
+    });
+    currentDetail = data.transaction;
+    renderTransactionDetail();
+    feedback.textContent = 'Note saved.';
+  } catch (err) {
+    feedback.className = 'recurring-detail-feedback error';
+    feedback.textContent = err.message || 'Could not save note';
+  }
+}
+
+async function clearTransactionNote() {
+  if (!currentDetailId || currentMember?.role !== 'parent') return;
+  const feedback = $('tx-detail-feedback');
+  feedback.className = 'recurring-detail-feedback';
+  feedback.textContent = 'Clearing note…';
+
+  try {
+    const data = await api(`api/transactions/${currentDetailId}/note`, { method: 'DELETE' });
+    currentDetail = data.transaction;
+    renderTransactionDetail();
+    feedback.textContent = 'Note cleared.';
+  } catch (err) {
+    feedback.className = 'recurring-detail-feedback error';
+    feedback.textContent = err.message || 'Could not clear note';
+  }
+}
+
+async function uploadTransactionAttachments() {
+  if (!currentDetailId || currentMember?.role !== 'parent') return;
+  const input = $('tx-attachment-input');
+  if (!input.files || input.files.length === 0) return;
+
+  const feedback = $('tx-detail-feedback');
+  feedback.className = 'recurring-detail-feedback';
+  feedback.textContent = 'Uploading attachments…';
+
+  const form = new FormData();
+  for (const file of input.files) {
+    form.append('files', file);
+  }
+
+  try {
+    await apiForm(`api/transactions/${currentDetailId}/attachments`, {
+      method: 'POST',
+      body: form
+    });
+    input.value = '';
+    await refreshCurrentDetail();
+    feedback.textContent = 'Attachments uploaded.';
+  } catch (err) {
+    feedback.className = 'recurring-detail-feedback error';
+    feedback.textContent = err.message || 'Could not upload attachments';
+  }
+}
+
+async function deleteTransactionAttachment(id) {
+  if (currentMember?.role !== 'parent') return;
+  const feedback = $('tx-detail-feedback');
+  feedback.className = 'recurring-detail-feedback';
+  feedback.textContent = 'Deleting attachment…';
+
+  try {
+    await api(`api/transaction-attachments/${id}`, { method: 'DELETE' });
+    await refreshCurrentDetail();
+    feedback.textContent = 'Attachment deleted.';
+  } catch (err) {
+    feedback.className = 'recurring-detail-feedback error';
+    feedback.textContent = err.message || 'Could not delete attachment';
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
@@ -526,6 +731,13 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
 function hexToRgba(hex, alpha) {
   if (!hex) return `rgba(107,114,128,${alpha})`;
   const r = parseInt(hex.slice(1, 3), 16);
@@ -554,3 +766,28 @@ async function api(url, opts) {
   }
   return res.json();
 }
+
+async function apiForm(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.replace('login.html');
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+document.addEventListener('click', event => {
+  const overlay = $('tx-detail-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.target === overlay) closeTransactionDetail();
+});
+
+document.addEventListener('keydown', event => {
+  const overlay = $('tx-detail-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.key === 'Escape') closeTransactionDetail();
+});

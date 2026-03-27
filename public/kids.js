@@ -6,6 +6,8 @@ let dashboardData = null;
 let categories = [];
 let catTarget = null;
 let chartInstance = null;
+let currentDetailId = null;
+let currentDetail = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -189,7 +191,7 @@ function renderTransactions(txns) {
       : '<span class="cat-badge uncat">Uncategorized</span>';
 
     return `
-      <div class="tx-row" onclick="openCategoryOverlay(${t.id}, '${merchant.replace(/'/g, "\\'")}')">
+      <div class="tx-row" onclick="openTransactionDetail(${t.id})">
         <div></div>
         <div class="tx-main">
           <div class="tx-merchant">${merchant}</div>
@@ -204,6 +206,75 @@ function renderTransactions(txns) {
 }
 
 // ── Category overlay (no create-rule for kids) ──────────────
+
+async function openTransactionDetail(txId) {
+  currentDetailId = txId;
+  currentDetail = null;
+  $('kid-tx-detail-title').textContent = 'Transaction Detail';
+  $('kid-tx-detail-meta').textContent = 'Loading…';
+  $('kid-tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
+  $('kid-tx-detail-overlay').classList.remove('hidden');
+
+  try {
+    const data = await api(`api/transactions/${txId}`);
+    currentDetail = data.transaction;
+    renderTransactionDetail();
+  } catch (err) {
+    $('kid-tx-detail-meta').textContent = err.message || 'Could not load transaction';
+  }
+}
+
+function closeTransactionDetail() {
+  currentDetailId = null;
+  currentDetail = null;
+  $('kid-tx-detail-overlay').classList.add('hidden');
+}
+
+function renderTransactionDetail() {
+  if (!currentDetail) return;
+  const tx = currentDetail;
+  const merchant = tx.merchant_name || tx.name || 'Transaction Detail';
+  const rawParts = [tx.merchant_name, tx.name].filter(Boolean);
+  const note = tx.note || null;
+
+  $('kid-tx-detail-title').textContent = merchant;
+  $('kid-tx-detail-meta').textContent = [
+    formatDate(tx.date),
+    tx.account_name ? `${tx.account_name}${tx.account_mask ? ` ···${tx.account_mask}` : ''}` : '',
+    tx.source || '',
+    tx.pending ? 'pending' : '',
+    tx.source_removed ? 'removed upstream, kept locally' : ''
+  ].filter(Boolean).join(' · ');
+  $('kid-tx-detail-amount').textContent = fmtMoney(tx.amount);
+  $('kid-tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('kid-tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
+  $('kid-tx-note-readonly').classList.toggle('hidden', !note?.text);
+  $('kid-tx-note-readonly').textContent = note?.text || '';
+  $('kid-tx-note-empty').classList.toggle('hidden', !!note?.text);
+  $('kid-tx-note-meta').textContent = note?.updated_at
+    ? `Last updated ${formatDate(note.updated_at)}${note.updated_by_name ? ` by ${note.updated_by_name}` : ''}`
+    : '';
+
+  const attachments = tx.attachments || [];
+  $('kid-tx-attachment-list').innerHTML = attachments.length
+    ? attachments.map(att => `
+        <div class="tx-attachment-row">
+          <div class="tx-attachment-main">
+            <div class="tx-attachment-name">${esc(att.original_filename)}</div>
+            <div class="tx-detail-subtle">${formatDate(att.created_at)} · ${formatBytes(att.byte_size)}</div>
+          </div>
+          <div class="tx-attachment-actions">
+            <a class="btn-ghost tx-attachment-link" href="api/transaction-attachments/${att.id}/download">Download</a>
+          </div>
+        </div>
+      `).join('')
+    : '<div class="empty-state">No attachments yet</div>';
+}
+
+function openCurrentCategoryEditor() {
+  if (!currentDetail) return;
+  openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
+}
 
 function openCategoryOverlay(txId, merchantName) {
   catTarget = { id: txId, merchant: merchantName };
@@ -232,6 +303,11 @@ async function assignCategory(categoryId) {
     });
     closeCategoryOverlay();
     await loadDashboard();
+    if (currentDetailId) {
+      const data = await api(`api/transactions/${currentDetailId}`);
+      currentDetail = data.transaction;
+      renderTransactionDetail();
+    }
   } catch (err) {
     alert('Failed to assign category: ' + err.message);
   }
@@ -286,6 +362,13 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatBytes(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
 async function api(url, opts) {
   const res = await fetch(url, opts);
   if (res.status === 401) {
@@ -303,4 +386,16 @@ document.addEventListener('keydown', event => {
   const overlay = $('category-overlay');
   if (!overlay || overlay.classList.contains('hidden')) return;
   if (event.key === 'Escape') closeCategoryOverlay();
+});
+
+document.addEventListener('click', event => {
+  const overlay = $('kid-tx-detail-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.target === overlay) closeTransactionDetail();
+});
+
+document.addEventListener('keydown', event => {
+  const overlay = $('kid-tx-detail-overlay');
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (event.key === 'Escape') closeTransactionDetail();
 });

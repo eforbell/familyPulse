@@ -45,12 +45,23 @@ describe('database schema', () => {
     });
   });
 
+  it('applies migration 017 for transaction memory schema', async () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '017-transaction-memory.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+    });
+  });
+
   const expectedTables = [
     'items', 'accounts', 'transactions', 'categories', 'category_rules',
     'budget_snapshots', 'planning_goals', 'savings_signals',
     'magic_actions_log', 'anomalies', 'import_runs', 'dedup_runs', 'family_members', 'app_config',
     'recurring_expenses', 'recurring_expense_history',
     'planned_expenses', 'cash_flow_snapshots',
+    'transaction_notes', 'transaction_attachments',
     'schema_migrations'
   ];
 

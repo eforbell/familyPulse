@@ -216,3 +216,32 @@
 - Files created: lib/cash-flow-engine.js, lib/seasonal-baseline.js, lib/forecast-service.js, lib/routes/cash-flow.js, public/forecast.html, public/forecast.js, test/cash-flow-engine.test.js, test/seasonal-baseline.test.js, test/cash-flow-api.test.js, test/e2e/forecast.spec.js, db/migrations/015-cash-flow-forecast.sql
 - Files modified: server.js, lib/sync.js, public/nav.js, public/style.css, public/index.html, public/app.js, lib/magic-actions/context-assembler.js, test/context-assembler.test.js, test/schema.test.js, db/seed.sql
 ---
+
+## 2026-03-27 - TRM-021-001 + TRM-021-005
+- Implemented Feature 21 Slice A backend foundation: migration 017, transaction detail payload, per-transaction note CRUD, attachment-path helper scaffolding, and sync retention for annotated Plaid transactions
+- Files changed: db/migrations/017-transaction-memory.sql, lib/routes/transactions.js, lib/sync.js, lib/transaction-attachments.js, test/transaction-memory-api.test.js, test/schema.test.js, planning/current-feature.json, planning/features/feature-21-prd.json
+- **Learnings:**
+  - A dedicated `GET /api/transactions/:id` detail route is the clean seam for future attachment UI and merchant-override work; it avoids bloating the list endpoint while preserving kid scoping
+  - Retained transaction memory needs sync-level semantics, not just schema columns — the important behavior is `removeTransactionByPlaidId()` preserving annotated rows and `upsertTransaction()` clearing `source_removed` if the upstream row comes back
+  - A small attachment helper can settle the path/GUID contract early without committing to upload endpoints yet; testing it with `FP_TRANSACTION_FILES_DIR` keeps `/data/apps/familyPulse` as the production default without forcing tests to write outside the workspace
+---
+
+## 2026-03-27 - TRM-021-002 + TRM-021-003
+- Implemented attachment upload/list/download/delete APIs with on-disk file writes, strict file validation, and metadata-only list responses
+- Files changed: lib/routes/transactions.js, test/transaction-memory-api.test.js, planning/features/feature-21-prd.json
+- **Learnings:**
+  - Keeping attachment routes inside `lib/routes/transactions.js` is still manageable because the shared transaction visibility helpers do most of the auth/scoping work
+  - `multer.memoryStorage()` fits this app better than disk storage for v1 because it allows validation before final placement while still keeping explicit GUID-based writes in our own helper contract
+  - Ordering attachment lists by `created_at DESC, id DESC` makes the newest upload deterministic even when timestamps are equal, which keeps tests and UI assumptions stable
+  - For this home app, MIME/extension allowlisting is a pragmatic v1 guardrail; deeper content sniffing can wait unless real-world misuse shows up
+---
+
+## 2026-03-27 - TRM-021-004 + TRM-021-006
+- Implemented browser transaction-memory surfaces on both parent and kid paths, and documented attachment-folder backup/restore expectations
+- Files changed: public/transactions.html, public/transactions.js, public/kids.html, public/kids.js, public/style.css, test/e2e/transaction-memory.spec.js, planning/restore-drill.md, README.md, planning/features/feature-21-prd.json
+- **Learnings:**
+  - Kids already had a natural transaction entry point on `kids.html`, so surfacing read-only notes/attachments there was cleaner than broadening kid navigation to the parent transactions page
+  - Row-click behavior can graduate from "categorize immediately" to "open record detail" without losing category assignment, as long as the detail surface offers an explicit category action
+  - Playwright route mocking is a good fit for frontend-heavy transaction detail work because the UI can be exercised deterministically without seeding a full attachment fixture graph into the database
+  - Backup documentation matters once the feature writes outside Postgres; the restore drill must explicitly mention `transaction-files` or the system-of-record promise is incomplete
+---

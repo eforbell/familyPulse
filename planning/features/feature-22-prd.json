@@ -1,0 +1,190 @@
+{
+  "branchName": "feature/transaction-identity-overrides",
+  "projectName": "Transaction Identity Overrides",
+  "description": "Let Family Pulse present cleaner, household-meaningful merchant names than the raw synced feed by supporting per-transaction display-name overrides and optional exact-match rename rules for future synced transactions. The app keeps Plaid's raw fields intact while becoming easier to scan, search, and trust over time.",
+  "timing": {
+    "draftedOn": "2026-03-27",
+    "plannedEarliestExecution": "after Feature 21",
+    "gatingCondition": "Feature 2 transaction browser exists. Feature 21 is the preferred predecessor because the same transaction detail surface can host identity editing."
+  },
+  "principles": [
+    "Raw synced merchant/name fields are preserved exactly as received from Plaid or import sources",
+    "Display identity is a local Family Pulse layer that can be changed without corrupting sync provenance",
+    "Rename rules are optional; one-off cleanup must be possible without creating future behavior",
+    "V1 rule matching is exact on the raw synced source string — simple, predictable, reviewable",
+    "Checks are a special case: the UI should discourage automatic rule creation for 'Check ####' patterns",
+    "Current transaction edit and future rule creation are related but distinct actions",
+    "Applied identity rules should improve browsing/search without hiding original synced text from the detail view",
+    "Parent-only writes, kid-readable where the transaction itself is visible",
+    "SECRETS INVARIANT: identity overrides add household-friendly labels only, never expose raw Plaid payloads beyond already-visible merchant/name fields"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — transaction-level display override fields and a new merchant rename rules table",
+    "integrationPoints": "Transaction list queries, sync upsert path, Monarch import path, and transaction detail UI",
+    "testing": "node:test for exact-match rule application and API behavior; Playwright for transaction edit UX"
+  },
+  "executionStatus": {
+    "mode": "Draft PRD only. Update story status and acceptance notes when implementation begins.",
+    "branch": "feature/transaction-identity-overrides",
+    "lastUpdatedOn": "2026-03-27",
+    "summary": "Planned feature. Product direction settled on exact-match optional rename rules, with check-like transactions defaulting away from future rule creation.",
+    "currentFocus": "Awaiting implementation start after Feature 21",
+    "deferredForV1": [
+      "Normalized or fuzzy merchant matching",
+      "Bulk retroactive application to historical matches",
+      "Rule priority stacks or advanced pattern language",
+      "Separate payee vs merchant dual-field editing if Plaid source data warrants it later"
+    ]
+  },
+  "userStories": [
+    {
+      "id": "TIO-022-001",
+      "title": "Transaction-level display name override",
+      "acceptanceCriteria": [
+        "A parent can edit the display merchant/payee name for a single transaction without changing the raw synced merchant_name or name columns",
+        "GET /api/transactions returns both raw displayable source text and the effective display name used in the UI",
+        "Transaction detail shows the original synced name and the local override when present",
+        "Clearing the override reverts the transaction to raw synced display text",
+        "Kid reads are allowed only when the transaction itself is visible to that kid; writes remain parent-only"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-0",
+      "testStrategy": "node:test for set/clear behavior, response shape, auth guards, and preservation of raw source columns.",
+      "passes": false
+    },
+    {
+      "id": "TIO-022-002",
+      "title": "Optional exact-match future rename rules",
+      "acceptanceCriteria": [
+        "When editing a transaction display name, parent can optionally create a future rename rule bound to the exact raw synced source string for that transaction",
+        "Rule matching in v1 is exact string match only against the raw synced source text chosen by the system",
+        "Creating a rule updates the current transaction display name and persists a rule for future synced transactions",
+        "Rules can be deleted or disabled later without altering the preserved raw source text on transactions",
+        "V1 does not require retroactively rewriting past matching transactions unless they are individually edited"
+      ],
+      "priority": 1,
+      "estimatedLines": "+110/-0",
+      "testStrategy": "node:test for exact-match rule creation, persistence, disabling, and non-retroactive behavior.",
+      "passes": false
+    },
+    {
+      "id": "TIO-022-003",
+      "title": "Check-aware default behavior",
+      "acceptanceCriteria": [
+        "If the raw synced source text matches a check-style pattern such as 'Check 1024' or 'Check #1024', the UI defaults the 'apply to future matches' option to off",
+        "A one-off rename remains fully allowed for check transactions",
+        "Non-check transactions default the future-rule option to on for parent convenience",
+        "The heuristic is transparent and conservative; false positives are acceptable if the edit can still be changed"
+      ],
+      "priority": 1,
+      "estimatedLines": "+40/-0",
+      "testStrategy": "node:test for check-pattern detection helper plus UI-state assertion in Playwright or frontend unit-style coverage.",
+      "passes": false
+    },
+    {
+      "id": "TIO-022-004",
+      "title": "Rule application during sync and import",
+      "acceptanceCriteria": [
+        "Plaid sync upsert path applies any exact-match rename rule to the transaction's effective display name during insert/update",
+        "Monarch import path can also apply rename rules when raw source text matches exactly",
+        "Rule application is idempotent across repeated syncs",
+        "If no rule matches, effective display name falls back to existing override or raw merchant/name",
+        "Raw synced source fields remain queryable and unchanged"
+      ],
+      "priority": 1,
+      "estimatedLines": "+90/-10",
+      "testStrategy": "node:test for sync/import application path with exact matches, misses, and repeated upserts.",
+      "passes": false
+    },
+    {
+      "id": "TIO-022-005",
+      "title": "Search and browsing use the effective display name",
+      "acceptanceCriteria": [
+        "Transactions list and detail views render the effective display name prominently",
+        "Search can find matches by effective display name while still preserving discoverability of the raw synced text",
+        "API response includes enough fields for the browser to surface 'renamed from ...' context in detail view",
+        "Category rule creation remains based on deliberate product choice and is not silently changed by rename rules in v1"
+      ],
+      "priority": 2,
+      "estimatedLines": "+70/-20",
+      "testStrategy": "node:test for search behavior and response shape. Manual verification that renamed items are easier to scan in the list.",
+      "passes": false
+    },
+    {
+      "id": "TIO-022-006",
+      "title": "Rename rule management surface",
+      "acceptanceCriteria": [
+        "Parents can list rename rules with raw source text, display name, enabled/disabled status, created_at, and last matched at",
+        "Parents can disable/delete a rule without affecting already renamed one-off transactions",
+        "V1 management can live in Settings or a simple modal/list; it does not require a large dedicated page",
+        "Auth guard is parent-only"
+      ],
+      "priority": 2,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "node:test API coverage for list/update/delete plus manual UI check for rule visibility and controls.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "If rename rules overwrite raw synced columns, provenance is lost. Mitigation: store effective display layer separately from merchant_name/name."
+    ],
+    "medium": [
+      "Exact-match rules may miss real-world variants from Plaid. Mitigation: keep v1 exact and simple, then revisit normalized matching only if lived experience shows pain.",
+      "Mixing rename rules with category rules could create confusing behavior. Mitigation: keep them fully separate in data model and UI copy."
+    ],
+    "low": [
+      "Search semantics may briefly feel surprising if both raw and effective names are searchable. Mitigation: show original name in detail so the mapping is obvious."
+    ],
+    "operational": [
+      "Future schema/design may want normalized matching. Mitigation: model rules so match_type can be extended later even if v1 only uses exact."
+    ]
+  },
+  "preFlightChecklist": [
+    "Decide the exact raw source text hierarchy for rules: merchant_name first, fallback to name when merchant_name is absent",
+    "Confirm whether transaction list search should match both effective and raw names in the same query",
+    "Inspect current category-rule workflow so rename rule UX does not create accidental coupling",
+    "Choose whether rule management belongs in transaction detail only or also a lightweight Settings list"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Data model + one-off override support",
+      "goal": "Add effective display name support without yet introducing future rules.",
+      "notes": [
+        "Add migration for transaction-level display override fields and rename rules table",
+        "Update transaction APIs to return raw and effective names",
+        "Update transactions UI to edit one transaction display name"
+      ]
+    },
+    {
+      "name": "Slice B: Optional future rules + sync/import application",
+      "goal": "Persist exact-match rules and apply them deterministically on ingest.",
+      "notes": [
+        "Add check-pattern helper and default future-rule behavior",
+        "Apply rules in sync and Monarch import paths",
+        "Keep category rules and rename rules separate"
+      ]
+    },
+    {
+      "name": "Slice C: Rule management + search polish",
+      "goal": "Make rules inspectable and keep renamed transactions easy to find.",
+      "notes": [
+        "Add parent-only rule list/disable/delete flow",
+        "Update search to include effective display names",
+        "Surface original synced text in detail UI for trust and auditability"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+530/-30",
+    "storiesCount": 6,
+    "filesCreated": [
+      "db/migrations/018-transaction-identity-overrides.sql",
+      "lib/merchant-rename-rules.js",
+      "test/transaction-identity-overrides.test.js",
+      "test/e2e/transaction-identity.spec.js"
+    ]
+  }
+}

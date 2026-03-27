@@ -1,0 +1,220 @@
+{
+  "branchName": "feature/transaction-memory",
+  "projectName": "Transaction Memory",
+  "description": "Turn Family Pulse transactions into durable household records by adding per-transaction notes, multiple receipt/invoice attachments, and protected retention semantics for annotated transactions. This makes the transaction ledger the place Eric and Alex can return to for warranty claims, reimbursements, and historical lookup long after the bank feed changes.",
+  "timing": {
+    "draftedOn": "2026-03-27",
+    "plannedEarliestExecution": "after Feature 20",
+    "gatingCondition": "Feature 2 transaction browser exists and Feature 10 auth is in place. This feature extends the transaction detail surface and adds persistent on-disk file storage."
+  },
+  "principles": [
+    "Family Pulse becomes the household record, not just a synced mirror of Plaid",
+    "Raw synced transaction fields remain intact; notes and attachments are additive local memory",
+    "Files live on disk, metadata lives in PostgreSQL — simple deployment, simple backup story",
+    "Uploaded files are never web-public static assets; all access goes through authenticated API routes",
+    "One note per transaction is enough for v1; no note revision history and no attachment versioning",
+    "Multiple attachments per transaction are allowed with no extra structure beyond filename and mime type",
+    "GUID-backed stored filenames prevent collisions and avoid trusting user-supplied names",
+    "Annotated transactions must survive upstream removal — local memory outranks Plaid delete semantics",
+    "Parent-only create/edit/delete, kid-viewable only when the underlying transaction is already visible to that kid",
+    "SECRETS INVARIANT: attachments may contain household documents, so APIs expose only auth-gated metadata and file streams, never filesystem paths or secret config"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — new transaction_notes and transaction_attachments tables plus retention flags on transactions",
+    "storage": "On-disk files under /data/apps/familyPulse/transaction-files (or equivalent app-local persistent subfolder)",
+    "uploading": "multer disk or memory pipeline with server-side validation and GUID rename",
+    "testing": "node:test for API/storage rules and Playwright for transaction detail interactions"
+  },
+  "executionStatus": {
+    "mode": "Maintain this PRD during development. Update story status and acceptance notes as each execution slice lands.",
+    "branch": "feature/transaction-memory",
+    "lastUpdatedOn": "2026-03-27",
+    "summary": "Feature 21 complete. Transactions now support local note memory, attachment upload/download/delete, browser detail surfaces for parents and kids, and sync retention for annotated Plaid removals.",
+    "currentFocus": "Complete — ready for review and follow-on Feature 22 work.",
+    "deferredForV1": [
+      "OCR or attachment text extraction",
+      "Attachment revision history",
+      "Inline PDF/image annotation",
+      "Bulk attachment upload across multiple transactions"
+    ]
+  },
+  "userStories": [
+    {
+      "id": "TRM-021-001",
+      "title": "Per-transaction note storage",
+      "acceptanceCriteria": [
+        "Each transaction can have zero or one freeform note stored locally in Family Pulse",
+        "GET transaction detail returns note text and note metadata (updated_at, updated_by display name)",
+        "PUT /api/transactions/:id/note creates or replaces the note in a single write",
+        "DELETE /api/transactions/:id/note clears the note without affecting the transaction itself",
+        "Parent role required for create/update/delete; reads follow existing transaction visibility rules",
+        "Reasonable length cap enforced server-side (for example 4,000 characters) to avoid abuse",
+        "Empty-string note writes are treated as delete/clear, not as separate blank notes"
+      ],
+      "priority": 1,
+      "estimatedLines": "+90/-0",
+      "testStrategy": "node:test API coverage for create, replace, clear, auth guard, kid visibility scoping, and max-length validation.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Implemented via GET /api/transactions/:id detail payload plus PUT/DELETE note endpoints with parent-only writes, kid-scoped reads, and note length validation."
+    },
+    {
+      "id": "TRM-021-002",
+      "title": "Attachment upload and metadata persistence",
+      "acceptanceCriteria": [
+        "Parents can upload multiple attachments to a transaction via multipart form upload",
+        "Allowed file types in v1: PDF, JPG, JPEG, PNG, HEIC",
+        "Per-file size cap enforced server-side to mitigate accidental or abusive uploads",
+        "Stored filename is a GUID (preserving safe extension when applicable) and original filename is stored as metadata only",
+        "Metadata persisted per attachment: transaction_id, original_filename, stored_filename, mime_type, byte_size, uploaded_by, created_at",
+        "Files are stored in an app-local persistent folder under /data/apps/familyPulse rather than in Postgres",
+        "Upload rejects disallowed mime types and mismatched extensions/content types",
+        "Attachment creation does not require any extra receipt/invoice classification in v1"
+      ],
+      "priority": 1,
+      "estimatedLines": "+160/-0",
+      "testStrategy": "node:test with fixture uploads covering valid PDF/image cases, invalid type rejection, oversize rejection, GUID naming, and metadata persistence.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Implemented via POST /api/transactions/:id/attachments with multer memory upload, strict MIME/extension allowlist, 10 MB per-file cap, GUID stored filenames, and Postgres metadata rows."
+    },
+    {
+      "id": "TRM-021-003",
+      "title": "Attachment download and deletion",
+      "acceptanceCriteria": [
+        "GET /api/transactions/:id/attachments lists metadata only, never filesystem paths",
+        "GET /api/transaction-attachments/:attachmentId/download streams the file with authenticated access and safe content headers",
+        "DELETE /api/transaction-attachments/:attachmentId removes both metadata row and on-disk file",
+        "Parent role required for delete; reads follow existing transaction visibility rules",
+        "Missing on-disk file is handled gracefully with a clear error and no server crash",
+        "Attempted access to an attachment from an unauthorized transaction returns 403/404 without leaking existence"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "node:test for list/download/delete auth, file streaming headers, missing-file handling, and orphan cleanup behavior.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Implemented via GET /api/transactions/:id/attachments, GET /api/transaction-attachments/:id/download, and DELETE /api/transaction-attachments/:id with auth-gated metadata/file access and safe disk cleanup."
+    },
+    {
+      "id": "TRM-021-004",
+      "title": "Transaction detail surface in the browser",
+      "acceptanceCriteria": [
+        "Transactions page gains a detail drawer or modal showing raw merchant/name, category, note, and attachments for one selected transaction",
+        "Parents can add/edit note, upload attachments, download attachments, and remove attachments from the detail surface",
+        "Kids can view note and attachment list/download only for transactions they are already authorized to see",
+        "Attachment list shows original filename, upload date, and file size",
+        "UI clearly distinguishes note/attachments from the synced transaction fields",
+        "Mobile layout remains usable on iPhone-sized screens with the detail surface fully scrollable"
+      ],
+      "priority": 2,
+      "estimatedLines": "+260/-0",
+      "testStrategy": "Playwright e2e: open detail view, save note, upload attachment, download link present, parent-only edit controls hidden/blocked for kids.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Transactions page now opens a detail overlay with note editing and attachment actions for parents. Kids get a read-only transaction-memory overlay on the kids dashboard for transactions already in scope. Covered by Playwright."
+    },
+    {
+      "id": "TRM-021-005",
+      "title": "Annotated transaction retention on sync removal",
+      "acceptanceCriteria": [
+        "If Plaid reports a transaction as removed and that transaction has a note or any attachment, Family Pulse does not hard-delete the row",
+        "Instead the transaction is retained locally and marked with a source-removed flag/timestamp visible to API consumers",
+        "Non-annotated Plaid removals may keep the current hard-delete behavior",
+        "Retained transactions continue to surface their note and attachments in the UI and APIs",
+        "Retention behavior is idempotent and does not create duplicate local records if sync reruns",
+        "Suppressed or hidden state remains independent from source-removed retention state"
+      ],
+      "priority": 1,
+      "estimatedLines": "+90/-20",
+      "testStrategy": "node:test sync-path coverage for removed Plaid transactions with and without local memory. Verify annotated records are preserved and flagged.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Sync removal now preserves annotated transactions by marking source_removed/source_removed_at instead of deleting them, and clears those flags if Plaid later re-sends the transaction."
+    },
+    {
+      "id": "TRM-021-006",
+      "title": "Storage configuration and operational guardrails",
+      "acceptanceCriteria": [
+        "Attachment root directory is configurable but defaults to an app-local persistent path under /data/apps/familyPulse",
+        "Startup or first upload ensures the directory exists with safe permissions",
+        "A small helper module centralizes path generation, GUID naming, and safe delete logic",
+        "Logs record attachment lifecycle events without exposing full local filesystem paths to clients",
+        "Document backup expectation: transaction-files folder must be included in app-level backups alongside the database"
+      ],
+      "priority": 2,
+      "estimatedLines": "+70/-0",
+      "testStrategy": "node:test for path helper behavior and startup/create-directory path. Manual verification in deploy environment.",
+      "passes": true,
+      "implementationStatus": "complete",
+      "statusNotes": "Helper module centralizes GUID naming and safe deletes, first upload creates the attachment directory, lifecycle events are logged, and backup expectations are documented in README plus planning/restore-drill.md."
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "If annotated transactions are still hard-deleted on Plaid removals, the entire 'system of record' promise fails. Mitigation: explicit retention semantics in sync.js for any transaction with local memory."
+    ],
+    "medium": [
+      "File storage adds operational state outside Postgres. Mitigation: keep storage path simple and colocated under /data/apps/familyPulse so deploy/backup remains obvious.",
+      "Upload validation mistakes could allow unexpected file types or oversized payloads. Mitigation: strict allowlist, byte cap, and server-side mime/extension checks."
+    ],
+    "low": [
+      "Attachment preview UX may be clunky for HEIC on some browsers. Mitigation: download-first is acceptable in v1; inline preview can be opportunistic."
+    ],
+    "operational": [
+      "Backups now require both database and transaction-files directory. Mitigation: document the folder in deploy notes and restore drills.",
+      "Orphaned files can appear if a write partially fails. Mitigation: wrap metadata writes carefully and delete staged files on DB failure paths."
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm exact on-disk directory name under /data/apps/familyPulse and whether it should be env-configurable or seeded config",
+    "Choose concrete per-file size cap for v1 (recommended: 10 MB to match existing import upload posture)",
+    "Inspect current sync removal path in lib/sync.js and design the minimal schema change for retained annotated transactions",
+    "Verify transaction detail UX can fit inside the existing transactions page without making list interactions clumsy on mobile",
+    "Confirm whether download-only is sufficient for HEIC in Safari/Chromium environments used by the household"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Schema + storage helper + note API",
+      "goal": "Land the data model and note workflow before file uploads.",
+      "notes": [
+        "Add migration for transaction_notes and retention flags on transactions",
+        "Create a small attachment storage helper module even before uploads so path conventions are settled",
+        "Add note CRUD endpoints and transaction detail payload",
+        "Cover auth and kid visibility rules with node:test"
+      ]
+    },
+    {
+      "name": "Slice B: Attachment upload/download/delete",
+      "goal": "Add secure file handling with metadata persistence and auth-gated retrieval.",
+      "notes": [
+        "Add transaction_attachments table",
+        "Implement upload, list, download, and delete routes",
+        "Validate mime types, enforce size cap, GUID rename files",
+        "Handle rollback/orphan cleanup on partial failure"
+      ]
+    },
+    {
+      "name": "Slice C: Browser detail surface + sync retention",
+      "goal": "Expose the feature in the transactions UI and protect annotated records from upstream deletion.",
+      "notes": [
+        "Add detail drawer/modal to transactions.html and transactions.js",
+        "Integrate note editing and attachment actions",
+        "Update sync removal behavior for annotated rows",
+        "Add Playwright coverage for parent and kid experiences"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+790/-20",
+    "storiesCount": 6,
+    "filesCreated": [
+      "db/migrations/017-transaction-memory.sql",
+      "lib/transaction-attachments.js",
+      "test/transaction-memory-api.test.js",
+      "test/e2e/transaction-memory.spec.js"
+    ]
+  }
+}
