@@ -184,6 +184,7 @@ function renderTransactions(txns) {
 
   list.innerHTML = txns.map(t => {
     const merchant = esc(t.merchant_name || t.name || 'Unknown');
+    const displayName = esc(t.effective_display_name || t.merchant_name || t.name || 'Unknown');
     const amt = parseFloat(t.amount);
     const amtClass = amt < 0 ? 'credit' : 'debit';
     const catBadge = t.category_name
@@ -194,7 +195,7 @@ function renderTransactions(txns) {
       <div class="tx-row" onclick="openTransactionDetail(${t.id})">
         <div></div>
         <div class="tx-main">
-          <div class="tx-merchant">${merchant}</div>
+          <div class="tx-merchant">${displayName}</div>
           <div class="tx-detail">
             <span>${formatDate(t.date)}</span>
             ${catBadge}
@@ -212,6 +213,7 @@ async function openTransactionDetail(txId) {
   currentDetail = null;
   $('kid-tx-detail-title').textContent = 'Transaction Detail';
   $('kid-tx-detail-meta').textContent = 'Loading…';
+  $('kid-tx-detail-display-name').textContent = '—';
   $('kid-tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
   $('kid-tx-detail-overlay').classList.remove('hidden');
 
@@ -233,11 +235,12 @@ function closeTransactionDetail() {
 function renderTransactionDetail() {
   if (!currentDetail) return;
   const tx = currentDetail;
-  const merchant = tx.merchant_name || tx.name || 'Transaction Detail';
+  const merchant = tx.effective_display_name || tx.merchant_name || tx.name || 'Transaction Detail';
   const rawParts = [tx.merchant_name, tx.name].filter(Boolean);
   const note = tx.note || null;
 
   $('kid-tx-detail-title').textContent = merchant;
+  $('kid-tx-detail-display-name').textContent = tx.effective_display_name || '—';
   $('kid-tx-detail-meta').textContent = [
     formatDate(tx.date),
     tx.account_name ? `${tx.account_name}${tx.account_mask ? ` ···${tx.account_mask}` : ''}` : '',

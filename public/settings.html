@@ -108,6 +108,19 @@
       <a href="import.html" class="btn-ghost">Monarch Money Import</a>
     </section>
 
+    <section id="rename-rules-section" class="hidden" style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h2 class="section-heading" style="margin:0">Transaction Rename Rules</h2>
+        <button class="btn-ghost" onclick="loadMerchantRenameRules()">Refresh</button>
+      </div>
+      <p class="settings-help-copy" style="margin-bottom:0.75rem">
+        Exact-match rules rename future synced transactions without changing the original synced text.
+      </p>
+      <div id="rename-rules-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading...</div>
+      </div>
+    </section>
+
     <!-- Duplicate Cleanup History -->
     <section id="dedup-history-section" style="margin-top:1.5rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">

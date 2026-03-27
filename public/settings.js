@@ -9,6 +9,7 @@ let ownerTarget = null; // item id being assigned
 let currentMember = null;
 let deleteMode = 'disconnect';
 let accountSelectionTarget = null;
+let merchantRenameRules = [];
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
-  await Promise.all([loadItems(), loadMembers(), loadDedupHistory()]);
+  await Promise.all([loadItems(), loadMembers(), loadDedupHistory(), loadMerchantRenameRules()]);
   loadBalancePolicy();
   loadThemeControls();
   loadAIPrompts();
@@ -97,6 +98,82 @@ async function loadDedupHistory() {
     `).join('');
   } catch (err) {
     list.innerHTML = `<div class="empty-state">Error loading history: ${esc(err.message)}</div>`;
+  }
+}
+
+async function loadMerchantRenameRules() {
+  const section = document.getElementById('rename-rules-section');
+  const list = document.getElementById('rename-rules-list');
+  if (!section || !list) return;
+
+  if (!currentMember || currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+  section.classList.remove('hidden');
+
+  try {
+    const data = await api('api/merchant-rename-rules');
+    merchantRenameRules = Array.isArray(data.rules) ? data.rules : [];
+    renderMerchantRenameRules();
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state">Error loading rename rules: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderMerchantRenameRules() {
+  const list = document.getElementById('rename-rules-list');
+  if (!list) return;
+
+  if (!merchantRenameRules.length) {
+    list.innerHTML = '<div class="empty-state">No transaction rename rules yet.</div>';
+    return;
+  }
+
+  list.innerHTML = merchantRenameRules.map(rule => `
+    <div class="admin-row">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+          <strong>${esc(rule.display_name)}</strong>
+          ${rule.enabled ? '<span class="status-good">Enabled</span>' : '<span class="status-error">Disabled</span>'}
+        </div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
+          from ${esc(rule.raw_source_text)} · exact match
+        </div>
+        <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
+          ${fmtDateTime(rule.created_at)}${rule.created_by_name ? ` · by ${esc(rule.created_by_name)}` : ''}${rule.last_matched_at ? ` · last matched ${timeAgo(rule.last_matched_at)}` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn-ghost" type="button" onclick="toggleMerchantRenameRule(${rule.id}, ${rule.enabled ? 'false' : 'true'})">
+          ${rule.enabled ? 'Disable' : 'Enable'}
+        </button>
+        <button class="btn-danger" type="button" onclick="deleteMerchantRenameRule(${rule.id})">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function toggleMerchantRenameRule(id, enabled) {
+  try {
+    await api(`api/merchant-rename-rules/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    await loadMerchantRenameRules();
+  } catch (err) {
+    alert('Failed to update rename rule: ' + err.message);
+  }
+}
+
+async function deleteMerchantRenameRule(id) {
+  if (!window.confirm('Delete this rename rule? Future exact matches will stop being renamed.')) return;
+  try {
+    await api(`api/merchant-rename-rules/${id}`, { method: 'DELETE' });
+    await loadMerchantRenameRules();
+  } catch (err) {
+    alert('Failed to delete rename rule: ' + err.message);
   }
 }
 

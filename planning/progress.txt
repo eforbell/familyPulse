@@ -245,3 +245,22 @@
   - Playwright route mocking is a good fit for frontend-heavy transaction detail work because the UI can be exercised deterministically without seeding a full attachment fixture graph into the database
   - Backup documentation matters once the feature writes outside Postgres; the restore drill must explicitly mention `transaction-files` or the system-of-record promise is incomplete
 ---
+
+## 2026-03-27 - TIO-022-001
+- Implemented transaction-level display-name overrides end to end with migration 018, effective-name response fields, parent edit controls in transaction detail overlays, and kid read-only visibility of renamed transactions
+- Files changed: db/migrations/018-transaction-identity-overrides.sql, lib/merchant-rename-rules.js, lib/routes/transactions.js, public/transactions.html, public/transactions.js, public/index.html, public/app.js, public/kids.html, public/kids.js, public/style.css, test/schema.test.js, test/transaction-identity-overrides.test.js, test/e2e/transaction-identity.spec.js, planning/current-feature.json, planning/features/feature-22-prd.json
+- **Learnings:**
+  - `effective_display_name` and `raw_display_name` should both travel in transaction list/detail payloads; the UI needs both to stay readable without sacrificing sync provenance
+  - A small helper module for raw-source hierarchy (`merchant_name` first, `name` fallback) keeps override behavior consistent between route handlers, tests, and the upcoming rule-application slice
+  - Browser coverage for renamed transactions is worth keeping even in a simple UI because the detail overlay now carries more state than the old category-only flow
+---
+
+## 2026-03-27 - TIO-022-002 + TIO-022-003 + TIO-022-004 + TIO-022-005 + TIO-022-006
+- Implemented exact-match future rename rules, check-aware defaults in the detail overlay, sync/import rule application, effective-name search, and a parent Settings surface for listing, disabling, and deleting rename rules
+- Files changed: lib/merchant-rename-rules.js, lib/sync.js, lib/routes/import.js, lib/routes/transactions.js, public/transactions.html, public/transactions.js, public/index.html, public/app.js, public/settings.html, public/settings.js, public/style.css, test/transaction-identity-overrides.test.js, test/e2e/transaction-identity.spec.js, planning/current-feature.json, planning/features/feature-22-prd.json
+- **Learnings:**
+  - The safest v1 rule application policy is "only fill `display_name_override` when the transaction does not already have a local override"; that preserves one-off household edits without needing a more complex provenance column yet
+  - Reusing the exact same raw-source hierarchy in transaction editing, Plaid sync, and Monarch import keeps rule behavior predictable and prevents drift between manual and ingest-time naming
+  - Search needs to look at both `COALESCE(display_name_override, merchant_name, name)` and the raw fields so renamed transactions are easier to find without making the original synced text disappear
+  - A lightweight Settings list is enough for v1 rule management; enable/disable/delete covers the operational needs without requiring a dedicated normalization page
+---

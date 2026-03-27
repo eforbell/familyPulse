@@ -42,6 +42,10 @@
 
       <div class="tx-detail-summary">
         <div class="tx-detail-summary-row">
+          <span class="tx-detail-summary-label">Display name</span>
+          <span id="tx-detail-display-name">—</span>
+        </div>
+        <div class="tx-detail-summary-row">
           <span class="tx-detail-summary-label">Amount</span>
           <strong id="tx-detail-amount">—</strong>
         </div>
@@ -58,6 +62,25 @@
       <div class="tx-detail-actions">
         <button id="tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Assign Category</button>
       </div>
+
+      <section class="tx-detail-section">
+        <div class="tx-detail-section-head">
+          <h3>Display Name</h3>
+          <span id="tx-display-name-meta" class="tx-detail-subtle"></span>
+        </div>
+        <input id="tx-display-name-input" class="tx-display-name-input hidden" type="text" maxlength="160" placeholder="Clean up this merchant/payee name">
+        <div id="tx-display-name-readonly" class="tx-note-readonly hidden"></div>
+        <div id="tx-display-name-empty" class="tx-detail-subtle">Using synced merchant/payee text.</div>
+        <div id="tx-display-name-actions" class="form-actions hidden">
+          <label id="tx-display-name-rule-row" class="tx-detail-checkbox hidden">
+            <input id="tx-display-name-rule-check" type="checkbox">
+            <span>Apply to future exact matches</span>
+          </label>
+          <div id="tx-display-name-rule-hint" class="tx-detail-subtle hidden"></div>
+          <button class="btn-primary" type="button" onclick="saveTransactionDisplayName()">Save Name</button>
+          <button class="btn-ghost" type="button" onclick="clearTransactionDisplayName()">Clear</button>
+        </div>
+      </section>
 
       <section class="tx-detail-section">
         <div class="tx-detail-section-head">

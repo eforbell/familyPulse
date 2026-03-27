@@ -214,7 +214,7 @@ function renderTransactions() {
   list.innerHTML = transactions.map(tx => {
     const amt = parseFloat(tx.amount);
     const isCredit = amt < 0;
-    const merchant = tx.merchant_name || tx.name || '—';
+    const merchant = tx.effective_display_name || tx.merchant_name || tx.name || '—';
     const catBadge = tx.category_name
       ? `<span class="cat-badge" style="background:${hexToRgba(tx.category_color, 0.15)};border:1px solid ${hexToRgba(tx.category_color, 0.3)};color:${tx.category_color}">${tx.category_icon || ''} ${esc(tx.category_name)}</span>`
       : '<span class="cat-badge uncat">uncategorized</span>';
@@ -369,6 +369,7 @@ async function openTransactionDetail(id) {
   currentDetail = null;
   $('tx-detail-title').textContent = 'Transaction Detail';
   $('tx-detail-meta').textContent = 'Loading…';
+  $('tx-detail-display-name').textContent = '—';
   $('tx-detail-amount').textContent = '—';
   $('tx-detail-category').textContent = '—';
   $('tx-detail-raw').textContent = '—';
@@ -402,11 +403,12 @@ async function refreshCurrentDetail() {
 function renderTransactionDetail() {
   if (!currentDetail) return;
   const tx = currentDetail;
-  const merchant = tx.merchant_name || tx.name || 'Transaction Detail';
+  const merchant = tx.effective_display_name || tx.merchant_name || tx.name || 'Transaction Detail';
   const rawParts = [tx.merchant_name, tx.name].filter(Boolean);
   const note = tx.note || null;
 
   $('tx-detail-title').textContent = merchant;
+  $('tx-detail-display-name').textContent = tx.effective_display_name || '—';
   $('tx-detail-meta').textContent = [
     formatDate(tx.date),
     tx.account_name ? `${tx.account_name}${tx.account_mask ? ` ···${tx.account_mask}` : ''}` : '',
@@ -418,6 +420,30 @@ function renderTransactionDetail() {
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
   $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
+
+  const canEditDisplayName = currentMember?.role === 'parent';
+  $('tx-display-name-input').classList.toggle('hidden', !canEditDisplayName);
+  $('tx-display-name-actions').classList.toggle('hidden', !canEditDisplayName);
+  $('tx-display-name-readonly').classList.toggle('hidden', canEditDisplayName);
+  $('tx-display-name-rule-row').classList.toggle('hidden', !canEditDisplayName);
+  $('tx-display-name-meta').textContent = tx.display_name_override_updated_at
+    ? `Updated ${formatDate(tx.display_name_override_updated_at)}${tx.display_name_override_updated_by_name ? ` by ${tx.display_name_override_updated_by_name}` : ''}`
+    : '';
+
+  if (canEditDisplayName) {
+    $('tx-display-name-input').value = tx.display_name_override || '';
+    $('tx-display-name-rule-check').checked = tx.rename_rule ? true : !tx.raw_display_name_is_check_like;
+    $('tx-display-name-rule-hint').classList.remove('hidden');
+    $('tx-display-name-rule-hint').textContent = tx.rename_rule
+      ? `Future exact matches already rename to "${tx.rename_rule.display_name}".`
+      : tx.raw_display_name_is_check_like
+        ? 'Check-style text defaults to one-off rename only.'
+        : 'Enable this to bind the cleaned-up name to this exact synced source text.';
+    $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
+  } else {
+    $('tx-display-name-readonly').textContent = tx.display_name_override || '';
+    $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
+  }
 
   const canEditNote = currentMember?.role === 'parent';
   $('tx-note-input').classList.toggle('hidden', !canEditNote);
@@ -437,6 +463,45 @@ function renderTransactionDetail() {
 
   $('tx-attachment-upload').classList.toggle('hidden', currentMember?.role !== 'parent');
   renderAttachmentList(tx.attachments || []);
+}
+
+async function saveTransactionDisplayName() {
+  await submitTransactionDisplayName({
+    displayName: $('tx-display-name-input').value,
+    applyToFuture: $('tx-display-name-rule-check').checked
+  });
+}
+
+async function submitTransactionDisplayName({ displayName, applyToFuture }) {
+  if (!currentDetailId || currentMember?.role !== 'parent') return;
+  const feedback = $('tx-detail-feedback');
+  feedback.className = 'recurring-detail-feedback';
+  feedback.textContent = 'Saving display name…';
+
+  try {
+    const data = await api(`api/transactions/${currentDetailId}/display-name`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        display_name: displayName,
+        apply_to_future: applyToFuture
+      })
+    });
+    currentDetail = data.transaction;
+    await loadTransactions();
+    renderTransactionDetail();
+    feedback.textContent = 'Display name saved.';
+  } catch (err) {
+    feedback.className = 'recurring-detail-feedback error';
+    feedback.textContent = err.message || 'Could not save display name';
+  }
+}
+
+async function clearTransactionDisplayName() {
+  if (!currentDetailId || currentMember?.role !== 'parent') return;
+  $('tx-display-name-input').value = '';
+  $('tx-display-name-rule-check').checked = false;
+  await submitTransactionDisplayName({ displayName: '', applyToFuture: false });
 }
 
 function renderAttachmentList(attachments) {

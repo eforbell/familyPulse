@@ -26,11 +26,11 @@
     "testing": "node:test for exact-match rule application and API behavior; Playwright for transaction edit UX"
   },
   "executionStatus": {
-    "mode": "Draft PRD only. Update story status and acceptance notes when implementation begins.",
+    "mode": "Maintain this PRD during development. Update story status and acceptance notes as each execution slice lands.",
     "branch": "feature/transaction-identity-overrides",
     "lastUpdatedOn": "2026-03-27",
-    "summary": "Planned feature. Product direction settled on exact-match optional rename rules, with check-like transactions defaulting away from future rule creation.",
-    "currentFocus": "Awaiting implementation start after Feature 21",
+    "summary": "Feature complete: one-off display-name overrides, optional exact-match future rules, check-aware defaults, sync/import rule application, effective-name search, and parent rule management are implemented and verified.",
+    "currentFocus": "All Feature 22 stories pass. Await merge or branch follow-up.",
     "deferredForV1": [
       "Normalized or fuzzy merchant matching",
       "Bulk retroactive application to historical matches",
@@ -52,7 +52,7 @@
       "priority": 1,
       "estimatedLines": "+100/-0",
       "testStrategy": "node:test for set/clear behavior, response shape, auth guards, and preservation of raw source columns.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "TIO-022-002",
@@ -67,7 +67,7 @@
       "priority": 1,
       "estimatedLines": "+110/-0",
       "testStrategy": "node:test for exact-match rule creation, persistence, disabling, and non-retroactive behavior.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "TIO-022-003",
@@ -81,7 +81,7 @@
       "priority": 1,
       "estimatedLines": "+40/-0",
       "testStrategy": "node:test for check-pattern detection helper plus UI-state assertion in Playwright or frontend unit-style coverage.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "TIO-022-004",
@@ -96,7 +96,7 @@
       "priority": 1,
       "estimatedLines": "+90/-10",
       "testStrategy": "node:test for sync/import application path with exact matches, misses, and repeated upserts.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "TIO-022-005",
@@ -110,7 +110,7 @@
       "priority": 2,
       "estimatedLines": "+70/-20",
       "testStrategy": "node:test for search behavior and response shape. Manual verification that renamed items are easier to scan in the list.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "TIO-022-006",
@@ -124,7 +124,7 @@
       "priority": 2,
       "estimatedLines": "+120/-0",
       "testStrategy": "node:test API coverage for list/update/delete plus manual UI check for rule visibility and controls.",
-      "passes": false
+      "passes": true
     }
   ],
   "riskAssessment": {
@@ -133,10 +133,12 @@
     ],
     "medium": [
       "Exact-match rules may miss real-world variants from Plaid. Mitigation: keep v1 exact and simple, then revisit normalized matching only if lived experience shows pain.",
-      "Mixing rename rules with category rules could create confusing behavior. Mitigation: keep them fully separate in data model and UI copy."
+      "Mixing rename rules with category rules could create confusing behavior. Mitigation: keep them fully separate in data model and UI copy.",
+      "Clearing a display override while an exact-match rename rule still exists will let the next sync/import re-apply the rule. Mitigation: accept this as a v1 tradeoff until override provenance is tracked."
     ],
     "low": [
-      "Search semantics may briefly feel surprising if both raw and effective names are searchable. Mitigation: show original name in detail so the mapping is obvious."
+      "Search semantics may briefly feel surprising if both raw and effective names are searchable. Mitigation: show original name in detail so the mapping is obvious.",
+      "Deleting a rename rule does not clear display_name_override on already-renamed transactions because v1 does not track whether an override came from a rule or a manual edit. Mitigation: add override provenance if a future cascade-clear option becomes important."
     ],
     "operational": [
       "Future schema/design may want normalized matching. Mitigation: model rules so match_type can be extended later even if v1 only uses exact."

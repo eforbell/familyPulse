@@ -720,7 +720,24 @@ header h1 {
   padding: 0.8rem 0.9rem;
 }
 
+.tx-display-name-input {
+  width: 100%;
+  min-height: 0;
+  height: 2.9rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.8rem 0.9rem;
+}
+
 .tx-note-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.tx-display-name-input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -728,6 +745,17 @@ header h1 {
 
 .tx-note-readonly {
   white-space: pre-wrap;
+}
+
+.tx-detail-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.tx-detail-checkbox input {
+  accent-color: var(--accent);
 }
 
 .tx-attachment-upload {
