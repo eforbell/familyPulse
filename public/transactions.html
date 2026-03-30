@@ -128,7 +128,16 @@
         <select id="filter-category"><option value="">All Categories</option><option value="0">Uncategorized</option></select>
         <input type="date" id="filter-from">
         <input type="date" id="filter-to">
-        <input type="text" id="filter-search" placeholder="Search merchant...">
+        <div class="filter-input-group">
+          <input type="text" id="filter-search" placeholder="Search merchant...">
+          <div id="filter-search-suggestions" class="tx-display-name-suggestions hidden"></div>
+        </div>
+        <select id="filter-sort">
+          <option value="date_desc">Newest first</option>
+          <option value="date_asc">Oldest first</option>
+          <option value="amount_desc">Largest amount</option>
+          <option value="amount_asc">Smallest amount</option>
+        </select>
         <button id="btn-dedup" type="button" class="btn-ghost">Remove Duplicates</button>
         <label class="toggle-label">
           <input type="checkbox" id="filter-transfers"> Show transfers

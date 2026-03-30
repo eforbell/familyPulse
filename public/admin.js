@@ -43,19 +43,19 @@ function renderCategories() {
         <div class="admin-row-copy">
           <span class="name">${c.icon || ''} ${esc(c.name)}</span>
           <span class="meta">
-            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · baseline excluded' : ''}
+            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}
           </span>
         </div>
       </div>
       <div class="admin-row-actions">
         ${!c.is_income && !c.is_transfer_class ? `
-          <label class="checkbox-row admin-inline-toggle" title="Exclude this category from forecast baseline">
+          <label class="checkbox-row admin-inline-toggle" title="Exclude this category from the day-to-day forecast">
             <input
               type="checkbox"
               ${c.exclude_from_baseline ? 'checked' : ''}
               onchange="toggleBaselineExclusion(${c.id}, this.checked)"
             >
-            Baseline
+            Exclude from forecast
           </label>
         ` : ''}
         <button class="btn-ghost" onclick="openCategoryForm(${c.id})">Edit</button>

@@ -148,6 +148,9 @@
       if (!suggestion || !input) return;
       input.value = suggestion.label;
       hide();
+      if (typeof config.onSelect === 'function') {
+        config.onSelect(suggestion);
+      }
     }
 
     function handleKeydown(event) {

@@ -222,7 +222,13 @@ app.get('/api/status', requireParent, async (req, res) => {
 app.post('/api/sync', async (req, res) => {
   try {
     const result = await syncAll();
-    res.json(result);
+    res.json({
+      ...result,
+      synced: result.items,
+      transactions_added: result.txns_added,
+      transactions_modified: result.txns_modified,
+      transactions_removed: result.txns_removed
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -236,6 +242,11 @@ if (require.main === module) {
   // Only register cron when running as the main process (not in tests)
   cron.schedule('0 6 * * *', () => {
     logger.info('Cron sync triggered (6 AM)');
+    syncAll().catch(err => logger.error('Cron sync failed', { error: err.message }));
+  }, { timezone: TZ });
+
+  cron.schedule('0 12 * * *', () => {
+    logger.info('Cron sync triggered (12 PM)');
     syncAll().catch(err => logger.error('Cron sync failed', { error: err.message }));
   }, { timezone: TZ });
 

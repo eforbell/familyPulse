@@ -235,6 +235,8 @@ async function openDetail(categoryId) {
       ? `Budget: ${fmtMoney(budgeted)} — ${detail.transactions.length} transactions`
       : `${detail.transactions.length} transactions`;
 
+    renderDetailForecast(detail.forecast || null);
+
     if (detail.transactions.length === 0) {
       $('detail-txns').innerHTML = '<div class="empty-state">No transactions this month</div>';
     } else {
@@ -256,6 +258,32 @@ async function openDetail(categoryId) {
   } catch (err) {
     console.error('Detail load failed:', err);
   }
+}
+
+function renderDetailForecast(forecast) {
+  const root = $('detail-forecast');
+  if (!forecast) {
+    root.classList.add('hidden');
+    return;
+  }
+
+  const included = !!forecast.include_in_discretionary_baseline;
+  $('detail-forecast-badge').className = `detail-forecast-badge ${included ? 'included' : 'excluded'}`;
+  $('detail-forecast-badge').textContent = included
+    ? 'Included in day-to-day forecast'
+    : 'Excluded from day-to-day forecast';
+  $('detail-forecast-copy').textContent = forecast.explanation || '';
+
+  const recurring = $('detail-forecast-recurring');
+  if ((forecast.recurring_count || 0) > 0) {
+    recurring.classList.remove('hidden');
+    recurring.textContent = `${forecast.recurring_count} recurring item${forecast.recurring_count === 1 ? '' : 's'} forecast separately${forecast.recurring_monthly_total ? ` · about ${fmtMoney(forecast.recurring_monthly_total)}/mo` : ''}`;
+  } else {
+    recurring.classList.add('hidden');
+    recurring.textContent = '';
+  }
+
+  root.classList.remove('hidden');
 }
 
 function closeDetail() {

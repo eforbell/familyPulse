@@ -173,6 +173,30 @@ describe('GET /api/transactions', () => {
     ));
   });
 
+  it('sorts by amount descending when requested', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions?sort_field=amount&sort_direction=desc&limit=20`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.transactions.length > 1);
+    for (let i = 1; i < data.transactions.length; i++) {
+      const prev = Math.abs(Number(data.transactions[i - 1].amount));
+      const next = Math.abs(Number(data.transactions[i].amount));
+      assert.ok(prev >= next, `expected ${prev} >= ${next}`);
+    }
+  });
+
+  it('sorts by amount ascending when requested', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions?sort_field=amount&sort_direction=asc&limit=20`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.transactions.length > 1);
+    for (let i = 1; i < data.transactions.length; i++) {
+      const prev = Math.abs(Number(data.transactions[i - 1].amount));
+      const next = Math.abs(Number(data.transactions[i].amount));
+      assert.ok(prev <= next, `expected ${prev} <= ${next}`);
+    }
+  });
+
   it('filters uncategorized with category_id=0', async () => {
     const res = await fetch(`${baseUrl}/api/transactions?category_id=0&limit=50`);
     const data = await res.json();

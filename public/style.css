@@ -456,6 +456,26 @@ header h1 {
   flex: 1 1 120px;
   transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
 }
+
+.filter-input-group {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.filter-input-group input[type="text"] {
+  width: 100%;
+}
+
+.filter-input-group .tx-display-name-suggestions {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  margin-top: 0;
+  z-index: 20;
+  box-shadow: var(--shadow-card);
+}
 .filter-bar select:focus,
 .filter-bar input:focus {
   outline: none;
@@ -1740,6 +1760,54 @@ header h1 {
   font-size: var(--text-base);
   white-space: nowrap;
   margin-left: 0.5rem;
+}
+
+.detail-forecast {
+  margin-bottom: 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+
+.detail-forecast.hidden {
+  display: none;
+}
+
+.detail-forecast-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.detail-forecast-badge.included {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border-soft);
+  color: var(--accent);
+}
+
+.detail-forecast-badge.excluded {
+  background: rgba(234,179,8,0.12);
+  border: 1px solid rgba(234,179,8,0.28);
+  color: var(--yellow);
+}
+
+.detail-forecast-copy {
+  margin-top: 0.55rem;
+  font-size: var(--text-sm);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.detail-forecast-recurring {
+  margin-top: 0.55rem;
+  font-size: var(--text-sm);
+  color: var(--muted);
 }
 
 /* ── Sidebar — desktop ─────────────────────────────────────── */

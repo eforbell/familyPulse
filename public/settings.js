@@ -580,7 +580,7 @@ async function syncItem(itemId) {
   el.textContent = 'Syncing...';
   try {
     const data = await api(`api/items/${itemId}/sync`, { method: 'POST' });
-    el.textContent = `Synced: ${data.synced || 0} item(s), ${data.transactions_added || 0} new transactions`;
+    el.textContent = formatSyncSummary(data);
     await loadItems();
   } catch (err) {
     el.textContent = 'Sync failed: ' + err.message;
@@ -592,11 +592,19 @@ async function triggerFullSync() {
   el.textContent = 'Syncing all...';
   try {
     const data = await api('api/sync', { method: 'POST' });
-    el.textContent = `Synced: ${data.synced || 0} item(s), ${data.transactions_added || 0} new transactions`;
+    el.textContent = formatSyncSummary(data);
     await loadItems();
   } catch (err) {
     el.textContent = 'Sync failed: ' + err.message;
   }
+}
+
+function formatSyncSummary(data) {
+  const synced = data.synced ?? data.items ?? 0;
+  const added = data.transactions_added ?? data.txns_added ?? 0;
+  const modified = data.transactions_modified ?? data.txns_modified ?? 0;
+  const removed = data.transactions_removed ?? data.txns_removed ?? 0;
+  return `Synced: ${synced} item(s), ${added} new, ${modified} updated, ${removed} removed`;
 }
 
 // ── Passphrase management (parents only) ────────────────────

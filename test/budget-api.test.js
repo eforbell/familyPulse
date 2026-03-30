@@ -89,6 +89,10 @@ describe('budget API', () => {
     assert.ok(data.id);
     assert.ok(data.name);
     assert.ok(Array.isArray(data.transactions));
+    assert.ok(typeof data.exclude_from_baseline === 'boolean');
+    assert.ok(typeof data.forecast === 'object');
+    assert.ok(typeof data.forecast.include_in_discretionary_baseline === 'boolean');
+    assert.ok(typeof data.forecast.explanation === 'string');
   });
 
   it('GET /api/budget/category/999999 returns 404', async () => {

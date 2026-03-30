@@ -20,6 +20,11 @@
     <div class="overlay-box" style="max-width:500px">
       <h2 id="detail-title">Category Detail</h2>
       <div id="detail-meta" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem"></div>
+      <div id="detail-forecast" class="detail-forecast hidden">
+        <div id="detail-forecast-badge" class="detail-forecast-badge"></div>
+        <div id="detail-forecast-copy" class="detail-forecast-copy"></div>
+        <div id="detail-forecast-recurring" class="detail-forecast-recurring hidden"></div>
+      </div>
       <div id="detail-txns" class="detail-txn-list"></div>
       <a id="detail-view-all" href="#" class="btn-ghost" style="width:100%;margin-top:0.75rem;text-align:center;display:block">View all transactions</a>
       <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeDetail()">Close</button>

@@ -40,8 +40,11 @@
         <input type="checkbox" id="cat-income"> Is income
       </label>
       <label class="checkbox-row" style="margin-top:0.75rem">
-        <input type="checkbox" id="cat-exclude-from-baseline"> Exclude from forecast discretionary baseline
+        <input type="checkbox" id="cat-exclude-from-baseline"> Exclude from day-to-day forecast
       </label>
+      <p class="settings-help-copy" style="margin-top:0.35rem">
+        Use this for categories that should not shape normal discretionary spending expectations. Recurring bills are forecast separately.
+      </p>
       <div class="form-actions">
         <button class="btn-primary" onclick="saveCategory()">Save</button>
         <button class="btn-ghost" onclick="closeCategoryForm()">Cancel</button>
@@ -94,7 +97,7 @@
         <button class="btn-primary" onclick="openCategoryForm()">+ New</button>
       </div>
       <p class="settings-help-copy" style="margin-bottom:0.75rem">
-        Exclude categories like healthcare or travel when they distort the forecast's discretionary baseline.
+        Exclude categories like healthcare or travel when they distort the normal day-to-day forecast. Recurring bills are forecast separately.
       </p>
       <div id="category-admin-list" class="admin-list"></div>
     </section>

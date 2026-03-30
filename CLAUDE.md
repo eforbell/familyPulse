@@ -81,7 +81,7 @@ Access tokens and API keys MUST NEVER appear in:
 Disk encryption handles at-rest protection; no app-level encryption of tokens.
 
 ### Plaid Sync
-Cron-based: 6 AM + 8 PM Eastern. No webhooks. Cursor-based transaction sync
+Cron-based: 6 AM + 12 PM + 8 PM Eastern. No webhooks. Cursor-based transaction sync
 (`/transactions/sync`) with upsert on `plaid_transaction_id`. Handles pending → posted
 transitions and removed transactions.
 

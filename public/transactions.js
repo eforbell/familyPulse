@@ -17,6 +17,7 @@ let dedupRunFilter = null;
 let currentDetailId = null;
 let currentDetail = null;
 let displayNameSuggestionController = null;
+let transactionSearchSuggestionController = null;
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -37,8 +38,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('filter-search').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 300));
   $('filter-transfers').addEventListener('change', resetAndLoad);
   $('filter-hidden').addEventListener('change', resetAndLoad);
+  $('filter-sort').addEventListener('change', resetAndLoad);
   $('btn-dedup').addEventListener('click', runDedup);
   initDisplayNameSuggestionController();
+  initTransactionSearchSuggestionController();
 });
 
 // ── URL params → filters ─────────────────────────────────────
@@ -76,6 +79,12 @@ function applyUrlParams() {
 
   const showHidden = params.get('show_hidden');
   if (showHidden === '1') $('filter-hidden').checked = true;
+
+  const sortField = params.get('sort_field');
+  const sortDirection = params.get('sort_direction');
+  if (sortField && sortDirection) {
+    $('filter-sort').value = `${sortField}_${sortDirection}`;
+  }
 
   const dedupRunId = params.get('dedup_run_id');
   if (dedupRunId) dedupRunFilter = dedupRunId;
@@ -299,6 +308,10 @@ function buildFilterParams() {
 
   const search = $('filter-search').value.trim();
   if (search) p.set('search', search);
+
+  const [sortField, sortDirection] = ($('filter-sort').value || 'date_desc').split('_');
+  if (sortField) p.set('sort_field', sortField);
+  if (sortDirection) p.set('sort_direction', sortDirection);
 
   if ($('filter-transfers').checked) p.set('show_transfers', '1');
   if ($('filter-hidden').checked) p.set('show_hidden', '1');
@@ -681,6 +694,31 @@ function initDisplayNameSuggestionController() {
 
 function hideDisplayNameSuggestions() {
   if (displayNameSuggestionController) displayNameSuggestionController.hide();
+}
+
+function initTransactionSearchSuggestionController() {
+  if (typeof window.createDisplayNameSuggestionController !== 'function') return;
+  transactionSearchSuggestionController = window.createDisplayNameSuggestionController({
+    getInput: () => $('filter-search'),
+    getRoot: () => $('filter-search-suggestions'),
+    shouldSuggest: () => true,
+    fetchSuggestions: async (query) => {
+      const data = await api(`api/transactions/merchant-suggestions?q=${encodeURIComponent(query)}`);
+      return data.suggestions || [];
+    },
+    escapeHtml: esc,
+    formatDate,
+    onSelect: () => {
+      resetAndLoad();
+      updatePageTitle();
+    }
+  });
+  transactionSearchSuggestionController.bind();
+  $('filter-search').addEventListener('change', () => {
+    if (transactionSearchSuggestionController) transactionSearchSuggestionController.hide();
+    resetAndLoad();
+    updatePageTitle();
+  });
 }
 
 function renderAttachmentList(attachments) {
