@@ -34,6 +34,7 @@ function render() {
 
   content.classList.remove('hidden');
   renderHero();
+  renderPrimer();
   renderDangerBanner();
   renderChart();
   renderMonthlyCards();
@@ -101,6 +102,58 @@ function renderDangerBanner() {
   document.getElementById('danger-banner-text').innerHTML =
     `Balance projected to drop to <strong>${fmtMoney(first.projected_balance)}</strong> on ${fmtShortDate(first.date)}${trigger} &mdash; ${fmtMoney(first.deficit_below_floor)} below your safety floor.`;
   banner.classList.remove('hidden');
+}
+
+function renderPrimer() {
+  const meta = forecastData.meta || {};
+  const monthly = forecastData.monthly_outlook || [];
+  const firstMonth = monthly[0] || {};
+  const root = document.getElementById('forecast-primer');
+  if (!root) return;
+
+  const recurringCount = meta.recurring_expense_count || 0;
+  const discretionary = firstMonth.expected_discretionary || 0;
+  const recurring = firstMonth.expected_recurring || 0;
+  const liabilities = firstMonth.expected_liability_payments || 0;
+  const planned = firstMonth.planned_expenses_total || 0;
+
+  root.innerHTML = `
+    <div class="forecast-primer-card">
+      <div class="forecast-primer-head">
+        <div>
+          <h2 class="section-heading" style="margin:0">How Pulse Forecasts</h2>
+          <div class="forecast-primer-copy">
+            Pulse starts with today’s liquid cash, adds expected income, then subtracts recurring bills, liability payments, normal day-to-day spending, and any planned one-time expenses.
+          </div>
+        </div>
+      </div>
+      <div class="forecast-primer-grid">
+        <div class="forecast-primer-item">
+          <span class="forecast-primer-label">Recurring</span>
+          <strong>${fmtMoney(recurring)}</strong>
+          <span class="forecast-primer-detail">${recurringCount} active recurring patterns projected on their actual due schedule</span>
+        </div>
+        <div class="forecast-primer-item">
+          <span class="forecast-primer-label">Day-to-Day</span>
+          <strong>${fmtMoney(discretionary)}</strong>
+          <span class="forecast-primer-detail">Baseline discretionary spending based on prior history for this calendar month</span>
+        </div>
+        <div class="forecast-primer-item">
+          <span class="forecast-primer-label">Liabilities</span>
+          <strong>${fmtMoney(liabilities)}</strong>
+          <span class="forecast-primer-detail">Minimum payments coming from Plaid liability data</span>
+        </div>
+        <div class="forecast-primer-item">
+          <span class="forecast-primer-label">Planned</span>
+          <strong>${fmtMoney(planned)}</strong>
+          <span class="forecast-primer-detail">One-time expenses you added manually for this month</span>
+        </div>
+      </div>
+      <div class="forecast-primer-note">
+        “Recurring” here is not just the committed monthly summary. Pulse projects each active medium/high-confidence recurring item on its expected future dates, and the monthly card shows the total scheduled to hit inside that month.
+      </div>
+    </div>
+  `;
 }
 
 // ── Chart ─────────────────────────────────────────────────────
