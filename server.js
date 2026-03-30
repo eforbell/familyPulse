@@ -185,6 +185,7 @@ app.use(require('./lib/routes/anomalies'));
 app.use(require('./lib/routes/magic-actions'));
 app.use(require('./lib/routes/kids'));
 app.use(require('./lib/routes/cash-flow'));
+app.use(require('./lib/routes/notifications'));
 
 // Expose cfg/setCfg on app so route modules can access them
 app.set('cfg', cfg);

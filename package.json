@@ -15,6 +15,8 @@
     "test:ci": "npm run test",
     "db:clear-linked-data": "node db/clear-linked-data.js --yes",
     "sync": "node lib/cli.js sync",
+    "notifications:run": "node scripts/send-notifications.js",
+    "notifications:dry-run": "node scripts/send-notifications.js --dry-run",
     "accounts": "node lib/cli.js accounts",
     "status": "node lib/cli.js status",
     "test:e2e": "npx playwright test",

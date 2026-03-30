@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Family Pulse notifications every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+Unit=family-pulse-notifications.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,375 @@
+{
+  "branchName": "feature/push-notification-reminders",
+  "projectName": "Push Notification Reminders Foundation",
+  "description": "Add per-member brrr push notification onboarding and a separate scheduled reminder runner for Family Pulse. Phase 1 establishes secure channel registration, event subscription preferences, test delivery, and host-scheduled evaluation. Phase 2 adds concrete financial and technical reminder rules such as large expenses, sync failures, category budget overruns, and month-in-review nudges.",
+  "timing": {
+    "draftedOn": "2026-03-30",
+    "plannedEarliestExecution": "after Feature 22a",
+    "gatingCondition": "Can proceed immediately. Requires at least one real brrr webhook secret for end-to-end validation and a decision on whether Family Pulse should keep scheduled work in-process or move to a separate systemd timer runner."
+  },
+  "principles": [
+    "Notification delivery is opt-in per family member and parent-managed in settings",
+    "brrr secrets are write-only operational secrets stored in PostgreSQL, never in .env and never re-exposed after save",
+    "Detect reminder-worthy events on the server, not in the browser",
+    "Reminder evaluation runs outside the normal web request lifecycle",
+    "Keep channel delivery separate from event detection so future delivery options can reuse the same event engine",
+    "Prefer a small number of useful, trustworthy notifications over broad coverage that becomes spam",
+    "Every event type needs explicit dedupe and cooldown rules before it can ship",
+    "Deep links should land in an existing Pulse screen that helps the user act immediately"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express for settings and APIs, standalone Node runner for scheduled notification evaluation",
+    "database": "PostgreSQL — notification channel storage, event subscriptions, reminder state/history",
+    "scheduler": "systemd timer following the FamilyHelp pattern unless Family Pulse intentionally keeps in-process scheduling",
+    "deliveryChannel": "brrr webhook API (`https://api.brrr.now/v1/{secret}`)",
+    "docsReviewed": [
+      "https://brrr.now/docs/",
+      "https://brrr.now/learn/"
+    ],
+    "brrrPayloadFields": [
+      "title",
+      "subtitle",
+      "message",
+      "sound",
+      "open_url",
+      "image_url",
+      "expiration_date",
+      "filter-criteria",
+      "interruption-level"
+    ]
+  },
+  "executionStatus": {
+    "mode": "Planning only. Convert to active execution PRD once implementation starts and update slices/story status as code lands.",
+    "branch": "feature/push-notification-reminders",
+    "lastUpdatedOn": "2026-03-30",
+    "summary": "Initial PRD drafted. The design deliberately mirrors FamilyHelp's brrr + systemd approach, but adapted to Family Pulse's household-member model and financial event triggers.",
+    "currentFocus": "Define secure onboarding, event subscription semantics, and the first trustworthy reminder rules.",
+    "deferredForV1": [
+      "Browser-native web push / PWA notification infrastructure",
+      "Kid-managed notification settings",
+      "Rich notification images",
+      "Cross-member escalation chains",
+      "Digest batching across unrelated event types",
+      "End-user self-service secret rotation reminders",
+      "Forecast shift notifications"
+    ]
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "title": "Notification Foundation + Onboarding",
+      "goal": "Users can securely register brrr targets, choose event categories, send a test notification, and rely on a separate runner foundation without yet enabling the full set of reminder rules."
+    },
+    {
+      "id": "phase-2",
+      "title": "Financial + Technical Reminder Rules",
+      "goal": "Ship a small, trustworthy set of event rules with dedupe logic and deep links into existing Pulse screens."
+    }
+  ],
+  "userStories": [
+    {
+      "id": "PUSH-023-001",
+      "title": "Store per-member brrr notification channels securely",
+      "phase": "phase-1",
+      "acceptanceCriteria": [
+        "A family member can have zero or one active brrr channel in v1",
+        "The saved value can be either the raw secret or the full webhook URL and is normalized server-side",
+        "Secrets are stored in PostgreSQL, never in .env and never returned in full to the browser after save",
+        "Settings UI shows only masked state such as 'saved • ends in 9j0' and last-updated timestamp",
+        "Parents can add, replace, disable, enable, or clear a member's brrr channel",
+        "Kids cannot manage notification channels"
+      ],
+      "priority": 1,
+      "estimatedLines": "+180/-0",
+      "testStrategy": "node:test API coverage for save/replace/clear/mask/auth. Manual verification with one real secret and one full webhook URL.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-002",
+      "title": "Configure reminder subscriptions by event category per member",
+      "phase": "phase-1",
+      "acceptanceCriteria": [
+        "Settings page exposes simple event-category toggles per member",
+        "Initial event categories are: month_in_review, large_expense, sync_issue, budget_overrun",
+        "Subscriptions are separate from channel onboarding so a member can have a saved secret but no enabled event categories",
+        "Parents can configure subscriptions for parents only in v1",
+        "The storage model supports adding more event categories later without schema churn"
+      ],
+      "priority": 1,
+      "estimatedLines": "+160/-0",
+      "testStrategy": "node:test API coverage for CRUD and auth. Manual settings flow verification.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-003",
+      "title": "Provide a reusable brrr delivery helper and test-send endpoint",
+      "phase": "phase-1",
+      "acceptanceCriteria": [
+        "A small notification helper normalizes raw secret vs full webhook URL before sending",
+        "POST requests use JSON payloads matching the brrr docs",
+        "A parent-only test-send action can deliver a sample notification to a selected member without waiting for scheduled rules",
+        "Delivery failures are surfaced clearly in the UI and logged server-side without exposing secrets",
+        "The helper supports interruption-level and open_url because those are needed for Family Pulse event links"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-0",
+      "testStrategy": "node:test for normalization and failure handling, plus manual real-device verification.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-004",
+      "title": "Scheduled notification runner with idempotent event evaluation",
+      "phase": "phase-1",
+      "acceptanceCriteria": [
+        "A standalone runner script evaluates notification candidates without requiring HTTP traffic",
+        "Runner can execute safely under a systemd timer following the FamilyHelp pattern",
+        "Runs are idempotent and do not re-send the same event to the same member inside a configured cooldown window",
+        "Runner logs what was considered, skipped, sent, and failed",
+        "A dry-run mode exists for validation without live delivery",
+        "If Family Pulse still keeps in-process sync scheduling, the notification runner remains separate from the web process regardless"
+      ],
+      "priority": 1,
+      "estimatedLines": "+260/-0",
+      "testStrategy": "Manual dry-run/live-run verification plus node:test helpers for cooldown logic.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-005",
+      "title": "Track reminder state and delivery history separately from source events",
+      "phase": "phase-1",
+      "acceptanceCriteria": [
+        "Reminder bookkeeping is not inferred from source tables alone",
+        "The system stores enough state to dedupe repeat sends by member, event type, and source entity or evaluation window",
+        "The last delivery attempt, last success time, and recent error state are queryable for operational debugging",
+        "State design supports both one-off alerts (large expense) and recurring cadence-based nudges (month in review)",
+        "Deleting or editing a notification channel does not corrupt event history"
+      ],
+      "priority": 1,
+      "estimatedLines": "+180/-0",
+      "testStrategy": "node:test for dedupe keys and repeated runner execution.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-006",
+      "title": "Large expense alert rule",
+      "phase": "phase-2",
+      "acceptanceCriteria": [
+        "A notification is eligible when a non-transfer, non-hidden, positive-amount expense transaction over a configurable threshold is first observed",
+        "Default threshold is $1,000",
+        "Pending transactions are excluded in v1 unless the household later decides otherwise",
+        "Each qualifying transaction can notify each subscribed member at most once",
+        "Notification deep-links to the transactions page filtered to the transaction or to its date context",
+        "Notification copy clearly distinguishes expense vs transfer-like events"
+      ],
+      "priority": 1,
+      "estimatedLines": "+180/-0",
+      "testStrategy": "node:test with seeded transactions covering transfer exclusion, hidden exclusion, pending exclusion, and one-time dedupe.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-007",
+      "title": "Sync failure / technical issue alert rule",
+      "phase": "phase-2",
+      "acceptanceCriteria": [
+        "A notification is eligible when sync enters a technical failure state or repeated failures persist beyond a short threshold",
+        "needs_reauth and sync_error are treated differently in copy and severity",
+        "Transient single-run failures can be suppressed if the next run succeeds quickly",
+        "Notification deep-links to Settings or the relevant management screen",
+        "A long-lived outage does not send a fresh push on every timer run; cooldown rules apply"
+      ],
+      "priority": 1,
+      "estimatedLines": "+140/-0",
+      "testStrategy": "node:test around import_runs/items state transitions plus repeated runner cycles.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-008",
+      "title": "Category budget overrun alert rule",
+      "phase": "phase-2",
+      "acceptanceCriteria": [
+        "A notification is eligible when a budget category first crosses a configurable percentage over its budget target for the current month",
+        "Default threshold is 15% over budget",
+        "Categories without a positive budget target are excluded",
+        "Each member receives at most one budget-overrun notification per category per period",
+        "Notification deep-links to Budget or filtered transactions for that category and month",
+        "The rule reuses existing budget summary / category overrun concepts instead of inventing a separate financial definition"
+      ],
+      "priority": 2,
+      "estimatedLines": "+140/-0",
+      "testStrategy": "node:test with seeded category budgets and month spending snapshots covering threshold crossing, below-threshold non-events, and one-time per-period dedupe.",
+      "passes": false
+    },
+    {
+      "id": "PUSH-023-009",
+      "title": "Month-in-review reminder rule",
+      "phase": "phase-2",
+      "acceptanceCriteria": [
+        "A scheduled end-of-month or early-next-month reminder can nudge subscribed members to review the month",
+        "The notification links to Reports or another best available summary screen",
+        "At most one month-in-review reminder is sent per member per period",
+        "The copy remains useful even if a dedicated end-of-month report does not yet exist"
+      ],
+      "priority": 2,
+      "estimatedLines": "+90/-0",
+      "testStrategy": "Manual timer-date simulation and period-key dedupe verification.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [
+      "Notification spam if event rules and cooldowns are not carefully constrained",
+      "Webhook secrets are sensitive operational secrets and must be masked everywhere outside the database write path"
+    ],
+    "medium": [
+      "Large-expense alerts may misfire on pending transactions, reimbursements, or unusual imported history if event sourcing is not scoped carefully",
+      "Systemd timer deployment must be coordinated with any existing in-process scheduling so duplicate runners are not introduced"
+    ],
+    "low": [
+      "brrr's intentionally simple webhook model is a good fit for Family Pulse's small-household scope",
+      "The FamilyHelp implementation already proves the basic secret storage and delivery model on the same host"
+    ],
+    "operational": [
+      "Need a clear admin-visible way to test a saved brrr target after entry",
+      "Need delivery logs or recent attempt state so a bad secret is debuggable without guessing",
+      "If the app later supports multiple devices per member, the current v1 single-channel simplification will need expansion",
+      "Budget-overrun alerts need a precise 'first crossing' definition so they do not fire repeatedly as spend inches upward"
+    ]
+  },
+  "proposedSchema": {
+    "newTables": [
+      "member_notification_channels",
+      "member_notification_subscriptions",
+      "notification_event_state",
+      "notification_delivery_log"
+    ],
+    "notes": [
+      "Mirror FamilyHelp's channel table shape where useful, but keep Pulse-specific subscription state separate from delivery-channel rows.",
+      "Secrets should be stored write-only in the channel table; normal APIs return has_secret and secret_mask only.",
+      "notification_event_state should key dedupe by member_id, event_type, source_key, and the relevant period or transaction identifier."
+    ]
+  },
+  "settingsModel": {
+    "audience": "Parents manage parent notification settings in v1",
+    "globalControls": [
+      "notifications_enabled",
+      "notification_base_url",
+      "notification_default_interruption_level",
+      "large_expense_threshold",
+      "budget_overrun_threshold_pct"
+    ],
+    "memberControls": [
+      "saved brrr target",
+      "enabled / disabled channel state",
+      "event-category subscriptions",
+      "send test notification action"
+    ],
+    "notes": [
+      "Store the Family Pulse base URL in config to build deep links that respect nginx/Tailscale deployment.",
+      "Keep the initial UI simple: one card per parent, one brrr channel, flat event category toggles."
+    ]
+  },
+  "deliveryRules": {
+    "initialAudience": "Parents only in v1",
+    "eventCategories": [
+      "month_in_review",
+      "large_expense",
+      "sync_issue",
+      "budget_overrun"
+    ],
+    "recommendedV1LaunchOrder": [
+      "large_expense",
+      "sync_issue",
+      "budget_overrun",
+      "month_in_review"
+    ],
+    "defaultInterruptionLevels": {
+      "month_in_review": "passive",
+      "large_expense": "active",
+      "sync_issue": "active",
+      "budget_overrun": "active"
+    },
+    "cooldownExpectations": [
+      "large_expense: once per qualifying transaction per member",
+      "sync_issue: once per incident window until recovered or cooldown expires",
+      "budget_overrun: once per category per month per member after the first threshold crossing",
+      "month_in_review: once per month per member"
+    ]
+  },
+  "openQuestions": [
+    "Should Family Pulse store one brrr channel per member in v1 or allow multiple devices/channels immediately?",
+    "Should pending transactions ever generate large-expense alerts after they post, and if so should the event key be the Plaid transaction ID?",
+    "Should month-in-review fire on the last day of the month, first day of the next month, or only after monthly-close/report generation exists?",
+    "Should technical alerts notify all subscribed parents or only one default operator first?",
+    "Should budget-overrun detection use only the category's primary budget target or also consider categories with very small budgets that would trigger too easily?"
+  ],
+  "preFlightChecklist": [
+    "Confirm the exact Family Pulse base URL/subpath for deep links in notifications",
+    "Review FamilyHelp's channel save/mask UX and reuse what maps cleanly",
+    "Decide whether Phase 1 includes a dedicated test-send button before any live event rules ship",
+    "Choose whether to keep the current in-process sync cron while introducing a separate notification runner, or whether both scheduler concerns should move to systemd together",
+    "Decide whether budget-overrun alerts should ignore tiny budget categories or rely entirely on the percentage threshold"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Schema + brrr delivery helper + test send",
+      "goal": "Land secure channel storage and verify real-device delivery before any reminder logic exists.",
+      "notes": [
+        "Add notification channel and subscription tables",
+        "Port and adapt FamilyHelp's brrr normalization helper",
+        "Add settings APIs for save/mask/clear/test-send",
+        "Add parent-only settings UI"
+      ]
+    },
+    {
+      "name": "Slice B: Runner foundation + systemd timer wiring",
+      "goal": "Separate scheduled notification work from the web process and make evaluation repeatable and debuggable.",
+      "notes": [
+        "Create standalone runner with dry-run mode",
+        "Add event state / delivery log tables",
+        "Add deploy units mirroring FamilyHelp's oneshot + timer pattern",
+        "Document operational workflow in README"
+      ]
+    },
+    {
+      "name": "Slice C: High-confidence rules first",
+      "goal": "Ship the most obviously useful and least ambiguous event rules.",
+      "notes": [
+        "Implement large expense rule",
+        "Implement sync issue rule",
+        "Implement budget overrun rule",
+        "Tune deep links and interruption levels",
+        "Verify cooldown behavior against repeated runner executions"
+      ]
+    },
+    {
+      "name": "Slice D: Softer cadence rules",
+      "goal": "Add softer reminder categories after the high-confidence rules prove trustworthy.",
+      "notes": [
+        "Implement month-in-review period reminder",
+        "Review notification fatigue before broadening scope"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+1400/-0",
+    "storiesCount": 9,
+    "filesLikelyCreated": [
+      "db/migrations/019-notification-foundation.sql",
+      "lib/notifications.js",
+      "lib/notification-rules.js",
+      "scripts/send-notifications.js",
+      "deploy/family-pulse-notifications.service",
+      "deploy/family-pulse-notifications.timer",
+      "test/notification-api.test.js",
+      "test/notification-rules.test.js"
+    ],
+    "filesLikelyModified": [
+      "server.js",
+      "public/settings.html",
+      "public/settings.js",
+      "README.md",
+      "planning/current-feature.json"
+    ]
+  }
+}

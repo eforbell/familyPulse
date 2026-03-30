@@ -102,6 +102,46 @@
       </div>
     </section>
 
+    <section id="notifications-section" class="hidden" style="margin-top:1.5rem">
+      <h2 class="section-heading">Notifications</h2>
+      <div class="theme-card" style="margin-bottom:0.75rem">
+        <p class="theme-card-copy">Configure Family Pulse reminder delivery through brrr. Parents opt in per person, and event rules can be enabled per category.</p>
+        <label class="checkbox-row" style="margin-bottom:0.75rem">
+          <input type="checkbox" id="notifications-enabled">
+          Enable reminder system
+        </label>
+        <div class="settings-inline-row" style="margin-bottom:0.75rem">
+          <label class="field-label" style="flex:1;min-width:220px">
+            Base URL
+            <input id="notification-base-url" type="url" class="magic-input" placeholder="https://your-host/pulse">
+          </label>
+          <label class="field-label" style="flex:0 0 220px">
+            Default interruption
+            <select id="notification-interruption-level" class="magic-input">
+              <option value="passive">Passive</option>
+              <option value="active">Active</option>
+              <option value="time-sensitive">Time-sensitive</option>
+            </select>
+          </label>
+          <label class="field-label" style="flex:0 0 220px">
+            Large expense threshold
+            <input id="large-expense-threshold" type="number" min="1" step="0.01" class="magic-input" placeholder="1000">
+          </label>
+          <label class="field-label" style="flex:0 0 220px">
+            Budget overrun threshold %
+            <input id="budget-overrun-threshold-pct" type="number" min="1" step="1" class="magic-input" placeholder="15">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" onclick="saveNotificationConfig()">Save Notification Settings</button>
+          <span id="notification-config-status" class="settings-help-copy"></span>
+        </div>
+      </div>
+      <div id="notification-channel-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading notification channels...</div>
+      </div>
+    </section>
+
     <!-- Data Import -->
     <section style="margin-top:1.5rem">
       <h2 class="section-heading">Data Import</h2>

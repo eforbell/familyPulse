@@ -64,5 +64,10 @@ INSERT INTO app_config (key, value) VALUES
   ('recurring_last_detection_at', ''),
   ('cash_flow_safety_floor', '3000'),
   ('cash_flow_horizon_days', '90'),
-  ('cash_reserve_target_months', '3.0')
+  ('cash_reserve_target_months', '3.0'),
+  ('notifications_enabled', 'false'),
+  ('notification_base_url', ''),
+  ('notification_default_interruption_level', 'active'),
+  ('large_expense_threshold', '1000'),
+  ('budget_overrun_threshold_pct', '15')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

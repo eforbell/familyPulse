@@ -10,6 +10,8 @@ let currentMember = null;
 let deleteMode = 'disconnect';
 let accountSelectionTarget = null;
 let merchantRenameRules = [];
+let notificationChannels = [];
+let notificationEventTypes = [];
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -33,6 +35,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await Promise.all([loadItems(), loadMembers(), loadDedupHistory(), loadMerchantRenameRules()]);
   loadBalancePolicy();
+  loadNotificationConfig();
+  loadNotificationChannels();
   loadThemeControls();
   loadAIPrompts();
   loadPassphraseManager();
@@ -218,6 +222,222 @@ async function loadBalancePolicy() {
     renderBalancePolicyCopy(select.value);
   } catch (err) {
     console.error('Balance policy load failed:', err);
+  }
+}
+
+async function loadNotificationConfig() {
+  const section = document.getElementById('notifications-section');
+  if (!section) return;
+  if (!currentMember || currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  try {
+    const config = await api('api/notification-config');
+    document.getElementById('notifications-enabled').checked = config.notifications_enabled === 'true';
+    document.getElementById('notification-base-url').value = config.notification_base_url || '';
+    document.getElementById('notification-interruption-level').value = config.notification_default_interruption_level || 'active';
+    document.getElementById('large-expense-threshold').value = config.large_expense_threshold || '1000';
+    document.getElementById('budget-overrun-threshold-pct').value = config.budget_overrun_threshold_pct || '15';
+  } catch (err) {
+    console.error('Notification config load failed:', err);
+  }
+}
+
+async function saveNotificationConfig() {
+  const status = document.getElementById('notification-config-status');
+  status.textContent = 'Saving...';
+
+  try {
+    await Promise.all([
+      api('api/notification-config/notifications_enabled', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('notifications-enabled').checked })
+      }),
+      api('api/notification-config/notification_base_url', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('notification-base-url').value.trim() })
+      }),
+      api('api/notification-config/notification_default_interruption_level', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('notification-interruption-level').value })
+      }),
+      api('api/notification-config/large_expense_threshold', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('large-expense-threshold').value.trim() || '1000' })
+      }),
+      api('api/notification-config/budget_overrun_threshold_pct', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('budget-overrun-threshold-pct').value.trim() || '15' })
+      })
+    ]);
+    status.textContent = 'Saved.';
+  } catch (err) {
+    status.textContent = `Save failed: ${err.message}`;
+  }
+}
+
+async function loadNotificationChannels() {
+  const section = document.getElementById('notifications-section');
+  const list = document.getElementById('notification-channel-list');
+  if (!section || !list) return;
+
+  if (!currentMember || currentMember.role !== 'parent') {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  try {
+    const data = await api('api/notification-channels');
+    notificationChannels = Array.isArray(data.members) ? data.members : [];
+    notificationEventTypes = Array.isArray(data.event_types) ? data.event_types : [];
+    renderNotificationChannels();
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state">Error loading notification channels: ${esc(err.message)}</div>`;
+  }
+}
+
+function renderNotificationChannels() {
+  const list = document.getElementById('notification-channel-list');
+  if (!list) return;
+
+  if (!notificationChannels.length) {
+    list.innerHTML = '<div class="empty-state">No parent members available for notification setup.</div>';
+    return;
+  }
+
+  list.innerHTML = notificationChannels.map(channel => `
+    <div class="admin-row" style="display:block">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+        <div style="min-width:220px">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+            <strong>${esc(channel.member_name)}</strong>
+            ${channel.enabled ? '<span class="status-good">Enabled</span>' : '<span class="status-error">Disabled</span>'}
+          </div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem">
+            ${esc(channel.member_role)}${channel.has_secret ? ` · saved ${esc(channel.secret_mask)}` : ' · no brrr target saved'}
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap">
+          <label class="checkbox-row" style="margin:0">
+            <input type="checkbox" id="notify-enabled-${channel.member_id}" ${channel.enabled ? 'checked' : ''}>
+            Enabled
+          </label>
+          <input type="password" id="notify-secret-${channel.member_id}" placeholder="${channel.has_secret ? 'Leave blank to keep saved secret/webhook' : 'Paste brrr secret or webhook URL'}" class="magic-input" style="min-width:260px" autocomplete="off">
+          <button class="btn-primary" onclick="saveNotificationChannel(${channel.member_id})">Save</button>
+          <button class="btn-ghost" onclick="testNotificationChannel(${channel.member_id})">Test</button>
+          ${channel.has_secret ? `<button class="btn-danger" onclick="clearNotificationChannel(${channel.member_id})">Clear</button>` : ''}
+        </div>
+      </div>
+      <div style="margin-top:0.85rem">
+        <div class="settings-help-copy" style="margin-bottom:0.4rem">Event categories</div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+          ${notificationEventTypes.map(event => `
+            <label class="checkbox-row" title="${esc(event.description)}">
+              <input
+                type="checkbox"
+                id="notify-sub-${channel.member_id}-${event.key}"
+                ${channel.subscriptions?.[event.key] ? 'checked' : ''}
+              >
+              ${esc(event.label)}
+            </label>
+          `).join('')}
+        </div>
+        <div class="form-actions" style="margin-top:0.6rem">
+          <button class="btn-ghost" onclick="saveNotificationSubscriptions(${channel.member_id})">Save Event Categories</button>
+          <span id="notify-status-${channel.member_id}" class="settings-help-copy"></span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveNotificationChannel(memberId) {
+  const secretInput = document.getElementById(`notify-secret-${memberId}`);
+  const enabledInput = document.getElementById(`notify-enabled-${memberId}`);
+  const statusEl = document.getElementById(`notify-status-${memberId}`);
+  if (!statusEl) return;
+  statusEl.textContent = 'Saving channel...';
+
+  const body = { enabled: enabledInput.checked };
+  if (secretInput.value.trim()) {
+    body.secret = secretInput.value.trim();
+  }
+
+  try {
+    await api(`api/notification-channels/${memberId}/brrr`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    secretInput.value = '';
+    statusEl.textContent = 'Channel saved.';
+    await loadNotificationChannels();
+  } catch (err) {
+    statusEl.textContent = `Save failed: ${err.message}`;
+  }
+}
+
+async function clearNotificationChannel(memberId) {
+  if (!window.confirm('Clear the saved brrr target for this member?')) return;
+  const statusEl = document.getElementById(`notify-status-${memberId}`);
+  if (statusEl) statusEl.textContent = 'Clearing channel...';
+  try {
+    await api(`api/notification-channels/${memberId}/brrr`, { method: 'DELETE' });
+    if (statusEl) statusEl.textContent = 'Channel cleared.';
+    await loadNotificationChannels();
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Clear failed: ${err.message}`;
+  }
+}
+
+async function testNotificationChannel(memberId) {
+  const statusEl = document.getElementById(`notify-status-${memberId}`);
+  if (!statusEl) return;
+  statusEl.textContent = 'Sending test...';
+  try {
+    await api(`api/notification-channels/${memberId}/brrr/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    statusEl.textContent = 'Test sent.';
+  } catch (err) {
+    statusEl.textContent = `Test failed: ${err.message}`;
+  }
+}
+
+async function saveNotificationSubscriptions(memberId) {
+  const statusEl = document.getElementById(`notify-status-${memberId}`);
+  if (!statusEl) return;
+  statusEl.textContent = 'Saving event categories...';
+
+  const subscriptions = {};
+  for (const event of notificationEventTypes) {
+    const input = document.getElementById(`notify-sub-${memberId}-${event.key}`);
+    subscriptions[event.key] = !!input?.checked;
+  }
+
+  try {
+    await api(`api/notification-subscriptions/${memberId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriptions })
+    });
+    statusEl.textContent = 'Event categories saved.';
+    await loadNotificationChannels();
+  } catch (err) {
+    statusEl.textContent = `Save failed: ${err.message}`;
   }
 }
 
