@@ -97,6 +97,7 @@ describe('notification phase 2 rules', () => {
     assert.ok(largeExpense);
     assert.equal(largeExpense.member_id, parentId);
     assert.equal(largeExpense.source_key, `txn:${txnRes.rows[0].id}`);
+    assert.equal(largeExpense.payload.title, 'Family Pulse: Large expense recorded');
     assert.match(largeExpense.payload.body, /\$1,288\.42/);
 
     await pool.query(`
@@ -139,6 +140,7 @@ describe('notification phase 2 rules', () => {
     const syncIssue = allowed.find(candidate => candidate.source_key === sourceKey);
     assert.ok(syncIssue);
     assert.equal(syncIssue.cooldown_hours, 12);
+    assert.equal(syncIssue.payload.title, 'Family Pulse: Plaid account needs attention');
   });
 
   it('emits budget overrun candidates once per category per month', async () => {
@@ -165,6 +167,7 @@ describe('notification phase 2 rules', () => {
     const budgetOverrun = candidates.find(candidate => candidate.event_type === 'budget_overrun');
     assert.ok(budgetOverrun);
     assert.equal(budgetOverrun.source_key, `${`budget:${currentDate.slice(0, 7)}:category:${groceriesId}`}`);
+    assert.equal(budgetOverrun.payload.title, 'Family Pulse: Budget overrun');
     assert.match(budgetOverrun.payload.body, /20% over budget/);
 
     await pool.query(`
