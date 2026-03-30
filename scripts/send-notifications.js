@@ -5,30 +5,13 @@ require('dotenv').config();
 const { pool } = require('../lib/db');
 const logger = require('../lib/logger');
 const { evaluateNotificationCandidates, getNotificationConfig } = require('../lib/notification-rules');
-const { sendBrrrNotification } = require('../lib/notifications');
+const { logNotificationDelivery, sendBrrrNotification } = require('../lib/notifications');
 
 const dryRun = process.argv.includes('--dry-run');
 
 async function cfg(key) {
   const { rows } = await pool.query('SELECT value FROM app_config WHERE key = $1', [key]);
   return rows[0]?.value ?? null;
-}
-
-async function logDelivery({ memberId, eventType, sourceKey, status, responseStatus = null, payload = null, errorMessage = null }) {
-  await pool.query(`
-    INSERT INTO notification_delivery_log (
-      member_id, event_type, source_key, status, response_status, payload_json, error_message
-    )
-    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-  `, [
-    memberId,
-    eventType,
-    sourceKey,
-    status,
-    responseStatus,
-    payload ? JSON.stringify(payload) : null,
-    errorMessage
-  ]);
 }
 
 async function updateEventState(candidate, { status, errorMessage = null, cooldownHours = null, sent = false }) {
@@ -85,7 +68,7 @@ async function main() {
 
     try {
       const response = await sendBrrrNotification(candidate.target_secret, candidate.payload);
-      await logDelivery({
+      await logNotificationDelivery(pool, {
         memberId: candidate.member_id,
         eventType: candidate.event_type,
         sourceKey: candidate.source_key,
@@ -100,7 +83,7 @@ async function main() {
       });
       sentCount++;
     } catch (err) {
-      await logDelivery({
+      await logNotificationDelivery(pool, {
         memberId: candidate.member_id,
         eventType: candidate.event_type,
         sourceKey: candidate.source_key,

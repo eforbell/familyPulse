@@ -1,6 +1,5 @@
 'use strict';
 
-require('dotenv').config();
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
@@ -17,6 +16,7 @@ let baseUrl;
 let sessionToken;
 let ericId;
 let valId;
+let memberIds = [];
 let originalSendBrrrNotification;
 let lastTestSend = null;
 
@@ -46,6 +46,7 @@ before(async () => {
   const { rows } = await pool.query(
     "SELECT id, name FROM family_members WHERE role = 'parent' ORDER BY id"
   );
+  memberIds = rows.map(row => row.id);
   ericId = rows.find(row => row.name === 'Eric')?.id || rows[0]?.id;
   valId = rows.find(row => row.name === 'Alex')?.id || rows[1]?.id || rows[0]?.id;
 
@@ -64,10 +65,10 @@ before(async () => {
 
 after(async () => {
   notifications.sendBrrrNotification = originalSendBrrrNotification;
-  await pool.query('DELETE FROM notification_delivery_log');
-  await pool.query('DELETE FROM notification_event_state');
-  await pool.query('DELETE FROM member_notification_subscriptions');
-  await pool.query('DELETE FROM member_notification_channels');
+  await pool.query('DELETE FROM notification_delivery_log WHERE member_id = ANY($1::int[])', [memberIds]);
+  await pool.query('DELETE FROM notification_event_state WHERE member_id = ANY($1::int[])', [memberIds]);
+  await pool.query('DELETE FROM member_notification_subscriptions WHERE member_id = ANY($1::int[])', [memberIds]);
+  await pool.query('DELETE FROM member_notification_channels WHERE member_id = ANY($1::int[])', [memberIds]);
   await pool.query("DELETE FROM sessions WHERE token = $1", [sessionToken]);
   await pool.query(`
     UPDATE app_config

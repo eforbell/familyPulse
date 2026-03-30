@@ -1,6 +1,5 @@
 'use strict';
 
-require('dotenv').config();
 const { describe, it, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { Pool } = require('pg');
@@ -50,8 +49,8 @@ before(async () => {
 });
 
 beforeEach(async () => {
-  await pool.query('DELETE FROM notification_delivery_log');
-  await pool.query('DELETE FROM notification_event_state');
+  await pool.query('DELETE FROM notification_delivery_log WHERE member_id = $1', [parentId]);
+  await pool.query('DELETE FROM notification_event_state WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_subscriptions WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_channels WHERE member_id = $1', [parentId]);
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE $1", [`${PREFIX}-%`]);
@@ -66,8 +65,8 @@ beforeEach(async () => {
 
 after(async () => {
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE $1", [`${PREFIX}-%`]);
-  await pool.query('DELETE FROM notification_delivery_log');
-  await pool.query('DELETE FROM notification_event_state');
+  await pool.query('DELETE FROM notification_delivery_log WHERE member_id = $1', [parentId]);
+  await pool.query('DELETE FROM notification_event_state WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_subscriptions WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_channels WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = $1', [`${PREFIX}-acct`]);
