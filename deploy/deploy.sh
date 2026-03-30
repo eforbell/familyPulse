@@ -13,6 +13,7 @@ set -euo pipefail
 
 APP_DIR="/data/apps/familyPulse"
 SERVICE="family-pulse"
+NOTIFICATION_TIMER="family-pulse-notifications.timer"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 REF="${1:-origin/main}"
@@ -95,8 +96,21 @@ npm ci --omit=dev
 echo "==> Running database migrations"
 node db/migrate.js
 
+echo "==> Installing systemd unit files"
+sudo cp deploy/family-pulse.service /etc/systemd/system/
+sudo cp deploy/family-pulse-notifications.service /etc/systemd/system/
+sudo cp deploy/family-pulse-notifications.timer /etc/systemd/system/
+
+echo "==> Reloading systemd units"
+sudo systemctl daemon-reload
+
 echo "==> Restarting $SERVICE"
 sudo systemctl restart "$SERVICE"
 sudo systemctl status  "$SERVICE" --no-pager -l
+
+if sudo systemctl is-enabled "$NOTIFICATION_TIMER" >/dev/null 2>&1; then
+  echo "==> Restarting $NOTIFICATION_TIMER"
+  sudo systemctl restart "$NOTIFICATION_TIMER"
+fi
 
 echo "==> Done."
