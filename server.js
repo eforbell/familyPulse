@@ -109,6 +109,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const API_PUBLIC = new Set([
   '/api/health',
+  '/api/ready',
+  '/api/bootstrap',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/members'
@@ -171,6 +173,91 @@ async function setCfg(key, value) {
   );
 }
 
+async function countTable(tableName) {
+  const allowed = new Set([
+    'family_members',
+    'categories',
+    'items',
+    'accounts',
+    'transactions',
+  ]);
+  if (!allowed.has(tableName)) throw new Error(`Unsupported count table: ${tableName}`);
+  const { rows } = await pool.query(`SELECT COUNT(*)::int AS count FROM ${tableName}`);
+  return Number(rows[0]?.count || 0);
+}
+
+async function passphraseCount() {
+  const { rows } = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM family_members WHERE passphrase_hash IS NOT NULL'
+  );
+  return Number(rows[0]?.count || 0);
+}
+
+function plaidConfigStatus(env = process.env) {
+  try {
+    validateStartupConfig(env);
+    return {
+      configured: true,
+      error: null,
+    };
+  } catch (err) {
+    return {
+      configured: false,
+      error: err.message,
+    };
+  }
+}
+
+async function bootstrapState() {
+  const [
+    familyMembers,
+    categories,
+    items,
+    accounts,
+    transactions,
+    passphrases,
+  ] = await Promise.all([
+    countTable('family_members'),
+    countTable('categories'),
+    countTable('items'),
+    countTable('accounts'),
+    countTable('transactions'),
+    passphraseCount(),
+  ]);
+  const plaid = plaidConfigStatus();
+  const needsHousehold = familyMembers === 0;
+  const needsAuth = passphrases === 0;
+  const needsStarterContent = categories === 0;
+
+  return {
+    status: needsHousehold || needsAuth || needsStarterContent || !plaid.configured
+      ? 'needs_setup'
+      : 'ready',
+    app: 'family-pulse',
+    version: '1.0.0',
+    bootstrap: {
+      needs_household: needsHousehold,
+      needs_auth: needsAuth,
+      needs_starter_content: needsStarterContent,
+      needs_plaid_config: !plaid.configured,
+      ready: !needsHousehold && !needsAuth && !needsStarterContent && plaid.configured,
+    },
+    counts: {
+      family_members: familyMembers,
+      categories,
+      items,
+      accounts,
+      transactions,
+      passphrases,
+    },
+    features: {
+      auth_enabled: passphrases > 0,
+      plaid_configured: plaid.configured,
+    },
+    plaid_config_error: plaid.configured ? null : plaid.error,
+  };
+}
+
 // ── Route modules ────────────────────────────────────────────
 
 app.use(require('./lib/routes/auth'));
@@ -199,6 +286,39 @@ app.get('/api/health', async (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+app.get('/api/ready', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    const plaid = plaidConfigStatus();
+    res.json({
+      status: 'ok',
+      app: 'family-pulse',
+      checks: {
+        db: 'ok',
+        plaid_config: plaid.configured ? 'ok' : 'missing',
+      },
+      plaid_config_error: plaid.configured ? null : plaid.error,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      app: 'family-pulse',
+      checks: { db: 'error' },
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+app.get('/api/bootstrap', async (req, res) => {
+  try {
+    res.json(await bootstrapState());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -315,4 +435,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, pool, cfg, setCfg };
+module.exports = { app, pool, cfg, setCfg, bootstrapState, plaidConfigStatus };
