@@ -124,27 +124,49 @@
 
       <!-- Filter bar -->
       <div id="filter-bar" class="filter-bar">
-        <select id="filter-account"><option value="">All Accounts</option></select>
-        <select id="filter-category"><option value="">All Categories</option><option value="0">Uncategorized</option></select>
-        <input type="date" id="filter-from">
-        <input type="date" id="filter-to">
-        <div class="filter-input-group">
+        <div class="filter-bar-header">
+          <span class="filter-title">Filters</span>
+          <span class="filter-hint">Narrow transactions by account, category, date, merchant, or sort.</span>
+        </div>
+        <div class="filter-field">
+          <label for="filter-account">Account</label>
+          <select id="filter-account"><option value="">All Accounts</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-category">Category</label>
+          <select id="filter-category"><option value="">All Categories</option><option value="0">Uncategorized</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="filter-from">From</label>
+          <input type="date" id="filter-from">
+        </div>
+        <div class="filter-field">
+          <label for="filter-to">To</label>
+          <input type="date" id="filter-to">
+        </div>
+        <div class="filter-field filter-input-group">
+          <label for="filter-search">Search</label>
           <input type="text" id="filter-search" placeholder="Search merchant...">
           <div id="filter-search-suggestions" class="tx-display-name-suggestions hidden"></div>
         </div>
-        <select id="filter-sort">
-          <option value="date_desc">Newest first</option>
-          <option value="date_asc">Oldest first</option>
-          <option value="amount_desc">Largest amount</option>
-          <option value="amount_asc">Smallest amount</option>
-        </select>
-        <button id="btn-dedup" type="button" class="btn-ghost">Remove Duplicates</button>
-        <label class="toggle-label">
-          <input type="checkbox" id="filter-transfers"> Show transfers
-        </label>
-        <label class="toggle-label">
-          <input type="checkbox" id="filter-hidden"> Show suppressed
-        </label>
+        <div class="filter-field">
+          <label for="filter-sort">Sort</label>
+          <select id="filter-sort">
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="amount_desc">Largest amount</option>
+            <option value="amount_asc">Smallest amount</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button id="btn-dedup" type="button" class="btn-ghost">Remove Duplicates</button>
+          <label class="toggle-label">
+            <input type="checkbox" id="filter-transfers"> Show transfers
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" id="filter-hidden"> Show suppressed
+          </label>
+        </div>
       </div>
 
       <!-- Bulk action bar -->
