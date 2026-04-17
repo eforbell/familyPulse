@@ -835,6 +835,35 @@ async function deleteTransactionAttachment(id) {
 
 function $(id) { return document.getElementById(id); }
 
+function setQuickDateRange(range) {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth(); // 0-indexed
+  const pad = n => String(n).padStart(2, '0');
+  let from, to;
+  if (range === 'this-month') {
+    from = `${y}-${pad(m + 1)}-01`;
+    to = `${y}-${pad(m + 1)}-${pad(new Date(y, m + 1, 0).getDate())}`;
+  } else if (range === 'last-month') {
+    const lm = m === 0 ? 12 : m;
+    const ly = m === 0 ? y - 1 : y;
+    from = `${ly}-${pad(lm)}-01`;
+    to = `${ly}-${pad(lm)}-${pad(new Date(ly, lm, 0).getDate())}`;
+  } else if (range === 'this-quarter') {
+    const qStart = Math.floor(m / 3) * 3; // 0-indexed start month
+    const qEnd = qStart + 2;
+    from = `${y}-${pad(qStart + 1)}-01`;
+    to = `${y}-${pad(qEnd + 1)}-${pad(new Date(y, qEnd + 1, 0).getDate())}`;
+  } else if (range === 'this-year') {
+    from = `${y}-01-01`;
+    to = `${y}-12-31`;
+  }
+  $('filter-from').value = from;
+  $('filter-to').value = to;
+  resetAndLoad();
+  updatePageTitle();
+}
+
 function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;')

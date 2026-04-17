@@ -144,6 +144,15 @@
           <label for="filter-to">To</label>
           <input type="date" id="filter-to">
         </div>
+        <div class="filter-quick-dates">
+          <label>Quick Range</label>
+          <div class="filter-quick-dates-btns">
+            <button type="button" class="btn-ghost btn-xs" onclick="setQuickDateRange('this-month')">This month</button>
+            <button type="button" class="btn-ghost btn-xs" onclick="setQuickDateRange('last-month')">Last month</button>
+            <button type="button" class="btn-ghost btn-xs" onclick="setQuickDateRange('this-quarter')">This quarter</button>
+            <button type="button" class="btn-ghost btn-xs" onclick="setQuickDateRange('this-year')">This year</button>
+          </div>
+        </div>
         <div class="filter-field filter-input-group">
           <label for="filter-search">Search</label>
           <input type="text" id="filter-search" placeholder="Search merchant...">
