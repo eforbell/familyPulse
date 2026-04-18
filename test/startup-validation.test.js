@@ -49,3 +49,20 @@ describe('startup config validation', () => {
     }));
   });
 });
+
+describe('server startup Plaid config handling', () => {
+  it('reports missing Plaid config as setup state instead of throwing at startup boundary', () => {
+    const { warnIfPlaidConfigMissing } = require('../server');
+    const warnings = [];
+    const status = warnIfPlaidConfigMissing({}, {
+      warn(message, meta) {
+        warnings.push({ message, meta });
+      }
+    });
+
+    assert.equal(status.configured, false);
+    assert.match(status.error, /PLAID_CLIENT_ID/);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /incomplete Plaid configuration/);
+  });
+});
