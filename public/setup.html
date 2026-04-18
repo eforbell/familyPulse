@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Family Pulse | Setup</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100dvh; }
+    .setup-box { width: 100%; max-width: 420px; padding: 2rem; }
+    .setup-box h1 { font-size: var(--text-xl); margin-bottom: 0.25rem; letter-spacing: -0.025em; }
+    .setup-box .subtitle { color: var(--muted); font-size: var(--text-base); margin-bottom: 2rem; }
+    .setup-field { display: flex; flex-direction: column; gap: 0.375rem; margin-bottom: 1.25rem; }
+    .setup-field label { font-size: var(--text-sm); color: var(--muted); }
+    .setup-field .field-hint { font-size: var(--text-xs); color: var(--dim); margin-top: 0.2rem; }
+    .setup-check { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; font-size: var(--text-sm); color: var(--muted); cursor: pointer; }
+    .setup-check input[type=checkbox] { accent-color: var(--accent); width: 1rem; height: 1rem; }
+    .setup-error { color: var(--red); font-size: var(--text-sm); min-height: 1.2em; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="setup-box">
+    <h1>Family Pulse</h1>
+    <p class="subtitle">Set up your household to get started.</p>
+
+    <div class="setup-field">
+      <label for="setup-parent-1">Primary parent / household admin <span style="color:var(--red)">*</span></label>
+      <input type="text" id="setup-parent-1" class="login-input" placeholder="e.g. Alex" autocomplete="off" autofocus>
+    </div>
+
+    <div class="setup-field">
+      <label for="setup-parent-2">Second parent <span style="color:var(--dim)">(optional)</span></label>
+      <input type="text" id="setup-parent-2" class="login-input" placeholder="e.g. Jordan" autocomplete="off">
+    </div>
+
+    <div class="setup-field">
+      <label for="setup-kids">Kids <span style="color:var(--dim)">(optional)</span></label>
+      <textarea id="setup-kids" class="login-input" rows="2"
+        placeholder="One per line, or comma-separated: Riley, Casey"
+        style="resize:vertical; font-family:inherit; font-size:var(--text-base)"></textarea>
+      <div class="field-hint">Each kid gets their own dashboard. You can add more in Settings later.</div>
+    </div>
+
+    <label class="setup-check">
+      <input type="checkbox" id="setup-starter" checked>
+      Install default spending categories
+    </label>
+
+    <div id="setup-error" class="setup-error"></div>
+
+    <button id="setup-btn" class="btn-primary" style="width:100%;padding:0.7rem">Create Household</button>
+  </div>
+
+  <script src="setup.js"></script>
+</body>
+</html>
