@@ -208,6 +208,15 @@ function plaidConfigStatus(env = process.env) {
   }
 }
 
+
+function warnIfPlaidConfigMissing(env = process.env, log = logger) {
+  const status = plaidConfigStatus(env);
+  if (!status.configured) {
+    log.warn('Family Pulse starting with incomplete Plaid configuration', { error: status.error });
+  }
+  return status;
+}
+
 async function bootstrapState() {
   const [
     familyMembers,
@@ -358,7 +367,7 @@ app.post('/api/sync', async (req, res) => {
 // ── Cron schedule + Start ─────────────────────────────────────
 
 if (require.main === module) {
-  validateStartupConfig();
+  warnIfPlaidConfigMissing();
 
   // Only register cron when running as the main process (not in tests)
   cron.schedule('0 6 * * *', () => {
@@ -435,4 +444,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, pool, cfg, setCfg, bootstrapState, plaidConfigStatus };
+module.exports = { app, pool, cfg, setCfg, bootstrapState, plaidConfigStatus, warnIfPlaidConfigMissing };
