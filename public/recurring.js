@@ -87,16 +87,24 @@ function renderCalendar(items) {
 }
 
 function renderRecurringLists(rows) {
-  const active = rows
-    .filter(row => row.status === 'active')
+  const active = rows.filter(row => row.status === 'active');
+  const income = active
+    .filter(row => row.cashflow_type === 'income')
+    .sort((a, b) => (b.latest_amount || 0) - (a.latest_amount || 0));
+  const expenses = active
+    .filter(row => row.cashflow_type !== 'income')
     .sort((a, b) => (b.latest_amount || 0) - (a.latest_amount || 0));
   const stale = rows
     .filter(row => row.status !== 'active' && row.status !== 'ignored')
     .sort((a, b) => String(b.last_seen_date).localeCompare(String(a.last_seen_date)));
 
-  $('recurring-list').innerHTML = active.length
-    ? active.map(renderRecurringCard).join('')
-    : '<div class="empty-state">No active recurring items detected yet</div>';
+  $('recurring-income-list').innerHTML = income.length
+    ? income.map(renderRecurringCard).join('')
+    : '<div class="empty-state">No recurring income detected yet</div>';
+
+  $('recurring-list').innerHTML = expenses.length
+    ? expenses.map(renderRecurringCard).join('')
+    : '<div class="empty-state">No active recurring expenses detected yet</div>';
 
   $('recurring-stale').innerHTML = stale.length
     ? stale.map(renderRecurringCard).join('')
