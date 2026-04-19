@@ -9,6 +9,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const { app } = require('../server');
 let server;
 let baseUrl;
+let bootstrapCookie = '';
+let bootstrapParentId = null;
 
 before(async () => {
   server = app.listen(0);
@@ -82,6 +84,10 @@ describe('POST /api/bootstrap/household', () => {
     assert.equal(data.created_members[0].role, 'parent');
     assert.equal(data.created_members[2].role, 'kid');
     assert.equal(data.bootstrap.needs_household, false);
+    const setCookie = res.headers.get('set-cookie') || '';
+    assert.match(setCookie, /fp_bootstrap_token=/);
+    bootstrapCookie = setCookie.split(';')[0];
+    bootstrapParentId = data.created_members.find((m) => m.role === 'parent')?.id || null;
   });
 
   it('installs default categories when install_starter_content is true', async () => {
@@ -107,5 +113,24 @@ describe('POST /api/bootstrap/household', () => {
     const res = await fetch(`${baseUrl}/api/bootstrap`);
     const data = await res.json();
     assert.equal(data.bootstrap.needs_household, false);
+  });
+
+  it('allows first passphrase setup via bootstrap token cookie without bootstrap secret header', async () => {
+    assert.ok(bootstrapCookie, 'expected bootstrap token cookie from household setup');
+    assert.ok(bootstrapParentId, 'expected parent member id from household setup');
+    const res = await fetch(`${baseUrl}/api/auth/passphrase`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: bootstrapCookie,
+      },
+      body: JSON.stringify({
+        member_id: bootstrapParentId,
+        passphrase: '1234',
+      }),
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.ok, true);
   });
 });

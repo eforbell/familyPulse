@@ -173,4 +173,16 @@ describe('bootstrap endpoints', () => {
       assert.equal(body.checks.plaid_config, 'ok');
     });
   });
+
+  it('serves /setup alias page for bootstrap redirects', async () => {
+    setFakePool(new FakePool());
+    setEnv({});
+
+    await withServer(async base => {
+      const res = await fetch(`${base}/setup`);
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.match(html, /Family Pulse \\| Setup/);
+    });
+  });
 });
