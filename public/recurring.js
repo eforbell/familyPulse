@@ -69,7 +69,8 @@ function renderCalendar(items) {
 
   let runningTotal = 0;
   root.innerHTML = items.map(item => {
-    runningTotal += Number(item.expected_amount) || 0;
+    const isIncome = item.cashflow_type === 'income';
+    if (!isIncome) runningTotal += Number(item.expected_amount) || 0;
     return `
       <div class="calendar-row">
         <div class="calendar-date">${formatDate(item.expected_date)}</div>
@@ -78,8 +79,8 @@ function renderCalendar(items) {
           <div class="calendar-meta">${esc(item.frequency)} · ${esc(item.account_name || 'Account')}</div>
         </div>
         <div class="calendar-side">
-          <div class="calendar-amount">${fmtMoney(item.expected_amount)}</div>
-          <div class="calendar-running">Running ${fmtMoney(runningTotal)}</div>
+          <div class="calendar-amount${isIncome ? ' credit' : ''}">${isIncome ? '+' : ''}${fmtMoney(item.expected_amount)}</div>
+          <div class="calendar-running">${isIncome ? 'Income' : `Running ${fmtMoney(runningTotal)}`}</div>
         </div>
       </div>
     `;
