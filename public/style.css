@@ -1674,6 +1674,7 @@ header h1 {
   white-space: nowrap;
 }
 
+.calendar-amount.credit,
 .recurring-amount.credit {
   color: var(--green);
 }
