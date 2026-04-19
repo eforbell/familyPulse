@@ -7,6 +7,7 @@ const { syncAll } = require('./lib/sync');
 const logger = require('./lib/logger');
 const { validateStartupConfig } = require('./lib/startup-validation');
 const { validateSession, authEnabled, parseCookie, cleanExpiredSessions } = require('./lib/auth');
+const { issueBootstrapToken, TOKEN_TTL_MS } = require('./lib/bootstrap-token');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -122,6 +123,11 @@ app.get('/kids/:name', async (req, res, next) => {
     logger.error('Kid route auth error', { error: err.message });
   }
   res.sendFile(path.join(__dirname, 'public', 'kids.html'));
+});
+
+// Setup page alias — supports /setup path used by Homebase install flows.
+app.get('/setup', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'setup.html'));
 });
 
 // Static files — AFTER auth gate so HTML pages are protected
@@ -478,6 +484,14 @@ app.post('/api/bootstrap/household', async (req, res) => {
     }
 
     if (install_starter_content) await installStarterContent();
+
+    const bootstrapToken = issueBootstrapToken();
+    res.cookie('fp_bootstrap_token', bootstrapToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+      maxAge: TOKEN_TTL_MS,
+      path: '/',
+    });
 
     res.status(201).json({
       ok: true,
