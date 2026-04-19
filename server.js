@@ -44,6 +44,13 @@ const HTML_PAGES = new Set([
   '/kids.html'
 ]);
 
+const BOOTSTRAP_REDIRECT_PAGES = new Set([...HTML_PAGES, '/login.html']);
+
+const PARENT_AVATARS = ['👨', '👩', '🧑', '👴', '👵'];
+const PARENT_COLORS  = ['#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
+const KID_AVATARS    = ['👦', '👧', '🧒', '👶'];
+const KID_COLORS     = ['#f59e0b', '#22c55e', '#f97316', '#a855f7'];
+
 const PARENT_ONLY_PAGES = new Set([
   '/settings.html', '/admin.html', '/import.html', '/forecast.html'
 ]);
@@ -59,6 +66,23 @@ function memberSlug(name) {
 function kidDashboardPath(member) {
   return `/kids/${memberSlug(member?.name)}`;
 }
+
+// ── Bootstrap redirect ───────────────────────────────────────
+// When no household exists, redirect HTML page requests to /setup.
+
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const urlPath = req.path;
+  if (urlPath === '/setup' || urlPath === '/setup.html') return next();
+  if (!BOOTSTRAP_REDIRECT_PAGES.has(urlPath)) return next();
+  try {
+    const state = await bootstrapState();
+    if (state.bootstrap.needs_household) return res.redirect('setup');
+  } catch (err) {
+    logger.error('Bootstrap redirect check failed', { error: err.message });
+  }
+  next();
+});
 
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
@@ -111,6 +135,7 @@ const API_PUBLIC = new Set([
   '/api/health',
   '/api/ready',
   '/api/bootstrap',
+  '/api/bootstrap/household',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/members'
@@ -215,6 +240,81 @@ function warnIfPlaidConfigMissing(env = process.env, log = logger) {
     log.warn('Family Pulse starting with incomplete Plaid configuration', { error: status.error });
   }
   return status;
+}
+
+const DEFAULT_CATEGORIES = [
+  { name: 'Groceries',       color: '#22c55e', is_income: false, is_transfer_class: false, icon: '🛒' },
+  { name: 'Dining Out',      color: '#f97316', is_income: false, is_transfer_class: false, icon: '🍽️' },
+  { name: 'Gas & Auto',      color: '#64748b', is_income: false, is_transfer_class: false, icon: '⛽' },
+  { name: 'Utilities',       color: '#06b6d4', is_income: false, is_transfer_class: false, icon: '💡' },
+  { name: 'Healthcare',      color: '#ef4444', is_income: false, is_transfer_class: false, icon: '🏥' },
+  { name: 'Entertainment',   color: '#a855f7', is_income: false, is_transfer_class: false, icon: '🎬' },
+  { name: 'Shopping',        color: '#ec4899', is_income: false, is_transfer_class: false, icon: '🛍️' },
+  { name: 'Kids Activities', color: '#f59e0b', is_income: false, is_transfer_class: false, icon: '⚽' },
+  { name: 'Subscriptions',   color: '#6366f1', is_income: false, is_transfer_class: false, icon: '📦' },
+  { name: 'Home & Garden',   color: '#84cc16', is_income: false, is_transfer_class: false, icon: '🏡' },
+  { name: 'Insurance',       color: '#78716c', is_income: false, is_transfer_class: false, icon: '🛡️' },
+  { name: 'Travel',          color: '#0ea5e9', is_income: false, is_transfer_class: false, icon: '✈️' },
+  { name: 'Income',          color: '#10b981', is_income: true,  is_transfer_class: false, icon: '💰' },
+  { name: 'Transfer',        color: '#9ca3af', is_income: false, is_transfer_class: true,  icon: '🔄' },
+  { name: 'CC Payment',      color: '#9ca3af', is_income: false, is_transfer_class: true,  icon: '💳' },
+  { name: '529 Contribution',color: '#3b82f6', is_income: false, is_transfer_class: true,  icon: '🎓' },
+  { name: 'Crypto/BTC',      color: '#f59e0b', is_income: false, is_transfer_class: true,  icon: '₿' },
+  { name: 'Uncategorized',   color: '#6b7280', is_income: false, is_transfer_class: false, icon: '❓' },
+];
+
+const DEFAULT_APP_CONFIG = [
+  ['sync_interval_hours', '12'],
+  ['transfer_detection_window_days', '7'],
+  ['transfer_amount_tolerance', '1.00'],
+  ['transfer_date_tolerance_days', '3'],
+  ['accent_color', '#10b981'],
+  ['anomaly_threshold_pct', '130'],
+  ['anomaly_min_avg_dollars', '25'],
+  ['magic_rate_limit_daily', '10'],
+  ['magic_disclaimer', 'AI-generated analysis — not financial advice.'],
+  ['coverage_alert_threshold', '0.70'],
+  ['balance_basis', 'available_preferred'],
+  ['recurring_amount_tolerance_pct', '10'],
+  ['recurring_lookback_months', '18'],
+  ['recurring_last_detection_at', ''],
+  ['cash_flow_safety_floor', '3000'],
+  ['cash_flow_horizon_days', '90'],
+  ['cash_reserve_target_months', '3.0'],
+  ['notifications_enabled', 'false'],
+  ['notification_base_url', ''],
+  ['notification_default_interruption_level', 'active'],
+  ['large_expense_threshold', '1000'],
+  ['budget_overrun_threshold_pct', '15'],
+];
+
+async function installStarterContent() {
+  for (const cat of DEFAULT_CATEGORIES) {
+    await pool.query(
+      'INSERT INTO categories (name, color, is_income, is_transfer_class, icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (name) DO NOTHING',
+      [cat.name, cat.color, cat.is_income, cat.is_transfer_class, cat.icon]
+    );
+  }
+  for (const [key, value] of DEFAULT_APP_CONFIG) {
+    await pool.query(
+      'INSERT INTO app_config (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+      [key, value]
+    );
+  }
+  const [cryptoRow, contribRow] = await Promise.all([
+    pool.query("SELECT id FROM categories WHERE name = 'Crypto/BTC'"),
+    pool.query("SELECT id FROM categories WHERE name = '529 Contribution'"),
+  ]);
+  if (cryptoRow.rows.length && contribRow.rows.length) {
+    const cryptoId = cryptoRow.rows[0].id;
+    const contribId = contribRow.rows[0].id;
+    for (const [pattern, catId] of [['Coinbase', cryptoId], ['Swan', cryptoId], ['Strike', cryptoId], ['529', contribId]]) {
+      await pool.query(
+        "INSERT INTO category_rules (merchant_pattern, category_id, match_type, created_by) VALUES ($1,$2,'contains','setup') ON CONFLICT DO NOTHING",
+        [pattern, catId]
+      );
+    }
+  }
 }
 
 async function bootstrapState() {
@@ -327,6 +427,65 @@ app.get('/api/bootstrap', async (req, res) => {
   try {
     res.json(await bootstrapState());
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bootstrap/household', async (req, res) => {
+  try {
+    const state = await bootstrapState();
+    if (!state.bootstrap.needs_household) {
+      return res.status(409).json({ error: 'Household already configured' });
+    }
+
+    const { members: rawMembers, install_starter_content = true } = req.body;
+    if (!Array.isArray(rawMembers) || rawMembers.length === 0) {
+      return res.status(400).json({ error: 'At least one member is required' });
+    }
+    const hasParent = rawMembers.some(m => m.role === 'parent');
+    if (!hasParent) {
+      return res.status(400).json({ error: 'At least one parent is required' });
+    }
+
+    const createdMembers = [];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let parentIdx = 0;
+      let kidIdx = 0;
+      for (const m of rawMembers) {
+        const name = String(m.name || '').trim();
+        if (!name) continue;
+        const role = m.role === 'parent' ? 'parent' : 'kid';
+        const isParent = role === 'parent';
+        const avatarPool = isParent ? PARENT_AVATARS : KID_AVATARS;
+        const colorPool = isParent ? PARENT_COLORS : KID_COLORS;
+        const idx = isParent ? parentIdx++ : kidIdx++;
+        const avatar_emoji = avatarPool[idx % avatarPool.length];
+        const color = colorPool[idx % colorPool.length];
+        const { rows } = await client.query(
+          'INSERT INTO family_members (name, role, avatar_emoji, color) VALUES ($1,$2,$3,$4) RETURNING id, name, role, avatar_emoji, color',
+          [name, role, avatar_emoji, color]
+        );
+        createdMembers.push(rows[0]);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    if (install_starter_content) await installStarterContent();
+
+    res.status(201).json({
+      ok: true,
+      created_members: createdMembers,
+      bootstrap: (await bootstrapState()).bootstrap,
+    });
+  } catch (err) {
+    logger.error('Household bootstrap failed', { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });
