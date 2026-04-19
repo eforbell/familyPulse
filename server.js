@@ -448,22 +448,33 @@ app.post('/api/bootstrap/household', async (req, res) => {
     }
 
     const createdMembers = [];
-    let parentIdx = 0;
-    let kidIdx = 0;
-
-    for (const m of rawMembers) {
-      const name = String(m.name || '').trim();
-      if (!name) continue;
-      const role = m.role === 'parent' ? 'parent' : 'kid';
-      const isParent = role === 'parent';
-      const idx = isParent ? parentIdx++ : kidIdx++;
-      const avatar_emoji = (isParent ? PARENT_AVATARS : KID_AVATARS)[idx % (isParent ? PARENT_AVATARS : KID_AVATARS).length];
-      const color = (isParent ? PARENT_COLORS : KID_COLORS)[idx % (isParent ? PARENT_COLORS : KID_COLORS).length];
-      const { rows } = await pool.query(
-        'INSERT INTO family_members (name, role, avatar_emoji, color) VALUES ($1,$2,$3,$4) RETURNING id, name, role, avatar_emoji, color',
-        [name, role, avatar_emoji, color]
-      );
-      createdMembers.push(rows[0]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let parentIdx = 0;
+      let kidIdx = 0;
+      for (const m of rawMembers) {
+        const name = String(m.name || '').trim();
+        if (!name) continue;
+        const role = m.role === 'parent' ? 'parent' : 'kid';
+        const isParent = role === 'parent';
+        const avatarPool = isParent ? PARENT_AVATARS : KID_AVATARS;
+        const colorPool = isParent ? PARENT_COLORS : KID_COLORS;
+        const idx = isParent ? parentIdx++ : kidIdx++;
+        const avatar_emoji = avatarPool[idx % avatarPool.length];
+        const color = colorPool[idx % colorPool.length];
+        const { rows } = await client.query(
+          'INSERT INTO family_members (name, role, avatar_emoji, color) VALUES ($1,$2,$3,$4) RETURNING id, name, role, avatar_emoji, color',
+          [name, role, avatar_emoji, color]
+        );
+        createdMembers.push(rows[0]);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
 
     if (install_starter_content) await installStarterContent();
