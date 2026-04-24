@@ -3094,3 +3094,16 @@ header h1 {
 @media (max-width: 600px) {
   .monthly-cards-grid { grid-template-columns: 1fr; }
 }
+
+/* Privacy mode — blur dollar amounts application-wide */
+.privacy-mode .fp-amount {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter 0.15s;
+}
+.privacy-mode .fp-amount:hover {
+  filter: blur(0);
+}
+.privacy-mode canvas {
+  filter: blur(7px);
+}

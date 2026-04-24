@@ -265,7 +265,8 @@ function esc(s) {
 
 function fmt(n) {
   const sign = n >= 0 ? '+' : '';
-  return sign + n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const text = sign + n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  return `<span class="fp-amount">${text}</span>`;
 }
 
 // ── Init ────────────────────────────────────────────────────

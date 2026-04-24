@@ -50,7 +50,7 @@ function renderHero() {
   const excess = forecastData.excess_liquidity || {};
 
   // Balance
-  document.getElementById('hero-balance').textContent = fmtMoney(meta.starting_balance || 0);
+  document.getElementById('hero-balance').innerHTML = fmtMoney(meta.starting_balance || 0);
 
   // Outlook status
   const outlookEl = document.getElementById('hero-outlook');
@@ -247,10 +247,10 @@ function renderChart() {
           callbacks: {
             title(items) { return fmtShortDate(items[0].label); },
             label(ctx) {
-              if (ctx.datasetIndex === 1) return `Balance: ${fmtMoney(ctx.raw)}`;
-              if (ctx.datasetIndex === 0) return `High: ${fmtMoney(ctx.raw)}`;
-              if (ctx.datasetIndex === 2) return `Low: ${fmtMoney(ctx.raw)}`;
-              if (ctx.datasetIndex === 3) return `Safety Floor: ${fmtMoney(ctx.raw)}`;
+              if (ctx.datasetIndex === 1) return `Balance: ${fmtMoneyText(ctx.raw)}`;
+              if (ctx.datasetIndex === 0) return `High: ${fmtMoneyText(ctx.raw)}`;
+              if (ctx.datasetIndex === 2) return `Low: ${fmtMoneyText(ctx.raw)}`;
+              if (ctx.datasetIndex === 3) return `Safety Floor: ${fmtMoneyText(ctx.raw)}`;
               return '';
             },
             afterBody(items) {
@@ -475,6 +475,12 @@ async function refreshForecast() {
 // ── Helpers ───────────────────────────────────────────────────
 
 function fmtMoney(val) {
+  const n = Number(val) || 0;
+  const text = '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `<span class="fp-amount">${text}</span>`;
+}
+
+function fmtMoneyText(val) {
   const n = Number(val) || 0;
   return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

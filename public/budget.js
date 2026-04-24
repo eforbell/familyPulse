@@ -42,17 +42,17 @@ async function loadBudget() {
 function renderSummary() {
   const d = summaryData;
 
-  $('summary-income').textContent = fmtMoney(d.income.current);
-  $('summary-income-prior').textContent = `Prior: ${fmtMoney(d.income.prior)}`;
+  $('summary-income').innerHTML = fmtMoney(d.income.current);
+  $('summary-income-prior').innerHTML = `Prior: ${fmtMoney(d.income.prior)}`;
 
-  $('summary-spending').textContent = fmtMoney(d.spending.actual);
+  $('summary-spending').innerHTML = fmtMoney(d.spending.actual);
   $('summary-spending').style.color = d.spending.actual > d.spending.budgeted ? 'var(--red)' : 'var(--text)';
-  $('summary-spending-budget').textContent = `Budget: ${fmtMoney(d.spending.budgeted)}`;
+  $('summary-spending-budget').innerHTML = `Budget: ${fmtMoney(d.spending.budgeted)}`;
 
   const net = d.net_cash_flow.current;
-  $('summary-net').textContent = fmtMoney(net);
+  $('summary-net').innerHTML = fmtMoney(net);
   $('summary-net').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
-  $('summary-net-prior').textContent = `Prior: ${fmtMoney(d.net_cash_flow.prior)}`;
+  $('summary-net-prior').innerHTML = `Prior: ${fmtMoney(d.net_cash_flow.prior)}`;
 
   const strip = $('commitment-strip');
   if (strip) {
@@ -180,7 +180,7 @@ function renderUncategorized() {
     return;
   }
   $('uncat-card').classList.remove('hidden');
-  $('uncat-amount').textContent = fmtMoney(u.spent);
+  $('uncat-amount').innerHTML = fmtMoney(u.spent);
   $('uncat-detail').textContent = `${u.count} transaction${u.count !== 1 ? 's' : ''} need categorization`;
 }
 
@@ -277,7 +277,7 @@ function renderDetailForecast(forecast) {
   const recurring = $('detail-forecast-recurring');
   if ((forecast.recurring_count || 0) > 0) {
     recurring.classList.remove('hidden');
-    recurring.textContent = `${forecast.recurring_count} recurring item${forecast.recurring_count === 1 ? '' : 's'} forecast separately${forecast.recurring_monthly_total ? ` · about ${fmtMoney(forecast.recurring_monthly_total)}/mo` : ''}`;
+    recurring.innerHTML = `${forecast.recurring_count} recurring item${forecast.recurring_count === 1 ? '' : 's'} forecast separately${forecast.recurring_monthly_total ? ` · about ${fmtMoney(forecast.recurring_monthly_total)}/mo` : ''}`;
   } else {
     recurring.classList.add('hidden');
     recurring.textContent = '';
@@ -346,7 +346,7 @@ function esc(str) {
 function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `-$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `-$${abs}` : `$${abs}`}</span>`;
 }
 
 function formatDate(dateStr) {

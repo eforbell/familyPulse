@@ -44,8 +44,8 @@ async function loadRecurring() {
 }
 
 function renderSummary(data) {
-  $('recurring-committed').textContent = fmtMoney(data.committed_monthly_total);
-  $('recurring-income').textContent = fmtMoney(data.recurring_income_monthly_total);
+  $('recurring-committed').innerHTML = fmtMoney(data.committed_monthly_total);
+  $('recurring-income').innerHTML = fmtMoney(data.recurring_income_monthly_total);
   $('recurring-active').textContent = String(data.active_count || 0);
   $('commitment-strip').classList.remove('hidden');
   $('commitment-strip').innerHTML = `
@@ -284,7 +284,7 @@ function esc(str) {
 function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `-$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `-$${abs}` : `$${abs}`}</span>`;
 }
 
 function formatDate(dateStr) {

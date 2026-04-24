@@ -187,7 +187,7 @@ async function loadTransactions() {
 // ── Render: Dashboard ────────────────────────────────────────
 
 function renderDashboard(data) {
-  $('net-amount').textContent = fmtMoney(data.net_position);
+  $('net-amount').innerHTML = fmtMoney(data.net_position);
   $('net-amount').classList.remove('loading-pulse');
 
   const historicalSummary = data.historical_account_count > 0
@@ -420,7 +420,7 @@ function renderTransactionDetail() {
     tx.pending ? 'pending' : '',
     tx.source_removed ? 'removed upstream, kept locally' : ''
   ].filter(Boolean).join(' · ');
-  $('tx-detail-amount').textContent = fmtTxAmount(tx.amount);
+  $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
   $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
@@ -710,14 +710,14 @@ function esc(str) {
 function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `-$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `-$${abs}` : `$${abs}`}</span>`;
 }
 
 // Transaction-specific: Plaid negative = credit (money in) → show as +$
 function fmtTxAmount(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `+$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `+$${abs}` : `$${abs}`}</span>`;
 }
 
 function formatDate(dateStr) {

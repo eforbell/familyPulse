@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadNotificationConfig();
   loadNotificationChannels();
   loadThemeControls();
+  loadPrivacyControls();
   loadAIPrompts();
   loadPassphraseManager();
   loadKidBudgets();
@@ -472,6 +473,17 @@ function setThemePreference(preference) {
   if (!window.PulseTheme) return;
   window.PulseTheme.setPreference(preference);
   loadThemeControls();
+}
+
+function loadPrivacyControls() {
+  const checkbox = document.getElementById('privacy-mode-toggle');
+  if (!checkbox || !window.PulsePrivacy) return;
+  checkbox.checked = window.PulsePrivacy.isEnabled();
+}
+
+function togglePrivacyMode(enabled) {
+  if (!window.PulsePrivacy) return;
+  window.PulsePrivacy.setEnabled(enabled);
 }
 
 // ── Render ───────────────────────────────────────────────────

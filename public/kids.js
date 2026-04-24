@@ -94,7 +94,7 @@ function renderDashboard() {
     return;
   }
 
-  balEl.textContent = fmtMoney(d.balance_total);
+  balEl.innerHTML = fmtMoney(d.balance_total);
 
   $('balance-detail').innerHTML = `
     <span><span class="label">Accounts</span> <span class="value">${d.accounts.length}</span></span>
@@ -248,7 +248,7 @@ function renderTransactionDetail() {
     tx.pending ? 'pending' : '',
     tx.source_removed ? 'removed upstream, kept locally' : ''
   ].filter(Boolean).join(' · ');
-  $('kid-tx-detail-amount').textContent = fmtMoney(tx.amount);
+  $('kid-tx-detail-amount').innerHTML = fmtMoney(tx.amount);
   $('kid-tx-detail-category').textContent = tx.category_name || 'Uncategorized';
   $('kid-tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
   $('kid-tx-note-readonly').classList.toggle('hidden', !note?.text);
@@ -355,7 +355,7 @@ function esc(str) {
 function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `-$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `-$${abs}` : `$${abs}`}</span>`;
 }
 
 function formatDate(dateStr) {

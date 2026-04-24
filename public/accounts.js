@@ -44,7 +44,7 @@ async function loadCoverage() {
 
 function renderDashboard(data) {
   const netEl = document.getElementById('net-amount');
-  netEl.textContent = fmtMoney(data.net_position);
+  netEl.innerHTML = fmtMoney(data.net_position);
   netEl.classList.remove('loading-pulse');
 
   const historicalSummary = data.historical_account_count > 0
@@ -244,7 +244,7 @@ function formatShortDate(dateStr) {
 }
 
 function renderLiabilityChip(label, tone = 'neutral') {
-  return `<span class="acct-liability-chip acct-liability-chip-${tone}">${esc(label)}</span>`;
+  return `<span class="acct-liability-chip acct-liability-chip-${tone}">${label}</span>`;
 }
 
 // ── Account rename ───────────────────────────────────────
@@ -326,7 +326,7 @@ function esc(str) {
 function fmtMoney(amount) {
   const n = parseFloat(amount) || 0;
   const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return n < 0 ? `-$${abs}` : `$${abs}`;
+  return `<span class="fp-amount">${n < 0 ? `-$${abs}` : `$${abs}`}</span>`;
 }
 
 async function api(url, opts) {
