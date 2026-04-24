@@ -153,6 +153,9 @@ run mkdir -p "$TARGET_APP_DIR"
 # Stage code/config files (exclude runtime-only dirs)
 run rsync -a --delete   --exclude '.git'   --exclude 'node_modules'   --exclude '.deploy-last-stash-ref'   "$SOURCE_APP_DIR/" "$TARGET_APP_DIR/"
 
+# Ensure the staged target is writable by the service user before any git checkout work.
+run sudo chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$TARGET_APP_DIR"
+
 # Convert the staged directory into a git checkout that HomeBase can safely update in place.
 if [[ -n "$REPO_URL" ]]; then
   git_prefix=(sudo -u "$SERVICE_USER" env "GIT_SSH_COMMAND=ssh -i $GIT_SSH_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new")
