@@ -160,7 +160,15 @@ run sudo chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$TARGET_APP_DIR"
 if [[ -n "$REPO_URL" ]]; then
   git_prefix=(sudo -u "$SERVICE_USER" env "GIT_SSH_COMMAND=ssh -i $GIT_SSH_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new")
   run "${git_prefix[@]}" git -C "$TARGET_APP_DIR" init
-  run_shell "if ${git_prefix[*]} git -C \"$TARGET_APP_DIR\" remote get-url origin >/dev/null 2>&1; then ${git_prefix[*]} git -C \"$TARGET_APP_DIR\" remote set-url origin \"$REPO_URL\"; else ${git_prefix[*]} git -C \"$TARGET_APP_DIR\" remote add origin \"$REPO_URL\"; fi"
+  if [[ "$EXECUTE" -eq 1 ]]; then
+    if "${git_prefix[@]}" git -C "$TARGET_APP_DIR" remote get-url origin >/dev/null 2>&1; then
+      run "${git_prefix[@]}" git -C "$TARGET_APP_DIR" remote set-url origin "$REPO_URL"
+    else
+      run "${git_prefix[@]}" git -C "$TARGET_APP_DIR" remote add origin "$REPO_URL"
+    fi
+  else
+    echo "[dry-run] if remote origin exists set-url to $REPO_URL else add origin $REPO_URL"
+  fi
   run "${git_prefix[@]}" git -C "$TARGET_APP_DIR" fetch origin --prune
   run "${git_prefix[@]}" git -C "$TARGET_APP_DIR" checkout --force -B "$CHECKOUT_REF" "origin/$CHECKOUT_REF"
 fi
