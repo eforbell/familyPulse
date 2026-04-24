@@ -131,16 +131,18 @@ fi
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 source_base="$(basename "$SOURCE_APP_DIR")"
 target_base="$(basename "$TARGET_APP_DIR")"
+source_parent="$(dirname "$SOURCE_APP_DIR")"
+target_parent="$(dirname "$TARGET_APP_DIR")"
 
 run mkdir -p "$BACKUP_DIR"
 
 if [[ -d "$TARGET_APP_DIR" ]]; then
   backup_target="$BACKUP_DIR/${target_base}-before-stage-${stamp}.tar.gz"
-  run_shell "tar -C \"$(dirname \"$TARGET_APP_DIR\")\" -czf \"$backup_target\" \"$target_base\""
+  run_shell "tar -C "$target_parent" -czf "$backup_target" "$target_base""
 fi
 
 backup_source="$BACKUP_DIR/${source_base}-source-snapshot-${stamp}.tar.gz"
-run_shell "tar -C \"$(dirname \"$SOURCE_APP_DIR\")\" -czf \"$backup_source\" \"$source_base\""
+run_shell "tar -C "$source_parent" -czf "$backup_source" "$source_base""
 
 if [[ "$STOP_SERVICE" -eq 1 ]]; then
   run sudo systemctl stop "$SERVICE_NAME"
