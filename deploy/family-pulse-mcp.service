@@ -5,11 +5,11 @@ Wants=family-pulse.service
 
 [Service]
 Type=simple
-User=forbell
-WorkingDirectory=/data/apps/familyPulse
-EnvironmentFile=/data/apps/familyPulse/.env
+User=sovereign
+WorkingDirectory=/opt/sovereign-home/apps/familyPulse
+EnvironmentFile=/opt/sovereign-home/apps/familyPulse/.env
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node /data/apps/familyPulse/mcp/server.js
+ExecStart=/usr/bin/node /opt/sovereign-home/apps/familyPulse/mcp/server.js
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM

@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-APP_DIR="/data/apps/familyPulse"
+APP_DIR="${APP_DIR:-/opt/sovereign-home/apps/familyPulse}"
 SERVICE="family-pulse"
 NOTIFICATION_TIMER="family-pulse-notifications.timer"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
