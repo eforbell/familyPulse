@@ -3067,6 +3067,7 @@ header h1 {
 .planned-item-meta { font-size: var(--text-sm); color: var(--muted); margin-top: 0.15rem; }
 .planned-item-notes { font-size: var(--text-xs); color: var(--muted); margin-top: 0.15rem; font-style: italic; }
 .planned-item-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.planned-item-income { border-color: rgba(34,197,94,0.3); }
 
 .assumptions-details { margin-bottom: 1rem; }
 .assumptions-body {

@@ -44,8 +44,6 @@ after(async () => {
     [groceriesId]
   );
   server.close();
-  const { pool: dbPool } = require('../lib/db');
-  await dbPool.end();
   await pool.end();
 });
 

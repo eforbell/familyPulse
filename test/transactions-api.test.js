@@ -134,8 +134,6 @@ after(async () => {
   await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-api-test'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-api'");
   server.close();
-  const { pool: dbPool } = require('../lib/db');
-  await dbPool.end();
   await pool.end();
 });
 

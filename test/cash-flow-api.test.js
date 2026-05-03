@@ -13,6 +13,7 @@ let baseUrl;
 let parentSessionToken;
 let kidSessionToken;
 let createdExpenseId;
+let createdIncomeId;
 
 function req(pathname, opts = {}) {
   return fetch(`${baseUrl}/${pathname}`, {
@@ -84,8 +85,6 @@ describe('planned expenses API', () => {
     await pool.query("DELETE FROM planned_expenses WHERE name LIKE 'Test:%'");
     await pool.query('DELETE FROM sessions WHERE token IN ($1, $2)', [parentSessionToken, kidSessionToken]);
     server.close();
-    const { pool: dbPool } = require('../lib/db');
-    await dbPool.end();
     await pool.end();
   });
 
@@ -379,6 +378,81 @@ describe('planned expenses API', () => {
     it('rejects kid session', async () => {
       const res = await kidReq('api/cash-flow/monthly-outlook');
       assert.ok([401, 403].includes(res.status));
+    });
+  });
+
+  describe('planned income (type=income)', () => {
+    it('creates a planned income item', async () => {
+      const res = await req('api/cash-flow/planned-expenses', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Test: Bonus payment',
+          amount: 5000,
+          scheduled_date: '2026-06-15',
+          type: 'income'
+        })
+      });
+      assert.equal(res.status, 201);
+      const data = await res.json();
+      assert.equal(data.name, 'Test: Bonus payment');
+      assert.equal(Number(data.amount), 5000);
+      assert.equal(data.type, 'income');
+      assert.ok(data.id);
+      createdIncomeId = data.id;
+    });
+
+    it('rejects invalid type value', async () => {
+      const res = await req('api/cash-flow/planned-expenses', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test: Bad type', amount: 100, scheduled_date: '2026-06-01', type: 'gift' })
+      });
+      assert.equal(res.status, 400);
+    });
+
+    it('lists income item with correct type', async () => {
+      const res = await req('api/cash-flow/planned-expenses');
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      const item = data.planned_expenses.find(pe => pe.id === createdIncomeId);
+      assert.ok(item, 'Created income item should appear in list');
+      assert.equal(item.type, 'income');
+    });
+
+    it('forecast monthly outlook includes planned_income_total when income exists', async () => {
+      await pool.query('DELETE FROM cash_flow_snapshots');
+      const res = await req('api/cash-flow/forecast');
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.ok(Array.isArray(data.monthly_outlook));
+      const juneMonth = data.monthly_outlook.find(m => m.month && m.month.startsWith('2026-06'));
+      assert.ok(juneMonth, 'Expected a June 2026 monthly outlook entry');
+      assert.ok(juneMonth.planned_income_total > 0, 'planned_income_total should be > 0 for the month with income');
+    });
+
+    it('can update type via PATCH', async () => {
+      const res = await req(`api/cash-flow/planned-expenses/${createdIncomeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ type: 'expense' })
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.type, 'expense');
+
+      // Restore to income for cleanup
+      await req(`api/cash-flow/planned-expenses/${createdIncomeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ type: 'income' })
+      });
+    });
+
+    it('rejects invalid type on PATCH', async () => {
+      const res = await req(`api/cash-flow/planned-expenses/${createdIncomeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ type: 'surprise' })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.match(data.error, /type must be expense or income/);
     });
   });
 });

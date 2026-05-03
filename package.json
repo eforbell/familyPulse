@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "npm run test:prepare && node --require ./test/bootstrap.js --test 'test/*.test.js'",
-    "test:fast": "node --require ./test/bootstrap.js --test 'test/*.test.js'",
+    "test": "npm run test:prepare && node --test-concurrency=1 --require ./test/bootstrap.js --test 'test/*.test.js'",
+    "test:fast": "node --test-concurrency=1 --require ./test/bootstrap.js --test 'test/*.test.js'",
     "test:prepare": "npm run test:db:reset && npm run test:db:migrate && npm run test:db:seed",
     "test:db:reset": "node db/reset-test-db.js",
     "test:db:migrate": "node -e \"process.env.NODE_ENV='test'; require('./db/migrate.js')\"",

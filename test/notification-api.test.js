@@ -83,8 +83,6 @@ after(async () => {
     WHERE key IN ('notifications_enabled', 'notification_base_url', 'notification_default_interruption_level', 'large_expense_threshold', 'budget_overrun_threshold_pct')
   `);
   server.close();
-  const { pool: dbPool } = require('../lib/db');
-  await dbPool.end();
   await pool.end();
 });
 

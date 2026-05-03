@@ -21,6 +21,7 @@
     <div class="overlay-box" style="max-width:400px">
       <h2 id="planned-modal-title">Add Planned Expense</h2>
       <form id="planned-form" autocomplete="off">
+        <input id="planned-type" type="hidden" value="expense">
         <label class="field-label">Name
           <input id="planned-name" type="text" class="field-input" required placeholder="e.g. New tires">
         </label>
@@ -109,11 +110,23 @@
       <section>
         <h2 class="section-heading">
           Planned Expenses
-          <button class="btn-ghost btn-sm" onclick="openPlannedModal()">+ Add</button>
+          <button class="btn-ghost btn-sm" onclick="openPlannedModal('expense')">+ Add</button>
         </h2>
         <div id="planned-list" class="planned-list"></div>
         <div id="planned-empty" class="hidden" style="color:var(--muted);font-size:var(--text-sm);padding:1rem 0">
           No planned expenses. Add one to see its impact on your forecast.
+        </div>
+      </section>
+
+      <!-- Planned income -->
+      <section>
+        <h2 class="section-heading">
+          Planned Income
+          <button class="btn-ghost btn-sm" onclick="openPlannedModal('income')">+ Add</button>
+        </h2>
+        <div id="planned-income-list" class="planned-list"></div>
+        <div id="planned-income-empty" class="hidden" style="color:var(--muted);font-size:var(--text-sm);padding:1rem 0">
+          No planned income. Add a bonus, gift, or other one-time inflow to see its impact on your forecast.
         </div>
       </section>
 

@@ -25,6 +25,9 @@ after(async () => {
   await pool.query('DELETE FROM category_rules WHERE created_by = $1', ['setup']);
   await pool.query('DELETE FROM categories');
   await pool.query('DELETE FROM family_members');
+  // Restore seed data for subsequent test files (bootstrap wipes family_members/categories)
+  const seedSql = require('fs').readFileSync(require('path').join(__dirname, '..', 'db', 'seed.sql'), 'utf8');
+  await pool.query(seedSql);
   server.close();
   await pool.end();
 });

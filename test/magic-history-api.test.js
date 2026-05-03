@@ -35,8 +35,6 @@ after(async () => {
      WHERE action_type IN ('monthly_close_2026-03', 'on_demand_history_test', 'what_if_history_test')`
   );
   server.close();
-  const { pool: dbPool } = require('../lib/db');
-  await dbPool.end();
   await pool.end();
 });
 

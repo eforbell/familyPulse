@@ -62,8 +62,6 @@ after(async () => {
   await pool.query("DELETE FROM category_rules WHERE created_by = 'api-test'");
   await pool.query("DELETE FROM categories WHERE name LIKE 'Test Cat%'");
   server.close();
-  const { pool: dbPool } = require('../lib/db');
-  await dbPool.end();
   await pool.end();
 });
 

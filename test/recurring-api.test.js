@@ -137,13 +137,14 @@ describe('recurring API', () => {
     assert.ok(data.active_count >= 2);
   });
 
-  it('GET /api/recurring/calendar returns upcoming expense items only', async () => {
+  it('GET /api/recurring/calendar returns upcoming items including income', async () => {
     const res = await req('api/recurring/calendar?days=30');
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.ok(Array.isArray(data.calendar));
     assert.ok(data.calendar.some(item => item.merchant_name === 'Netflix'));
-    assert.ok(!data.calendar.some(item => item.merchant_name === 'ACME Payroll'));
+    assert.ok(data.calendar.some(item => item.merchant_name === 'ACME Payroll'));
+    assert.ok(data.calendar.every(item => item.cashflow_type === 'expense' || item.cashflow_type === 'income'));
   });
 
   it('GET /api/recurring/:id/history returns newest-first amount history', async () => {

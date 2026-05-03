@@ -39,6 +39,7 @@ function render() {
   renderChart();
   renderMonthlyCards();
   renderPlannedExpenses();
+  renderPlannedIncome();
   renderAssumptions();
 }
 
@@ -116,6 +117,7 @@ function renderPrimer() {
   const recurring = firstMonth.expected_recurring || 0;
   const liabilities = firstMonth.expected_liability_payments || 0;
   const planned = firstMonth.planned_expenses_total || 0;
+  const plannedIncome = firstMonth.planned_income_total || 0;
 
   root.innerHTML = `
     <div class="forecast-primer-card">
@@ -123,7 +125,7 @@ function renderPrimer() {
         <div>
           <h2 class="section-heading" style="margin:0">How Pulse Forecasts</h2>
           <div class="forecast-primer-copy">
-            Pulse starts with today’s liquid cash, adds expected income, then subtracts recurring bills, liability payments, normal day-to-day spending, and any planned one-time expenses.
+            Pulse starts with today's liquid cash, adds expected income and any planned one-time income, then subtracts recurring bills, liability payments, normal day-to-day spending, and planned one-time expenses.
           </div>
         </div>
       </div>
@@ -144,13 +146,19 @@ function renderPrimer() {
           <span class="forecast-primer-detail">Minimum payments coming from Plaid liability data</span>
         </div>
         <div class="forecast-primer-item">
-          <span class="forecast-primer-label">Planned</span>
+          <span class="forecast-primer-label">Planned Expenses</span>
           <strong>${fmtMoney(planned)}</strong>
           <span class="forecast-primer-detail">One-time expenses you added manually for this month</span>
         </div>
+        ${plannedIncome > 0 ? `
+        <div class="forecast-primer-item">
+          <span class="forecast-primer-label" style="color:var(--green)">Planned Income</span>
+          <strong style="color:var(--green)">${fmtMoney(plannedIncome)}</strong>
+          <span class="forecast-primer-detail">One-time income you added manually for this month</span>
+        </div>` : ''}
       </div>
       <div class="forecast-primer-note">
-        “Recurring” here is not just the committed monthly summary. Pulse projects each active medium/high-confidence recurring item on its expected future dates, and the monthly card shows the total scheduled to hit inside that month.
+        "Recurring" here is not just the committed monthly summary. Pulse projects each active medium/high-confidence recurring item on its expected future dates, and the monthly card shows the total scheduled to hit inside that month.
       </div>
     </div>
   `;
@@ -260,7 +268,7 @@ function renderChart() {
               const lines = day.events
                 .filter(e => e.type !== 'discretionary')
                 .map(e => {
-                  const sign = e.type === 'income' ? '+' : '-';
+                  const sign = (e.type === 'income' || e.type === 'planned_income') ? '+' : '-';
                   return `  ${sign}$${e.amount.toFixed(2)} ${e.name}`;
                 });
               return lines.length ? '\nEvents:\n' + lines.join('\n') : '';
@@ -317,7 +325,8 @@ function renderMonthlyCards() {
         <div class="monthly-row monthly-row-clickable" data-drilldown-month="${calMonth}"><span>Discretionary <span class="drilldown-hint">&#9662;</span></span><span>-${fmtMoney(m.expected_discretionary)}</span></div>
         <div class="discretionary-drilldown" id="drilldown-${calMonth}" style="display:none"></div>
         <div class="monthly-row"><span>Liabilities</span><span>-${fmtMoney(m.expected_liability_payments)}</span></div>
-        ${m.planned_expenses_total > 0 ? `<div class="monthly-row"><span>Planned</span><span>-${fmtMoney(m.planned_expenses_total)}</span></div>` : ''}
+        ${m.planned_income_total > 0 ? `<div class="monthly-row"><span style="color:var(--green)">Planned Income</span><span style="color:var(--green)">+${fmtMoney(m.planned_income_total)}</span></div>` : ''}
+        ${m.planned_expenses_total > 0 ? `<div class="monthly-row"><span>Planned Expenses</span><span>-${fmtMoney(m.planned_expenses_total)}</span></div>` : ''}
         <div class="monthly-row monthly-net" style="color:${netColor}"><span>Net</span><span>${netSign}${fmtMoney(m.net_surplus_or_deficit)}</span></div>
       </div>
       <div class="monthly-card-footer">End Balance: ${fmtMoney(m.projected_end_balance)}</div>
@@ -333,31 +342,38 @@ function renderMonthlyCards() {
 
 // ── Planned Expenses ──────────────────────────────────────────
 
+let plannedItemsCache = null;
+
+async function loadPlannedItems() {
+  const res = await fetch('api/cash-flow/planned-expenses');
+  const data = await res.json();
+  plannedItemsCache = data.planned_expenses || [];
+}
+
 async function renderPlannedExpenses() {
   try {
-    const res = await fetch('api/cash-flow/planned-expenses');
-    const data = await res.json();
+    if (!plannedItemsCache) await loadPlannedItems();
+    const expenses = plannedItemsCache.filter(pe => pe.type !== 'income');
     const list = document.getElementById('planned-list');
     const emptyMsg = document.getElementById('planned-empty');
-    const items = data.planned_expenses || [];
 
-    if (items.length === 0) {
+    if (expenses.length === 0) {
       list.innerHTML = '';
       emptyMsg.classList.remove('hidden');
       return;
     }
 
     emptyMsg.classList.add('hidden');
-    list.innerHTML = items.map(pe => `
+    list.innerHTML = expenses.map(pe => `
       <div class="planned-item" data-id="${pe.id}">
         <div class="planned-item-info">
           <div class="planned-item-name">${escHtml(pe.name)}</div>
-          <div class="planned-item-meta">${fmtMoney(pe.amount)} &middot; ${fmtShortDate(pe.scheduled_date)}</div>
+          <div class="planned-item-meta" style="color:var(--red)">&minus;${fmtMoney(pe.amount)} &middot; ${fmtShortDate(pe.scheduled_date)}</div>
           ${pe.notes ? `<div class="planned-item-notes">${escHtml(pe.notes)}</div>` : ''}
         </div>
         <div class="planned-item-actions">
-          <button class="btn-ghost btn-sm" onclick="editPlanned(${pe.id}, '${escAttr(pe.name)}', ${pe.amount}, '${pe.scheduled_date.slice(0,10)}', '${escAttr(pe.notes || '')}')">Edit</button>
-          <button class="btn-ghost btn-sm" style="color:var(--red)" onclick="deletePlanned(${pe.id})">Delete</button>
+          <button class="btn-ghost btn-sm" onclick="editPlanned(${pe.id}, '${escAttr(pe.name)}', ${pe.amount}, '${pe.scheduled_date.slice(0,10)}', '${escAttr(pe.notes || '')}', 'expense')">Edit</button>
+          <button class="btn-ghost btn-sm" style="color:var(--red)" onclick="deletePlanned(${pe.id}, 'expense')">Delete</button>
         </div>
       </div>
     `).join('');
@@ -366,9 +382,49 @@ async function renderPlannedExpenses() {
   }
 }
 
-function openPlannedModal(id, name, amount, date, notes) {
+async function renderPlannedIncome() {
+  try {
+    if (!plannedItemsCache) await loadPlannedItems();
+    const incomes = plannedItemsCache.filter(pi => pi.type === 'income');
+    const list = document.getElementById('planned-income-list');
+    const emptyMsg = document.getElementById('planned-income-empty');
+
+    if (incomes.length === 0) {
+      list.innerHTML = '';
+      emptyMsg.classList.remove('hidden');
+      return;
+    }
+
+    emptyMsg.classList.add('hidden');
+    list.innerHTML = incomes.map(pi => `
+      <div class="planned-item planned-item-income" data-id="${pi.id}">
+        <div class="planned-item-info">
+          <div class="planned-item-name">${escHtml(pi.name)}</div>
+          <div class="planned-item-meta" style="color:var(--green)">+${fmtMoney(pi.amount)} &middot; ${fmtShortDate(pi.scheduled_date)}</div>
+          ${pi.notes ? `<div class="planned-item-notes">${escHtml(pi.notes)}</div>` : ''}
+        </div>
+        <div class="planned-item-actions">
+          <button class="btn-ghost btn-sm" onclick="editPlanned(${pi.id}, '${escAttr(pi.name)}', ${pi.amount}, '${pi.scheduled_date.slice(0,10)}', '${escAttr(pi.notes || '')}', 'income')">Edit</button>
+          <button class="btn-ghost btn-sm" style="color:var(--red)" onclick="deletePlanned(${pi.id}, 'income')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Failed to load planned income:', err);
+  }
+}
+
+function openPlannedModal(itemType, id, name, amount, date, notes) {
+  // itemType is 'expense' or 'income' — when called from Add buttons, id is undefined
+  const resolvedType = itemType || 'expense';
   editingPlannedId = id || null;
-  document.getElementById('planned-modal-title').textContent = id ? 'Edit Planned Expense' : 'Add Planned Expense';
+  const isIncome = resolvedType === 'income';
+  document.getElementById('planned-type').value = resolvedType;
+  document.getElementById('planned-modal-title').textContent =
+    id
+      ? (isIncome ? 'Edit Planned Income' : 'Edit Planned Expense')
+      : (isIncome ? 'Add Planned Income' : 'Add Planned Expense');
+  document.getElementById('planned-name').placeholder = isIncome ? 'e.g. Annual bonus' : 'e.g. New tires';
   document.getElementById('planned-name').value = name || '';
   document.getElementById('planned-amount').value = amount || '';
   document.getElementById('planned-date').value = date || '';
@@ -382,14 +438,16 @@ function closePlannedModal() {
   editingPlannedId = null;
 }
 
-function editPlanned(id, name, amount, date, notes) {
-  openPlannedModal(id, name, amount, date, notes);
+function editPlanned(id, name, amount, date, notes, itemType) {
+  openPlannedModal(itemType || 'expense', id, name, amount, date, notes);
 }
 
-async function deletePlanned(id) {
-  if (!confirm('Delete this planned expense?')) return;
+async function deletePlanned(id, itemType) {
+  const label = itemType === 'income' ? 'planned income' : 'planned expense';
+  if (!confirm(`Delete this ${label}?`)) return;
   try {
     await fetch(`api/cash-flow/planned-expenses/${id}`, { method: 'DELETE' });
+    plannedItemsCache = null;
     await refreshForecast();
   } catch (err) {
     console.error('Delete failed:', err);
@@ -402,6 +460,7 @@ document.getElementById('planned-form').addEventListener('submit', async (e) => 
   const amount = parseFloat(document.getElementById('planned-amount').value);
   const scheduled_date = document.getElementById('planned-date').value;
   const notes = document.getElementById('planned-notes').value.trim() || null;
+  const type = document.getElementById('planned-type').value || 'expense';
   const errorEl = document.getElementById('planned-error');
 
   if (!name || !amount || amount <= 0 || !scheduled_date) {
@@ -418,7 +477,7 @@ document.getElementById('planned-form').addEventListener('submit', async (e) => 
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, amount, scheduled_date, notes })
+      body: JSON.stringify({ name, amount, scheduled_date, notes, type })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -427,6 +486,7 @@ document.getElementById('planned-form').addEventListener('submit', async (e) => 
       return;
     }
     closePlannedModal();
+    plannedItemsCache = null;
     await refreshForecast();
   } catch (err) {
     errorEl.textContent = 'Network error';
@@ -448,6 +508,7 @@ function renderAssumptions() {
     `<strong>Recurring expenses:</strong> ${meta.recurring_expense_count || 0}`,
     `<strong>Liability payments:</strong> ${meta.liability_count || 0}`,
     `<strong>Planned expenses:</strong> ${meta.planned_count || 0}`,
+    `<strong>Planned income:</strong> ${meta.planned_income_count || 0}`,
     `<strong>Last computed:</strong> ${meta.computed_at ? fmtShortDate(meta.computed_at.slice(0, 10)) : 'N/A'}`,
     meta.cached ? '<em style="color:var(--muted)">Serving cached forecast</em>' : '<em style="color:var(--accent)">Freshly computed</em>'
   ];
@@ -461,6 +522,7 @@ async function refreshForecast() {
   try {
     document.getElementById('refresh-btn').disabled = true;
     document.getElementById('refresh-btn').textContent = 'Refreshing...';
+    plannedItemsCache = null;
     const res = await fetch('api/cash-flow/forecast/refresh', { method: 'POST' });
     forecastData = await res.json();
     render();
