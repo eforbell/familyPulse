@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## What This Is
 
-Household financial visibility app for the Forbell family. Syncs bank/credit card/investment
+Household financial visibility app. Syncs bank/credit card/investment
 accounts via Plaid into a local Postgres database, detects inter-account transfers, and provides
 a unified view of household money flow. No UI in Feature 1 — data layer only.
 

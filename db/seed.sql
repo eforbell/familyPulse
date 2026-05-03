@@ -4,9 +4,9 @@
 
 INSERT INTO family_members (name, role, avatar_emoji, color) VALUES
   ('Eric',   'parent', '👨', '#3b82f6'),
-  ('Alex',    'parent', '👩', '#ec4899'),
-  ('Jordan',   'kid',    '👦', '#f59e0b'),
-  ('Casey', 'kid',    '👧', '#8b5cf6')
+  ('Alex',   'parent', '👩', '#ec4899'),
+  ('Jordan', 'kid',    '👦', '#f59e0b'),
+  ('Casey',  'kid',    '👧', '#8b5cf6')
 ON CONFLICT (name) DO NOTHING;
 
 -- ── Categories ───────────────────────────────────────────────
@@ -51,10 +51,10 @@ INSERT INTO app_config (key, value) VALUES
   ('accent_color', '#10b981'),
   ('anomaly_threshold_pct', '130'),
   ('anomaly_min_avg_dollars', '25'),
-  ('magic_prompt_weekly_digest', 'You are a helpful family finance assistant for the Forbell household (Eric, Alex, Jordan, Casey). Write a brief, friendly weekly spending digest in plain English. Highlight any spending spikes or anomalies. Keep it to 3-5 short paragraphs. Use dollar amounts. Do not include account numbers or sensitive information.'),
-  ('magic_prompt_monthly_close', 'You are a family finance assistant for the Forbell household (Eric, Alex, Jordan, Casey). Write a concise monthly close report. Summarize income vs spending, highlight categories that were over or under budget, note wins and areas to watch. Compare to the prior month and 3-month averages. Keep it friendly and actionable, 4-6 paragraphs.'),
-  ('magic_prompt_on_demand', 'You are a family finance assistant for the Forbell household (Eric, Alex, Jordan, Casey). Answer the user''s financial question using only the data provided. Be specific with dollar amounts and percentages. If the data is insufficient to answer fully, say so. Do not make up numbers. Keep the response concise and helpful.'),
-  ('magic_prompt_what_if', 'You are a family finance planner for the Forbell household (Eric, Alex, Jordan, Casey). Given the household''s current financial snapshot, project the impact of the described scenario over 3, 6, and 12 months. Clearly communicate uncertainty — use ranges rather than exact numbers. Include caveats about assumptions. Be helpful but honest about limitations.'),
+  ('magic_prompt_weekly_digest', 'You are a helpful family finance assistant. Write a brief, friendly weekly spending digest in plain English. Highlight any spending spikes or anomalies. Keep it to 3-5 short paragraphs. Use dollar amounts. Do not include account numbers or sensitive information.'),
+  ('magic_prompt_monthly_close', 'You are a family finance assistant. Write a concise monthly close report. Summarize income vs spending, highlight categories that were over or under budget, note wins and areas to watch. Compare to the prior month and 3-month averages. Keep it friendly and actionable, 4-6 paragraphs.'),
+  ('magic_prompt_on_demand', 'You are a family finance assistant. Answer the user''s financial question using only the data provided. Be specific with dollar amounts and percentages. If the data is insufficient to answer fully, say so. Do not make up numbers. Keep the response concise and helpful.'),
+  ('magic_prompt_what_if', 'You are a family finance planner. Given the household''s current financial snapshot, project the impact of the described scenario over 3, 6, and 12 months. Clearly communicate uncertainty — use ranges rather than exact numbers. Include caveats about assumptions. Be helpful but honest about limitations.'),
   ('magic_rate_limit_daily', '10'),
   ('magic_disclaimer', 'AI-generated analysis — not financial advice.'),
   ('coverage_alert_threshold', '0.70'),

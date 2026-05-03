@@ -1,6 +1,6 @@
 # Family Pulse
 
-Family Pulse is a household finance dashboard for the Forbell family. It pulls account and transaction data from Plaid, organizes spending into household-friendly categories, tracks budget periods and snapshots, flags anomalies, and supports lightweight AI-generated summaries and planning prompts.
+Family Pulse is a household finance dashboard for your family. It pulls account and transaction data from Plaid, organizes spending into household-friendly categories, tracks budget periods and snapshots, flags anomalies, and supports lightweight AI-generated summaries and planning prompts.
 
 The app is intentionally small and direct:
 - Express server with server-rendered static pages from `public/`
@@ -140,7 +140,7 @@ Current app behavior:
 ## Backup Restore Drill
 
 Run a monthly restore drill to prove backups are fully recoverable:
-- [planning/restore-drill.md](/home/forbell/workspace/homeApps/familyPulse/planning/restore-drill.md)
+- [planning/restore-drill.md](planning/restore-drill.md)
 
 The runbook is written for `pg_dump -Fc` backups and `pg_restore` validation into an isolated drill database.
 If transaction attachments are in use, include `/data/apps/familyPulse/transaction-files` in the same backup window as the database dump.

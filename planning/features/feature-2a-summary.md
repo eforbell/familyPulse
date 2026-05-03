@@ -32,7 +32,7 @@ Settings page (Tailscale-only)
   │
   └─ OAuth institutions (Chase, CapOne, etc.):
       browser redirects to bank login
-      bank redirects to https://plaid-callback.forbell.com/oauth/callback
+      bank redirects to https://plaid-callback.yourdomain.com/oauth/callback
         ↓ Cloudflare Tunnel → erebor:3003
         ↓ Serves oauth-callback.html (re-initializes Plaid Link)
         ↓ Plaid Link completes → onSuccess → POST api/link/exchange → done
@@ -88,7 +88,7 @@ cleaned up after exchange or expiry.
 
 | Variable | Required | Notes |
 |---|---|---|
-| PLAID_OAUTH_REDIRECT_URI | Yes (production) | `https://plaid-callback.forbell.com/oauth/callback` |
+| PLAID_OAUTH_REDIRECT_URI | Yes (production) | `https://plaid-callback.yourdomain.com/oauth/callback` |
 
 ## Prerequisites
 

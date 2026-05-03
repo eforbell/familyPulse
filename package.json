@@ -1,7 +1,7 @@
 {
   "name": "family-pulse",
   "version": "1.0.0",
-  "description": "Forbell family financial pulse — household money visibility with Plaid sync",
+  "description": "Family financial pulse — household money visibility with Plaid sync",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

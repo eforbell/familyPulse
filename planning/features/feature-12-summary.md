@@ -6,7 +6,7 @@ Surface Plaid's liability data (statement balances, due dates, minimum payments,
 
 ## Why This Matters
 
-The Forbells pay statement balances in full every month. The key question is cashflow coverage: can liquid cash cover upcoming obligations across all liability types — credit card statements, mortgage payments, and loan minimums — especially when due dates are staggered? Monarch doesn't surface any of this. We will.
+Household pays statement balances in full every month. The key question is cashflow coverage: can liquid cash cover upcoming obligations across all liability types — credit card statements, mortgage payments, and loan minimums — especially when due dates are staggered? Monarch doesn't surface any of this. We will.
 
 ## Scope
 

@@ -74,7 +74,7 @@ This feature provides the forward-looking engine that Feature 9 needs. After Fea
   Bands communicate "we're pretty sure about next week, less sure about next month."
 - **Daily granularity, not hourly** — charges post daily; intra-day precision is noise.
 - **Safety floor is configurable** — default $3,000 (app_config), since that's roughly
-  1× monthly committed obligations for the Forbell household.
+  1× monthly committed obligations for your household.
 - **Good-state guidance matters too** — the forecast should not only warn about shortfalls;
   it should also say when idle cash appears safely above the household reserve target.
 - **No liability double-counting** — liability minimum payments come from Plaid liability data;

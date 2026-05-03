@@ -93,8 +93,8 @@
     ]
   },
   "preFlightChecklist": [
-    "Cloudflare Tunnel running on erebor with plaid-callback.forbell.com routing to localhost:3003",
-    "Redirect URI registered in Plaid Dashboard: https://plaid-callback.forbell.com/oauth/callback",
+    "Cloudflare Tunnel running on erebor with plaid-callback.yourdomain.com routing to localhost:3003",
+    "Redirect URI registered in Plaid Dashboard: https://plaid-callback.yourdomain.com/oauth/callback",
     "PLAID_OAUTH_REDIRECT_URI added to .env",
     "All target institutions approved in Plaid Compliance Center"
   ],

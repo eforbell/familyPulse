@@ -31,7 +31,7 @@ describe('what-if', () => {
   });
 
   it('what-if system prompt includes uncertainty caveat instruction', () => {
-    const defaultPrompt = "You are a family finance planner for the Forbell household (Eric, Alex, Jordan, Casey). Given the household's current financial snapshot, project the impact of the described scenario over 3, 6, and 12 months. Clearly communicate uncertainty — use ranges rather than exact numbers. Include caveats about assumptions. Be helpful but honest about limitations.";
+    const defaultPrompt = "You are a family finance planner for a household (Eric, Alex, Jordan, Casey). Given the household's current financial snapshot, project the impact of the described scenario over 3, 6, and 12 months. Clearly communicate uncertainty — use ranges rather than exact numbers. Include caveats about assumptions. Be helpful but honest about limitations.";
 
     assert.ok(defaultPrompt.includes('uncertainty'));
     assert.ok(defaultPrompt.includes('caveats'));

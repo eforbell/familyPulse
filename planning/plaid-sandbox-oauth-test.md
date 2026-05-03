@@ -31,7 +31,7 @@ Run the app with:
 
 ```bash
 PLAID_ENV=sandbox
-PLAID_OAUTH_REDIRECT_URI=https://plaid-callback.forbell.com/oauth/callback
+PLAID_OAUTH_REDIRECT_URI=https://plaid-callback.yourdomain.com/oauth/callback
 APP_URL=http://erebor:3003
 PORT=3003
 ```
@@ -40,7 +40,7 @@ Notes:
 
 - `PLAID_OAUTH_REDIRECT_URI` must exactly match the Plaid allowlist entry.
 - `APP_URL` is only used for the "Return to Settings" link after success.
-- Keep the Cloudflare Tunnel running so `plaid-callback.forbell.com` reaches the app.
+- Keep the Cloudflare Tunnel running so `plaid-callback.yourdomain.com` reaches the app.
 
 ## Recommended Sandbox Institution
 
@@ -74,10 +74,10 @@ For a basic successful sandbox OAuth run:
 Before testing:
 
 1. Confirm Family Pulse is running locally on port `3003`.
-2. Confirm the Cloudflare Tunnel routes `https://plaid-callback.forbell.com/oauth/callback`
+2. Confirm the Cloudflare Tunnel routes `https://plaid-callback.yourdomain.com/oauth/callback`
    to `http://localhost:3003`.
 3. Confirm Plaid Dashboard allowlists:
-   `https://plaid-callback.forbell.com/oauth/callback`
+   `https://plaid-callback.yourdomain.com/oauth/callback`
 4. Confirm `.env` contains sandbox credentials and the redirect URI above.
 5. Confirm the `link_sessions` migration has already been applied.
 
@@ -110,7 +110,7 @@ Proceed through the OAuth steps presented by Plaid.
 Expected browser behavior:
 
 - the browser is redirected to:
-  `https://plaid-callback.forbell.com/oauth/callback?oauth_state_id=...`
+  `https://plaid-callback.yourdomain.com/oauth/callback?oauth_state_id=...`
 
 ### 5. Confirm callback resume
 

@@ -18,7 +18,7 @@ internal.
 Plaid must be configured with this exact allowed redirect URI:
 
 ```text
-https://plaid-callback.forbell.com/oauth/callback
+https://plaid-callback.yourdomain.com/oauth/callback
 ```
 
 This value must exactly match:
@@ -37,7 +37,7 @@ Family Pulse expects these values in production:
 PLAID_CLIENT_ID=...
 PLAID_SECRET=...
 PLAID_ENV=production
-PLAID_OAUTH_REDIRECT_URI=https://plaid-callback.forbell.com/oauth/callback
+PLAID_OAUTH_REDIRECT_URI=https://plaid-callback.yourdomain.com/oauth/callback
 APP_URL=http://erebor:3003
 ```
 
@@ -59,7 +59,7 @@ Cloudflare Tunnel must route:
 
 ```yaml
 ingress:
-  - hostname: plaid-callback.forbell.com
+  - hostname: plaid-callback.yourdomain.com
     path: /oauth/callback
     service: http://localhost:3003
   - service: http_status:404
@@ -188,7 +188,7 @@ session mismatch errors.
 
 Before testing Chase, Capital One, or another OAuth institution:
 
-1. Confirm `PLAID_OAUTH_REDIRECT_URI` is set to `https://plaid-callback.forbell.com/oauth/callback`.
+1. Confirm `PLAID_OAUTH_REDIRECT_URI` is set to `https://plaid-callback.yourdomain.com/oauth/callback`.
 2. Confirm `APP_URL` points to the internal Family Pulse URL users should return to.
 3. Confirm the Cloudflare Tunnel path routes `/oauth/callback` to `http://localhost:3003`.
 4. Confirm the Plaid Dashboard allowed redirect URIs include the exact callback URL.

@@ -67,7 +67,7 @@ test.describe('Budget page (kid redirect)', () => {
 
     await page.goto('/budget.html');
 
-    // Kid should be redirected to /kids/jordan
+    // Kid should be redirected to /kids/:name
     await expect(page).toHaveURL(/\/kids\//, { timeout: 5_000 });
   });
 

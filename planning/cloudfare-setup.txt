@@ -6,13 +6,13 @@ sudo cloudflared service install <YOUR_TUNNEL_TOKEN>
 **3. Configure the public hostname**
 Still in the tunnel setup, under **Public Hostnames** add:
 - Subdomain: `plaid-callback`
-- Domain: `forbell.com`
+- Domain: `yourdomain.com`
 - Service: `HTTP` → `localhost:3004`
 - Path (optional but recommended): `/oauth/callback`
 
-This creates `https://plaid-callback.forbell.com/oauth/callback` pointing to erebor.
+This creates `https://plaid-callback.yourdomain.com/oauth/callback` pointing to erebor.
 
 **4. Register the redirect URI in Plaid**
 Plaid Dashboard → Team Settings → API → **Allowed redirect URIs** → add:
 ```
-https://plaid-callback.forbell.com/oauth/callback
+https://plaid-callback.yourdomain.com/oauth/callback
