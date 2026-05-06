@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function applyUrlParams() {
   const params = new URLSearchParams(location.search);
+  $('filter-transfers').checked = true;
 
   const categoryId = params.get('category_id');
   if (categoryId !== null) $('filter-category').value = categoryId;
@@ -75,7 +76,8 @@ function applyUrlParams() {
   if (search) $('filter-search').value = search;
 
   const showTransfers = params.get('show_transfers');
-  if (showTransfers === '1') $('filter-transfers').checked = true;
+  if (showTransfers === '0') $('filter-transfers').checked = false;
+  else if (showTransfers === '1') $('filter-transfers').checked = true;
 
   const showHidden = params.get('show_hidden');
   if (showHidden === '1') $('filter-hidden').checked = true;

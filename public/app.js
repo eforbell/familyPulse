@@ -270,6 +270,7 @@ function buildRecentTransactionParams() {
   p.set('offset', currentPage * PAGE_SIZE);
   p.set('date_from', fmt(weekAgo));
   p.set('date_to', fmt(now));
+  p.set('show_transfers', '1');
   return p.toString();
 }
 

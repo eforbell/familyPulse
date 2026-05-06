@@ -16,6 +16,8 @@ const COLOR_PALETTE = [
 
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadCategories(), loadRules()]);
+  $('cat-income').addEventListener('change', syncCategoryFlags);
+  $('cat-transfer').addEventListener('change', syncCategoryFlags);
 });
 
 // ── Categories ───────────────────────────────────────────────
@@ -73,6 +75,7 @@ function openCategoryForm(id) {
   $('cat-budget').value = cat?.budget_amount || '';
   $('cat-icon').value = cat?.icon || '';
   $('cat-income').checked = cat?.is_income || false;
+  $('cat-transfer').checked = cat?.is_transfer_class || false;
   $('cat-exclude-from-baseline').checked = cat?.exclude_from_baseline || false;
   selectedColor = cat?.color || '#6b7280';
 
@@ -82,6 +85,22 @@ function openCategoryForm(id) {
   ).join('');
 
   $('category-form-overlay').classList.remove('hidden');
+  syncCategoryFlags();
+}
+
+function syncCategoryFlags() {
+  const isIncome = $('cat-income').checked;
+  const isTransfer = $('cat-transfer').checked;
+  const excludeToggle = $('cat-exclude-from-baseline');
+
+  if (isIncome && isTransfer) {
+    $('cat-transfer').checked = false;
+  }
+
+  excludeToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
+  if (excludeToggle.disabled) {
+    excludeToggle.checked = false;
+  }
 }
 
 function pickColor(color) {
@@ -103,7 +122,7 @@ async function saveCategory() {
     budget_amount: $('cat-budget').value ? parseFloat($('cat-budget').value) : null,
     icon: $('cat-icon').value.trim() || null,
     is_income: $('cat-income').checked,
-    is_transfer_class: false,
+    is_transfer_class: $('cat-transfer').checked,
     exclude_from_baseline: $('cat-exclude-from-baseline').checked
   };
 
