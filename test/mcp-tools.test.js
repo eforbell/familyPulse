@@ -78,6 +78,16 @@ before(async () => {
       `MCP Test Merchant ${i}`, `MCP Test Merchant ${i}`, cat.id
     ]);
   }
+
+  await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, merchant_name, category_id, is_transfer, is_hidden, pending, transfer_type)
+    VALUES ($1, $2, $3, $4, $5, $6, NULL, true, false, false, 'cc_payment')
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET
+      amount = $3, date = $4, is_transfer = true, category_id = NULL, transfer_type = 'cc_payment'
+  `, [
+    `${PREFIX}uncat-transfer`, checkingAcct.id, 88.25, dateStr,
+    'MCP Uncategorized Transfer', 'MCP Uncategorized Transfer'
+  ]);
 });
 
 after(async () => {
@@ -152,6 +162,11 @@ describe('MCP: get_transactions', () => {
   it('caps limit at 200', async () => {
     const result = await getTransactions({ search: 'MCP Test Merchant', limit: 999 });
     assert.equal(result.limit, 200);
+  });
+
+  it('includes uncategorized transfer rows when explicitly querying Uncategorized', async () => {
+    const result = await getTransactions({ category: 'Uncategorized' });
+    assert.ok(result.transactions.some(t => t.merchant === 'MCP Uncategorized Transfer'));
   });
 });
 

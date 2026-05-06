@@ -22,6 +22,7 @@ let dedupImportTxId2;
 let dedupHiddenImportTxId;
 let uncategorizedCategoryId;
 let explicitUncategorizedTxId;
+let uncategorizedTransferTxId;
 
 before(async () => {
   server = app.listen(0);
@@ -85,6 +86,14 @@ before(async () => {
   `, [acct.id, uncategorizedCategoryId]);
   explicitUncategorizedTxId = explicitUncategorizedTx.id;
 
+  const { rows: [uncategorizedTransferTx] } = await pool.query(`
+    INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, transfer_type, source, category_id)
+    VALUES ('tx-api-uncat-transfer', $1, 250.00, '2026-03-07', 'Mystery Transfer', 'Mystery Transfer', false, true, 'cc_payment', 'test', NULL)
+    ON CONFLICT (plaid_transaction_id) DO UPDATE SET is_transfer = EXCLUDED.is_transfer, transfer_type = EXCLUDED.transfer_type, category_id = EXCLUDED.category_id
+    RETURNING id
+  `, [acct.id]);
+  uncategorizedTransferTxId = uncategorizedTransferTx.id;
+
   const { rows: [coffeeTx] } = await pool.query(
     `SELECT id FROM transactions WHERE plaid_transaction_id = 'tx-api-1'`
   );
@@ -130,6 +139,7 @@ before(async () => {
 
 after(async () => {
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE 'tx-api-%'");
+  await pool.query("DELETE FROM category_rules WHERE merchant_pattern LIKE 'Rule Merchant %'");
   await pool.query("DELETE FROM dedup_runs WHERE created_by = 'test-runner'");
   await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-api-test'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-api'");
@@ -200,6 +210,15 @@ describe('GET /api/transactions', () => {
     const data = await res.json();
     assert.ok(data.transactions.every(t => t.category_id === null || t.category_id === uncategorizedCategoryId));
     assert.ok(data.transactions.some(t => t.id === explicitUncategorizedTxId));
+  });
+
+  it('shows uncategorized transfer rows in uncategorized view without enabling global transfers', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions?category_id=0&limit=100`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    const tx = data.transactions.find(t => t.id === uncategorizedTransferTxId);
+    assert.ok(tx, 'expected uncategorized transfer row to be visible in uncategorized view');
+    assert.equal(tx.is_transfer, true);
   });
 
   it('respects pagination', async () => {
@@ -360,6 +379,40 @@ describe('POST /api/transactions/bulk-categorize', () => {
       body: JSON.stringify({ transaction_ids: [], category_id: 1 })
     });
     assert.equal(res.status, 400);
+  });
+});
+
+
+describe('POST /api/transactions/:id/create-rule', () => {
+  it('creates a rule and applies it to matching uncategorized transactions', async () => {
+    const merchant = `Rule Merchant ${Date.now()}`;
+    const { rows: [seed] } = await pool.query(`
+      INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source)
+      VALUES ($1, $2, 19.99, '2026-03-08', $3, $3, false, false, 'test')
+      RETURNING id
+    `, [`tx-api-rule-seed-${Date.now()}`, accountId, merchant]);
+
+    const { rows: [futureMatch] } = await pool.query(`
+      INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+      VALUES ($1, $2, 29.99, '2026-03-09', $3, $3, false, false, 'test', NULL)
+      RETURNING id
+    `, [`tx-api-rule-future-${Date.now()}`, accountId, merchant]);
+
+    const res = await fetch(`${baseUrl}/api/transactions/${seed.id}/create-rule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category_id: assignCategoryId })
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.rule.category_id, assignCategoryId);
+
+    const { rows: [updated] } = await pool.query(
+      'SELECT category_id FROM transactions WHERE id = $1',
+      [futureMatch.id]
+    );
+    assert.equal(updated.category_id, assignCategoryId);
   });
 });
 

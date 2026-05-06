@@ -18,8 +18,10 @@ async function getTransactions({
   const conditions = ['t.is_hidden = false'];
   const params = [];
   let idx = 1;
+  const categoryFilter = typeof category === 'string' ? category.trim() : '';
+  const wantsUncategorized = categoryFilter.toLowerCase() === 'uncategorized';
 
-  if (!include_transfers) {
+  if (!include_transfers && !wantsUncategorized) {
     conditions.push('t.is_transfer = false');
   }
 
@@ -31,9 +33,13 @@ async function getTransactions({
     params.push(date_to);
     conditions.push(`t.date <= $${idx++}::date`);
   }
-  if (category) {
-    params.push(category);
-    conditions.push(`c.name ILIKE $${idx++}`);
+  if (categoryFilter) {
+    params.push(categoryFilter);
+    if (wantsUncategorized) {
+      conditions.push(`COALESCE(c.name, 'Uncategorized') ILIKE $${idx++}`);
+    } else {
+      conditions.push(`c.name ILIKE $${idx++}`);
+    }
   }
   if (account_name) {
     params.push(account_name);

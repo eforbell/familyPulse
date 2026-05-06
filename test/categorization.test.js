@@ -43,6 +43,16 @@ describe('categorizeTransaction', () => {
     assert.equal(categorizeTransaction(tx, rules), 30);
   });
 
+  it('matches exact rules against statement name even when merchant_name differs', () => {
+    const tx = { merchant_name: 'Merchant Alias', name: 'Starbucks' };
+    assert.equal(categorizeTransaction(tx, rules), 10);
+  });
+
+  it('matches contains rules against statement name even when merchant_name differs', () => {
+    const tx = { merchant_name: 'Merchant Alias', name: 'Whole Foods Market' };
+    assert.equal(categorizeTransaction(tx, rules), 30);
+  });
+
   it('returns null when no match', () => {
     const tx = { merchant_name: 'McDonalds', name: 'MCDONALDS #5678' };
     assert.equal(categorizeTransaction(tx, rules), null);
