@@ -865,7 +865,7 @@ async function loadPassphraseManager() {
           <div style="font-size:0.8rem;color:var(--muted)">Required for initial setup (from BOOTSTRAP_SECRET env var)</div>
         </div>
         <div style="flex-shrink:0">
-          <input type="password" id="bootstrap-secret-input" placeholder="Bootstrap secret" class="login-input" style="width:180px;padding:0.4rem 0.5rem;font-size:0.8rem">
+          <input type="password" id="bootstrap-secret-input" placeholder="Bootstrap secret" class="login-input" style="width:180px;padding:0.4rem 0.5rem">
         </div>
       </div>
     ` : '';
@@ -881,7 +881,7 @@ async function loadPassphraseManager() {
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
-          <input type="password" id="pass-${m.id}" placeholder="New passphrase" class="login-input" style="width:150px;padding:0.4rem 0.5rem;font-size:0.8rem">
+          <input type="password" id="pass-${m.id}" placeholder="New passphrase" class="login-input" style="width:150px;padding:0.4rem 0.5rem">
           <button class="btn-primary" onclick="setPassphrase(${m.id})" style="padding:0.4rem 0.75rem;font-size:0.8rem">Set</button>
         </div>
       </div>
@@ -1000,7 +1000,7 @@ async function loadKidBudgets() {
         <input type="number" id="kid-budget-${m.id}" placeholder="No budget"
                value="${m.monthly_budget != null ? m.monthly_budget : ''}"
                min="0" step="1" class="login-input"
-               style="width:100px;padding:0.4rem 0.5rem;font-size:0.85rem">
+               style="width:100px;padding:0.4rem 0.5rem">
         <button class="btn-primary" onclick="saveKidBudget(${m.id})" style="padding:0.4rem 0.75rem;font-size:0.8rem">Save</button>
       </div>
     </div>
