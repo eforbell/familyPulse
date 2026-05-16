@@ -430,11 +430,13 @@ function openPlannedModal(itemType, id, name, amount, date, notes) {
   document.getElementById('planned-date').value = date || '';
   document.getElementById('planned-notes').value = notes || '';
   document.getElementById('planned-error').classList.add('hidden');
+  document.body.classList.add('modal-open');
   document.getElementById('planned-overlay').classList.remove('hidden');
 }
 
 function closePlannedModal() {
   document.getElementById('planned-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   editingPlannedId = null;
 }
 

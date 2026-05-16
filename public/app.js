@@ -68,15 +68,17 @@ async function loadCoverageIndicator() {
     const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
     const color = colorMap[data.status] || 'var(--muted)';
     const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
-    el.innerHTML = `<a href="accounts.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Liability Coverage: <strong style="color:${color}">${ratioLabel}</strong></span>
-      <span style="color:var(--muted)">${fmtMoney(data.obligation_total)} due</span>
-    </a>`;
+    el.innerHTML = `
+      <div class="strip-label">Liability coverage <strong style="color:${color}">${ratioLabel}</strong></div>
+      <div class="strip-meta">${fmtMoney(data.obligation_total)} due</div>
+    `;
+    el.onclick = () => { window.location.href = 'accounts.html'; };
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Coverage indicator failed:', err);
   }
 }
+
 
 async function loadRecurringIndicator() {
   try {
@@ -87,15 +89,17 @@ async function loadRecurringIndicator() {
       el.classList.add('hidden');
       return;
     }
-    el.innerHTML = `<a href="recurring.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Recurring plan: <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</span>
-      <span style="color:var(--muted)">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</span>
-    </a>`;
+    el.innerHTML = `
+      <div class="strip-label">Recurring plan <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</div>
+      <div class="strip-meta">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</div>
+    `;
+    el.onclick = () => { window.location.href = 'recurring.html'; };
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Recurring indicator failed:', err);
   }
 }
+
 
 async function loadForecastIndicator() {
   try {
@@ -103,10 +107,11 @@ async function loadForecastIndicator() {
     if (!el) return;
     const data = await api('api/cash-flow/forecast');
     if (!data || !data.projections || data.projections.length === 0) {
-      el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-        <span style="color:var(--muted)">Forecast available after first sync</span>
-        <span style="color:var(--muted)">&#8250;</span>
-      </a>`;
+      el.innerHTML = `
+        <div class="strip-label">Forecast available after first sync</div>
+        <div class="strip-meta">&#8250;</div>
+      `;
+      el.onclick = () => { window.location.href = 'forecast.html'; };
       el.classList.remove('hidden');
       return;
     }
@@ -138,15 +143,17 @@ async function loadForecastIndicator() {
       rightText = '';
     }
 
-    el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Forecast: <strong style="color:${statusColor}">${statusText}</strong></span>
-      <span style="color:var(--muted)">${rightText} &#8250;</span>
-    </a>`;
+    el.innerHTML = `
+      <div class="strip-label">Forecast <strong style="color:${statusColor}">${statusText}</strong></div>
+      <div class="strip-meta">${rightText ? `${rightText} &#8250;` : '&#8250;'}</div>
+    `;
+    el.onclick = () => { window.location.href = 'forecast.html'; };
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Forecast indicator failed:', err);
   }
 }
+
 
 function withinDays(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -187,21 +194,34 @@ async function loadTransactions() {
 // ── Render: Dashboard ────────────────────────────────────────
 
 function renderDashboard(data) {
+  const liquidTotal = parseFloat(data.liquid_total) || 0;
+  const creditTotal = parseFloat(data.credit_total) || 0;
+  const accountCount = Number(data.account_count) || 0;
+  const historicalCount = Number(data.historical_account_count) || 0;
+  const coverageRatio = Math.abs(creditTotal) > 0 ? `${(liquidTotal / Math.abs(creditTotal)).toFixed(2)}×` : '—';
+
   $('net-amount').innerHTML = fmtMoney(data.net_position);
   $('net-amount').classList.remove('loading-pulse');
-
-  const historicalSummary = data.historical_account_count > 0
-    ? `<span><span class="label">Historical</span> <span class="value">${data.historical_account_count}</span></span>`
-    : '';
-
   $('balance-breakdown').innerHTML = `
-    <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
-    <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
-    <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
-    <span><span class="label">Active accounts</span> <span class="value">${data.account_count}</span></span>
-    ${historicalSummary}
+    <div class="item">
+      <div class="k">Cash</div>
+      <div class="v ok">${fmtMoney(liquidTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Credit</div>
+      <div class="v bad">${fmtMoney(creditTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Coverage</div>
+      <div class="v">${coverageRatio}</div>
+    </div>
+    <div class="item">
+      <div class="k">Accounts</div>
+      <div class="v">${accountCount}${historicalCount > 0 ? ` · +${historicalCount} hist` : ''}</div>
+    </div>
   `;
 }
+
 
 // ── Render: Transactions ─────────────────────────────────────
 
@@ -217,27 +237,35 @@ function renderTransactions() {
     const amt = parseFloat(tx.amount);
     const isCredit = amt < 0;
     const merchant = tx.effective_display_name || tx.merchant_name || tx.name || '—';
-    const catBadge = tx.category_name
-      ? `<span class="cat-badge" style="background:${hexToRgba(tx.category_color, 0.15)};border:1px solid ${hexToRgba(tx.category_color, 0.3)};color:${tx.category_color}">${tx.category_icon || ''} ${esc(tx.category_name)}</span>`
-      : '<span class="cat-badge uncat">uncategorized</span>';
     const pendingClass = tx.pending ? ' pending' : '';
     const selectedClass = selectedIds.has(tx.id) ? ' selected' : '';
+    const iconLetter = esc(merchant.trim().charAt(0).toUpperCase() || '•');
+    const iconClass = tx.category_name ? (isCredit ? 'in' : 'out') : 'uncat';
+    const categoryLine = tx.category_name
+      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span></div>`
+      : '<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span></div>';
+    const pendingTag = tx.pending ? '<span class="status-tag">Pending</span>' : '';
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
       <input type="checkbox" class="tx-check" ${selectedIds.has(tx.id) ? 'checked' : ''} onclick="onCheckbox(event, ${tx.id})">
+      <div class="tx-icon ${iconClass}">${iconLetter}</div>
       <div class="tx-main">
         <div class="tx-merchant">${esc(merchant)}</div>
-        <div class="tx-detail">
+        <div class="tx-sub">
           <span>${formatDate(tx.date)}</span>
-          <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
-          ${catBadge}
-          ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
+          <span class="sep">·</span>
+          <span class="tx-account">${esc(tx.account_name)}${tx.account_mask ? ` •••${esc(tx.account_mask)}` : ''}</span>
         </div>
+        ${categoryLine}
       </div>
-      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+      <div class="tx-amount-wrap">
+        <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+        ${pendingTag}
+      </div>
     </div>`;
   }).join('');
 }
+
 
 function renderStats() {
   $('tx-stats').innerHTML = `
@@ -298,6 +326,7 @@ function openCategoryOverlay(txId, merchant) {
   }
 
   renderCategoryOptions();
+  document.body.classList.add('modal-open');
   $('category-overlay').classList.remove('hidden');
 }
 
@@ -306,6 +335,7 @@ function openBulkCategoryOverlay() {
   $('cat-overlay-title').textContent = `Assign to ${selectedIds.size} transactions`;
   $('create-rule-row').classList.add('hidden');
   renderCategoryOptions();
+  document.body.classList.add('modal-open');
   $('category-overlay').classList.remove('hidden');
 }
 
@@ -315,7 +345,7 @@ function renderCategoryOptions() {
     .map(c => `
       <button class="cat-option" onclick="pickCategory(${c.id})">
         <span class="cat-swatch" style="background:${c.color}"></span>
-        <span>${c.icon || ''} ${esc(c.name)}</span>
+        <span>${esc(plainCategoryName(c.name))}</span>
       </button>
     `).join('');
 }
@@ -362,6 +392,7 @@ async function pickCategory(categoryId) {
 
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   assignTarget = null;
 }
 
@@ -376,9 +407,10 @@ async function openTransactionDetail(id) {
   $('tx-detail-amount').textContent = '—';
   $('tx-detail-category').textContent = '—';
   $('tx-detail-raw').textContent = '—';
-  $('tx-detail-feedback').className = 'recurring-detail-feedback hidden';
+  $('tx-detail-feedback').className = 'tx-detail-feedback hidden';
   $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
   hideDisplayNameSuggestions();
+  document.body.classList.add('modal-open');
   $('tx-detail-overlay').classList.remove('hidden');
 
   try {
@@ -386,7 +418,7 @@ async function openTransactionDetail(id) {
     currentDetail = data.transaction;
     renderTransactionDetail();
   } catch (err) {
-    $('tx-detail-feedback').className = 'recurring-detail-feedback error';
+    $('tx-detail-feedback').className = 'tx-detail-feedback error';
     $('tx-detail-feedback').textContent = err.message || 'Could not load transaction detail';
   }
 }
@@ -396,6 +428,7 @@ function closeTransactionDetail() {
   currentDetail = null;
   hideDisplayNameSuggestions();
   $('tx-detail-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 async function refreshCurrentDetail() {
@@ -423,7 +456,7 @@ function renderTransactionDetail() {
   ].filter(Boolean).join(' · ');
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
-  $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';
@@ -699,6 +732,12 @@ function updateWhoBtn() {
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)

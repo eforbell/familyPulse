@@ -3,94 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <base href="../">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | My Money</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="theme.js"></script>
   <script src="privacy.js"></script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="sovereign-chassis.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="pulse-skin.css">
 </head>
 <body data-nav-page="kid-dashboard" data-nav-role="kid">
 
   <!-- Category assignment overlay (no create-rule for kids) -->
-  <div id="category-overlay" class="overlay hidden">
+  <div id="category-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kid-cat-overlay-title">
     <div class="overlay-box">
-      <h2>Assign Category</h2>
-      <div id="category-list" class="cat-list"></div>
-      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeCategoryOverlay()">Cancel</button>
+      <div class="modal-head">
+        <div><h2 id="kid-cat-overlay-title">Assign category</h2></div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeCategoryOverlay()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="category-list" class="cat-list"></div>
+      </div>
     </div>
   </div>
 
-  <div id="kid-tx-detail-overlay" class="overlay hidden">
-    <div class="overlay-box tx-detail-box">
-      <div class="tx-detail-header">
+  <div id="kid-tx-detail-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="kid-tx-detail-title">
+    <div class="overlay-box wide">
+      <div class="modal-head">
         <div>
           <h2 id="kid-tx-detail-title">Transaction Detail</h2>
-          <p id="kid-tx-detail-meta">Loading…</p>
+          <p id="kid-tx-detail-meta" class="modal-sub">Loading…</p>
         </div>
-        <button class="btn-ghost tx-detail-close" type="button" onclick="closeTransactionDetail()">Close</button>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeTransactionDetail()">×</button>
       </div>
 
-      <div class="tx-detail-summary">
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Display name</span>
-          <span id="kid-tx-detail-display-name">—</span>
+      <div class="modal-body">
+        <div class="modal-summary">
+          <div class="modal-summary-row">
+            <span class="k">Display name</span>
+            <span class="v" id="kid-tx-detail-display-name">—</span>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Amount</span>
+            <strong class="v" id="kid-tx-detail-amount">—</strong>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Category</span>
+            <span class="v" id="kid-tx-detail-category">—</span>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Raw synced text</span>
+            <span class="v mono" id="kid-tx-detail-raw">—</span>
+          </div>
         </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Amount</span>
-          <strong id="kid-tx-detail-amount">—</strong>
+
+        <div class="form-actions">
+          <button id="kid-tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Assign Category</button>
         </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Category</span>
-          <span id="kid-tx-detail-category">—</span>
-        </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Raw synced text</span>
-          <span id="kid-tx-detail-raw">—</span>
-        </div>
+
+        <section class="tx-detail-section">
+          <div class="tx-detail-section-head">
+            <h3>Note</h3>
+            <span id="kid-tx-note-meta" class="tx-detail-subtle"></span>
+          </div>
+          <div id="kid-tx-note-readonly" class="tx-note-readonly hidden"></div>
+          <div id="kid-tx-note-empty" class="tx-detail-subtle">No note yet.</div>
+        </section>
+
+        <section class="tx-detail-section">
+          <div class="tx-detail-section-head">
+            <h3>Attachments</h3>
+            <span class="tx-detail-subtle">Receipts, invoices, or photos</span>
+          </div>
+          <div id="kid-tx-attachment-list" class="tx-attachment-list"></div>
+        </section>
       </div>
-
-      <div class="tx-detail-actions">
-        <button id="kid-tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Assign Category</button>
-      </div>
-
-      <section class="tx-detail-section">
-        <div class="tx-detail-section-head">
-          <h3>Note</h3>
-          <span id="kid-tx-note-meta" class="tx-detail-subtle"></span>
-        </div>
-        <div id="kid-tx-note-readonly" class="tx-note-readonly hidden"></div>
-        <div id="kid-tx-note-empty" class="tx-detail-subtle">No note yet.</div>
-      </section>
-
-      <section class="tx-detail-section">
-        <div class="tx-detail-section-head">
-          <h3>Attachments</h3>
-          <span class="tx-detail-subtle">Receipts, invoices, or photos</span>
-        </div>
-        <div id="kid-tx-attachment-list" class="tx-attachment-list"></div>
-      </section>
     </div>
   </div>
 
   <div id="app">
 
     <!-- Header -->
-    <header>
+    <header class="app-header">
       <h1 id="greeting">My Money</h1>
-      <button id="who-btn" class="who-btn" title="Sign out"></button>
+      <button id="who-btn" class="who-btn" title="Sign out" aria-label="Sign out"></button>
     </header>
 
     <!-- Balance card -->
     <div id="balance-card" class="net-position-card">
-      <div class="net-label">MY BALANCE</div>
-      <div id="balance-amount" class="net-amount loading-pulse">Loading...</div>
-      <div id="balance-detail" class="balance-breakdown"></div>
+      <div class="net-label">My Balance</div>
+      <div id="balance-amount" class="net-amount loading-pulse">Loading…</div>
+      <div class="rule"></div>
+      <div id="balance-detail" class="balance-breakdown-grid"></div>
     </div>
 
     <!-- Budget progress -->

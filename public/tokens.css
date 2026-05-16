@@ -1,0 +1,36 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Family Pulse — tokens
+   Overrides the shared chassis with Pulse's accent + display family.
+   Load AFTER sovereign-chassis.css, BEFORE pulse-skin.css.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Pulse's display family ──────────────────────────────────────────
+     Source Sans 3 · 700 with tabular figures.
+     The chassis already loads Source Sans 3 for body; reusing it as the
+     display family means zero new font weight to pull over the LAN and
+     numerals lock to a perfect column.                                  */
+  --font-display: 'Source Sans 3', -apple-system, BlinkMacSystemFont,
+                  'Segoe UI', Roboto, sans-serif;
+
+  /* ── Pulse's accent (dark mode — the default) ───────────────────── */
+  --accent:               #7EC44E;
+  --accent-pale:          #1E2A16;
+  --accent-wash:          rgba(126, 196, 78, 0.05);
+  --accent-soft:          rgba(126, 196, 78, 0.10);
+  --accent-soft-strong:   rgba(126, 196, 78, 0.18);
+  --accent-border-soft:   rgba(126, 196, 78, 0.28);
+}
+
+/* ── Pulse's accent (light mode) ───────────────────────────────────── */
+:root[data-theme="light"] {
+  --accent:               #3A7D2C;
+  --accent-pale:          #E8F0E0;
+  --accent-wash:          rgba(58, 125, 44, 0.06);
+  --accent-soft:          rgba(58, 125, 44, 0.10);
+  --accent-soft-strong:   rgba(58, 125, 44, 0.18);
+  --accent-border-soft:   rgba(58, 125, 44, 0.28);
+}
+
+/* Pulse's body theme-color meta is set dynamically by theme.js;
+   no override needed here.                                              */

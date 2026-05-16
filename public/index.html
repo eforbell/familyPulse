@@ -2,175 +2,200 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | Dashboard</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- Font load: only Source Sans 3 + JetBrains Mono. No DM Serif.
+       Self-host these for production; CDN is OK for the dev iteration. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
   <script src="theme.js"></script>
   <script src="privacy.js"></script>
-  <link rel="stylesheet" href="style.css">
+
+  <!-- Load order matters: chassis → tokens → skin -->
+  <link rel="stylesheet" href="sovereign-chassis.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="pulse-skin.css">
 </head>
 <body data-nav-page="dashboard">
 
+  <!-- ─────────────────────────────────────────────────────────────
+       OVERLAYS — moved to top so they sit above .app-bottom-bar
+       (the chassis assigns the bottom bar z-index: 80; overlays use 100)
+       Markup preserved from current index.html so app.js IDs continue
+       to bind; only the wrapper class names and modal regions changed.
+       ─────────────────────────────────────────────────────────────── -->
+
   <!-- Category assignment overlay -->
-  <div id="category-overlay" class="overlay hidden">
+  <div id="category-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cat-overlay-title">
     <div class="overlay-box">
-      <h2 id="cat-overlay-title">Assign Category</h2>
-      <div id="category-list" class="cat-list"></div>
-      <label id="create-rule-row" class="create-rule-row hidden">
-        <input type="checkbox" id="create-rule-check">
-        <span>Always categorize <strong id="rule-merchant"></strong> as this</span>
-      </label>
-      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeCategoryOverlay()">Cancel</button>
-    </div>
-  </div>
-
-  <div id="tx-detail-overlay" class="overlay hidden">
-    <div class="overlay-box tx-detail-box">
-      <div class="tx-detail-header">
+      <div class="modal-head">
         <div>
-          <h2 id="tx-detail-title">Transaction Detail</h2>
-          <p id="tx-detail-meta">Loading…</p>
+          <h2 id="cat-overlay-title">Assign category</h2>
         </div>
-        <button class="btn-ghost tx-detail-close" type="button" onclick="closeTransactionDetail()">Close</button>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeCategoryOverlay()">×</button>
       </div>
-
-      <div id="tx-detail-feedback" class="recurring-detail-feedback hidden"></div>
-
-      <div class="tx-detail-summary">
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Display name</span>
-          <span id="tx-detail-display-name">—</span>
-        </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Amount</span>
-          <strong id="tx-detail-amount">—</strong>
-        </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Category</span>
-          <span id="tx-detail-category">—</span>
-        </div>
-        <div class="tx-detail-summary-row">
-          <span class="tx-detail-summary-label">Raw synced text</span>
-          <span id="tx-detail-raw">—</span>
-        </div>
+      <div class="modal-body">
+        <div id="category-list" class="cat-list"></div>
+        <label id="create-rule-row" class="create-rule-row hidden">
+          <input type="checkbox" id="create-rule-check">
+          <span>Always categorize <strong id="rule-merchant"></strong> as this</span>
+        </label>
       </div>
-
-      <div class="tx-detail-actions">
-        <button id="tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Assign Category</button>
-      </div>
-
-      <section class="tx-detail-section">
-        <div class="tx-detail-section-head">
-          <h3>Display Name</h3>
-          <span id="tx-display-name-meta" class="tx-detail-subtle"></span>
-        </div>
-        <input id="tx-display-name-input" class="tx-display-name-input hidden" type="text" maxlength="160" placeholder="Clean up this merchant/payee name">
-        <div id="tx-display-name-suggestions" class="tx-display-name-suggestions hidden"></div>
-        <div id="tx-display-name-readonly" class="tx-note-readonly hidden"></div>
-        <div id="tx-display-name-empty" class="tx-detail-subtle">Using synced merchant/payee text.</div>
-        <div id="tx-display-name-actions" class="form-actions hidden">
-          <label id="tx-display-name-rule-row" class="tx-detail-checkbox hidden">
-            <input id="tx-display-name-rule-check" type="checkbox">
-            <span>Apply to future exact matches</span>
-          </label>
-          <div id="tx-display-name-rule-hint" class="tx-detail-subtle hidden"></div>
-          <button class="btn-primary" type="button" onclick="saveTransactionDisplayName()">Save Name</button>
-          <button class="btn-ghost" type="button" onclick="clearTransactionDisplayName()">Clear</button>
-        </div>
-      </section>
-
-      <section class="tx-detail-section">
-        <div class="tx-detail-section-head">
-          <h3>Note</h3>
-          <span id="tx-note-meta" class="tx-detail-subtle"></span>
-        </div>
-        <textarea id="tx-note-input" class="tx-note-input hidden" rows="5" placeholder="Add context, warranty details, invoice notes, or household memory..."></textarea>
-        <div id="tx-note-readonly" class="tx-note-readonly hidden"></div>
-        <div id="tx-note-empty" class="tx-detail-subtle">No note yet.</div>
-        <div id="tx-note-actions" class="form-actions hidden">
-          <button class="btn-primary" type="button" onclick="saveTransactionNote()">Save Note</button>
-          <button class="btn-ghost" type="button" onclick="clearTransactionNote()">Clear</button>
-        </div>
-      </section>
-
-      <section class="tx-detail-section">
-        <div class="tx-detail-section-head">
-          <h3>Attachments</h3>
-          <span class="tx-detail-subtle">Receipts, invoices, or photos</span>
-        </div>
-        <div id="tx-attachment-upload" class="tx-attachment-upload hidden">
-          <input id="tx-attachment-input" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
-          <button class="btn-primary" type="button" onclick="uploadTransactionAttachments()">Upload</button>
-        </div>
-        <div id="tx-attachment-list" class="tx-attachment-list"></div>
-      </section>
     </div>
   </div>
 
+  <!-- Transaction detail overlay -->
+  <div id="tx-detail-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tx-detail-title">
+    <div class="overlay-box wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="tx-detail-title">Transaction</h2>
+          <p id="tx-detail-meta" class="modal-sub">Loading…</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeTransactionDetail()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div id="tx-detail-feedback" class="tx-detail-feedback hidden"></div>
+
+        <div class="modal-summary">
+          <div class="modal-summary-row">
+            <span class="k">Display name</span>
+            <span class="v" id="tx-detail-display-name">—</span>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Amount</span>
+            <strong class="v" id="tx-detail-amount">—</strong>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Category</span>
+            <span class="v" id="tx-detail-category">—</span>
+          </div>
+          <div class="modal-summary-row">
+            <span class="k">Raw synced text</span>
+            <span class="v mono" id="tx-detail-raw" style="font-weight: 400; color: var(--muted);">—</span>
+          </div>
+        </div>
+
+        <section class="tx-detail-section">
+          <h3>Display name</h3>
+          <p class="tx-detail-subtle" id="tx-display-name-meta"></p>
+          <input id="tx-display-name-input" class="tx-display-name-input hidden" type="text" maxlength="160" placeholder="Clean up this merchant/payee name">
+          <div id="tx-display-name-suggestions" class="tx-display-name-suggestions hidden"></div>
+          <div id="tx-display-name-readonly" class="tx-note-readonly hidden"></div>
+          <div id="tx-display-name-empty" class="tx-detail-subtle">Using synced merchant/payee text.</div>
+          <div id="tx-display-name-actions" class="form-actions hidden">
+            <label id="tx-display-name-rule-row" class="tx-detail-checkbox hidden">
+              <input id="tx-display-name-rule-check" type="checkbox">
+              <span>Apply to future exact matches</span>
+            </label>
+            <div id="tx-display-name-rule-hint" class="tx-detail-subtle hidden"></div>
+            <button class="btn-primary" type="button" onclick="saveTransactionDisplayName()">Save</button>
+            <button class="btn-ghost" type="button" onclick="clearTransactionDisplayName()">Clear</button>
+          </div>
+        </section>
+
+        <section class="tx-detail-section">
+          <h3>Note</h3>
+          <p class="tx-detail-subtle" id="tx-note-meta"></p>
+          <textarea id="tx-note-input" class="tx-note-input hidden" rows="5" placeholder="Add context, warranty details, invoice notes…"></textarea>
+          <div id="tx-note-readonly" class="tx-note-readonly hidden"></div>
+          <div id="tx-note-empty" class="tx-detail-subtle">No note yet.</div>
+          <div id="tx-note-actions" class="form-actions hidden">
+            <button class="btn-primary" type="button" onclick="saveTransactionNote()">Save</button>
+            <button class="btn-ghost" type="button" onclick="clearTransactionNote()">Clear</button>
+          </div>
+        </section>
+
+        <section class="tx-detail-section">
+          <h3>Attachments</h3>
+          <p class="tx-detail-subtle">Receipts, invoices, photos</p>
+          <div id="tx-attachment-upload" class="tx-attachment-upload hidden" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0;">
+            <input id="tx-attachment-input" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
+            <button class="btn-primary" type="button" onclick="uploadTransactionAttachments()">Upload</button>
+          </div>
+          <div id="tx-attachment-list" class="tx-attachment-list"></div>
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <button id="tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Reassign category</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────────────────────────
+       APP CONTENT
+       ─────────────────────────────────────────────────────────── -->
   <div id="app">
 
-    <!-- Header -->
-    <header>
+    <header class="app-header">
       <h1>Dashboard</h1>
-      <button id="who-btn" class="who-btn" title="Sign out"></button>
+      <button id="who-btn" class="who-btn" title="Sign out" aria-label="Sign out"></button>
     </header>
 
-    <!-- Net position summary — links to accounts page -->
-    <a href="accounts.html" style="text-decoration:none;color:inherit">
-      <div id="net-position-card" class="net-position-card" style="cursor:pointer">
-        <div class="net-label">NET POSITION</div>
-        <div id="net-amount" class="net-amount loading-pulse">Loading...</div>
-        <div id="balance-breakdown" class="balance-breakdown"></div>
+    <!-- Net position hero — link to accounts.html preserved -->
+    <a href="accounts.html" class="net-position-card" id="net-position-card">
+      <div class="net-label" id="net-position-label">Net Position</div>
+      <div class="net-amount loading-pulse" id="net-amount">Loading…</div>
+      <!-- Optional delta; rendered by app.js as a child of this card.
+           Currently app.js doesn't emit this — leave the slot for the
+           upcoming delta wire-up. -->
+      <div class="net-delta hidden" id="net-delta"></div>
+
+      <div class="rule"></div>
+
+      <div class="balance-breakdown-grid" id="balance-breakdown">
+        <!-- app.js renders four <div class="item"><div class="k">…</div><div class="v">…</div></div> cells here.
+             During migration app.js can keep emitting the legacy flex layout — the chassis tolerates either. -->
       </div>
     </a>
 
-    <!-- Coverage indicator -->
-    <div id="coverage-indicator" class="coverage-indicator hidden"></div>
+    <!-- Three lightweight strips below the hero (replaces the old
+         3-card stack of coverage / recurring / forecast indicators). -->
+    <div id="coverage-indicator"  class="indicator-strip hidden"></div>
+    <div id="recurring-indicator" class="indicator-strip hidden"></div>
+    <div id="forecast-indicator"  class="indicator-strip hidden"></div>
 
-    <!-- Recurring summary -->
-    <div id="recurring-indicator" class="coverage-indicator hidden"></div>
-
-    <!-- Forecast widget -->
-    <div id="forecast-indicator" class="coverage-indicator hidden"></div>
-
-    <!-- Transaction Browser -->
+    <!-- Recent transactions -->
     <section id="transactions-section">
-      <h2 class="section-heading">Recent Transactions</h2>
+      <h2 class="section-heading">Recent transactions</h2>
 
-      <!-- Bulk action bar -->
       <div id="bulk-bar" class="bulk-bar hidden">
         <span id="bulk-count">0 selected</span>
-        <button class="btn-primary" onclick="bulkAssignCategory()">Assign Category</button>
-        <button class="btn-ghost" onclick="clearSelection()">Clear</button>
+        <button class="btn-primary" onclick="bulkAssignCategory()">Assign category</button>
+        <button class="btn-ghost"  onclick="clearSelection()">Clear</button>
       </div>
 
-      <!-- Stats row -->
       <div id="tx-stats" class="tx-stats"></div>
 
-      <!-- Transaction list -->
       <div id="tx-list" class="tx-list"></div>
 
-      <!-- Pagination -->
       <div id="pagination" class="pagination hidden">
-        <button id="prev-btn" class="btn-ghost" onclick="prevPage()" disabled>Previous</button>
-        <span id="page-info"></span>
-        <button id="next-btn" class="btn-ghost" onclick="nextPage()">Next</button>
+        <button id="prev-btn" class="btn-ghost btn-xs" onclick="prevPage()" disabled>Previous</button>
+        <span id="page-info" class="mono"></span>
+        <button id="next-btn" class="btn-ghost btn-xs" onclick="nextPage()">Next</button>
       </div>
     </section>
 
     <!-- Pulse Intelligence — parents only -->
     <section id="magic-section" class="hidden">
-      <h2 class="section-heading">Pulse Intelligence</h2>
+      <h2 class="section-heading">Pulse intelligence</h2>
 
-      <!-- Weekly Digest -->
       <div id="magic-digest" class="magic-card hidden">
         <div class="magic-card-header" onclick="toggleMagicCard('digest')">
-          <span class="magic-card-title">Weekly Digest</span>
+          <span class="magic-card-title">Weekly digest</span>
           <span class="magic-card-toggle" id="digest-toggle">+</span>
         </div>
         <div id="digest-body" class="magic-card-body hidden">
@@ -178,10 +203,9 @@
         </div>
       </div>
 
-      <!-- Monthly Report -->
       <div id="magic-monthly" class="magic-card hidden">
         <div class="magic-card-header" onclick="toggleMagicCard('monthly')">
-          <span class="magic-card-title">Monthly Report</span>
+          <span class="magic-card-title">Monthly report</span>
           <span class="magic-card-toggle" id="monthly-toggle">+</span>
         </div>
         <div id="monthly-body" class="magic-card-body hidden">
@@ -189,29 +213,23 @@
         </div>
       </div>
 
-      <!-- Ask Pulse -->
       <div class="magic-card">
-        <div class="magic-card-header">
-          <span class="magic-card-title">Ask Pulse</span>
-        </div>
+        <div class="magic-card-header"><span class="magic-card-title">Ask Pulse</span></div>
         <div class="magic-card-body">
           <div id="magic-presets" class="magic-presets"></div>
           <div class="magic-input-row">
-            <input type="text" id="ask-input" class="magic-input" placeholder="Ask about your finances..." maxlength="500">
+            <input type="text" id="ask-input" class="magic-input" placeholder="Ask about your finances…" maxlength="500">
             <button class="btn-primary" onclick="submitAsk()">Ask</button>
           </div>
           <div id="ask-result" class="magic-result hidden"></div>
         </div>
       </div>
 
-      <!-- What-If -->
       <div class="magic-card">
-        <div class="magic-card-header">
-          <span class="magic-card-title">What-If</span>
-        </div>
+        <div class="magic-card-header"><span class="magic-card-title">What-if</span></div>
         <div class="magic-card-body">
           <div class="magic-input-row">
-            <input type="text" id="whatif-input" class="magic-input" placeholder="What if we..." maxlength="500">
+            <input type="text" id="whatif-input" class="magic-input" placeholder="What if we…" maxlength="500">
             <button class="btn-primary" onclick="submitWhatIf()">Forecast</button>
           </div>
           <div id="whatif-result" class="magic-result hidden"></div>
@@ -226,5 +244,7 @@
   <script src="nav.js"></script>
   <script src="display-name-suggestions.js"></script>
   <script src="app.js"></script>
+
+
 </body>
 </html>

@@ -47,16 +47,29 @@ function renderDashboard(data) {
   netEl.innerHTML = fmtMoney(data.net_position);
   netEl.classList.remove('loading-pulse');
 
-  const historicalSummary = data.historical_account_count > 0
-    ? `<span><span class="label">Historical</span> <span class="value">${data.historical_account_count}</span></span>`
-    : '';
+  const liquidTotal = parseFloat(data.liquid_total) || 0;
+  const creditTotal = parseFloat(data.credit_total) || 0;
+  const accountCount = Number(data.account_count) || 0;
+  const historicalCount = Number(data.historical_account_count) || 0;
+  const coverageRatio = Math.abs(creditTotal) > 0 ? `${(liquidTotal / Math.abs(creditTotal)).toFixed(2)}×` : '—';
 
   document.getElementById('balance-breakdown').innerHTML = `
-    <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
-    <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
-    <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
-    <span><span class="label">Active accounts</span> <span class="value">${data.account_count}</span></span>
-    ${historicalSummary}
+    <div class="item">
+      <div class="k">Cash</div>
+      <div class="v ok">${fmtMoney(liquidTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Credit</div>
+      <div class="v bad">${fmtMoney(creditTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Coverage</div>
+      <div class="v">${coverageRatio}</div>
+    </div>
+    <div class="item">
+      <div class="k">Accounts</div>
+      <div class="v">${accountCount}${historicalCount > 0 ? ` · +${historicalCount} hist` : ''}</div>
+    </div>
   `;
 
   const grid = document.getElementById('accounts-grid');
@@ -255,6 +268,7 @@ function openRename(event, accountId, currentName) {
   renameTarget = { id: accountId };
   const input = $('rename-input');
   input.value = currentName || '';
+  document.body.classList.add('modal-open');
   $('rename-overlay').classList.remove('hidden');
   setTimeout(() => {
     input.focus();
@@ -280,6 +294,7 @@ async function renameAccount(id, customName) {
 function closeRenameOverlay() {
   renameTarget = null;
   $('rename-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function resetRename() {

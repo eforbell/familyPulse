@@ -233,7 +233,7 @@ function renderCategoryDoughnut(period) {
   container.innerHTML = '<canvas id="category-doughnut-chart"></canvas>';
   const canvas = $('category-doughnut-chart');
 
-  const labels = cats.map(c => `${c.icon || ''} ${c.name}`.trim());
+  const labels = cats.map(c => plainCategoryName(c.name));
   const data = cats.map(c => c.spent);
   const colors = cats.map(c => c.color || '#10b981');
 
@@ -452,6 +452,12 @@ function showDisclaimer() {
 // ── Helpers ─────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)

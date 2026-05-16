@@ -2,54 +2,66 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | Categories</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <script src="theme.js"></script>
   <script src="privacy.js"></script>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="sovereign-chassis.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="pulse-skin.css">
 </head>
 <body data-nav-page="categories">
 
   <!-- Category form overlay -->
-  <div id="category-form-overlay" class="overlay hidden">
+  <div id="category-form-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cat-form-title">
     <div class="overlay-box">
-      <h2 id="cat-form-title">New Category</h2>
-      <input type="hidden" id="cat-form-id">
-      <div class="form-group">
-        <label for="cat-name">Name</label>
-        <input type="text" id="cat-name" placeholder="e.g. Groceries">
+      <div class="modal-head">
+        <div><h2 id="cat-form-title">New Category</h2></div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeCategoryForm()">×</button>
       </div>
-      <div class="form-group">
-        <label>Color</label>
-        <div id="cat-color-palette" class="color-palette"></div>
+      <div class="modal-body">
+        <input type="hidden" id="cat-form-id">
+        <div class="form-group">
+          <label for="cat-name">Name</label>
+          <input type="text" id="cat-name" placeholder="e.g. Groceries">
+        </div>
+        <div class="form-group">
+          <label>Color</label>
+          <div id="cat-color-palette" class="color-palette"></div>
+        </div>
+        <div class="form-group">
+          <label for="cat-budget">Monthly Budget ($)</label>
+          <input type="number" id="cat-budget" step="0.01" placeholder="optional">
+        </div>
+        <div class="form-group">
+          <label for="cat-icon">Icon (emoji)</label>
+          <input type="text" id="cat-icon" placeholder="optional" maxlength="4">
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="cat-income"> Is income
+        </label>
+        <label class="checkbox-row" style="margin-top:0.75rem">
+          <input type="checkbox" id="cat-transfer"> Is transfer category
+        </label>
+        <label class="checkbox-row" style="margin-top:0.75rem">
+          <input type="checkbox" id="cat-exclude-from-baseline"> Exclude from day-to-day forecast
+        </label>
+        <p class="settings-help-copy" style="margin-top:0.35rem">
+          Use this for categories that should not shape normal discretionary spending expectations. Recurring bills are forecast separately.
+        </p>
       </div>
-      <div class="form-group">
-        <label for="cat-budget">Monthly Budget ($)</label>
-        <input type="number" id="cat-budget" step="0.01" placeholder="optional">
-      </div>
-      <div class="form-group">
-        <label for="cat-icon">Icon (emoji)</label>
-        <input type="text" id="cat-icon" placeholder="optional" maxlength="4">
-      </div>
-      <label class="checkbox-row">
-        <input type="checkbox" id="cat-income"> Is income
-      </label>
-      <label class="checkbox-row" style="margin-top:0.75rem">
-        <input type="checkbox" id="cat-transfer"> Is transfer category
-      </label>
-      <label class="checkbox-row" style="margin-top:0.75rem">
-        <input type="checkbox" id="cat-exclude-from-baseline"> Exclude from day-to-day forecast
-      </label>
-      <p class="settings-help-copy" style="margin-top:0.35rem">
-        Use this for categories that should not shape normal discretionary spending expectations. Recurring bills are forecast separately.
-      </p>
-      <div class="form-actions">
+      <div class="modal-foot">
         <button class="btn-primary" onclick="saveCategory()">Save</button>
         <button class="btn-ghost" onclick="closeCategoryForm()">Cancel</button>
       </div>
@@ -57,31 +69,36 @@
   </div>
 
   <!-- Rule form overlay -->
-  <div id="rule-form-overlay" class="overlay hidden">
+  <div id="rule-form-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rule-form-title">
     <div class="overlay-box">
-      <h2 id="rule-form-title">New Rule</h2>
-      <input type="hidden" id="rule-form-id">
-      <div class="form-group">
-        <label for="rule-pattern">Merchant Pattern</label>
-        <input type="text" id="rule-pattern" placeholder="e.g. Starbucks">
+      <div class="modal-head">
+        <div><h2 id="rule-form-title">New Rule</h2></div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeRuleForm()">×</button>
       </div>
-      <div class="form-group">
-        <label for="rule-match-type">Match Type</label>
-        <select id="rule-match-type">
-          <option value="contains">Contains</option>
-          <option value="exact">Exact</option>
-        </select>
+      <div class="modal-body">
+        <input type="hidden" id="rule-form-id">
+        <div class="form-group">
+          <label for="rule-pattern">Merchant Pattern</label>
+          <input type="text" id="rule-pattern" placeholder="e.g. Starbucks">
+        </div>
+        <div class="form-group">
+          <label for="rule-match-type">Match Type</label>
+          <select id="rule-match-type">
+            <option value="contains">Contains</option>
+            <option value="exact">Exact</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="rule-category">Category</label>
+          <select id="rule-category"></select>
+        </div>
+        <button class="btn-ghost" style="margin-bottom:0.5rem" onclick="previewCurrentRule()">Preview matches</button>
+        <div id="preview-container" class="hidden">
+          <div id="preview-count" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem"></div>
+          <div id="preview-list" class="preview-list"></div>
+        </div>
       </div>
-      <div class="form-group">
-        <label for="rule-category">Category</label>
-        <select id="rule-category"></select>
-      </div>
-      <button class="btn-ghost" style="margin-bottom:0.5rem" onclick="previewCurrentRule()">Preview matches</button>
-      <div id="preview-container" class="hidden">
-        <div id="preview-count" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem"></div>
-        <div id="preview-list" class="preview-list"></div>
-      </div>
-      <div class="form-actions">
+      <div class="modal-foot">
         <button class="btn-primary" onclick="saveRule()">Save</button>
         <button class="btn-ghost" onclick="closeRuleForm()">Cancel</button>
       </div>
@@ -89,7 +106,7 @@
   </div>
 
   <div id="app">
-    <header>
+    <header class="app-header">
       <h1>Categories &amp; Rules</h1>
       <div></div>
     </header>

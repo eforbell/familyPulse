@@ -43,7 +43,7 @@ function renderCategories() {
       <div class="admin-row-info">
         <span class="cat-swatch" style="background:${c.color}"></span>
         <div class="admin-row-copy">
-          <span class="name">${c.icon || ''} ${esc(c.name)}</span>
+          <span class="name">${esc(plainCategoryName(c.name))}</span>
           <span class="meta">
             <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}
           </span>
@@ -84,6 +84,7 @@ function openCategoryForm(id) {
     `<button class="color-swatch ${c === selectedColor ? 'selected' : ''}" style="background:${c}" onclick="pickColor('${c}')"></button>`
   ).join('');
 
+  document.body.classList.add('modal-open');
   $('category-form-overlay').classList.remove('hidden');
   syncCategoryFlags();
 }
@@ -112,6 +113,7 @@ function pickColor(color) {
 
 function closeCategoryForm() {
   $('category-form-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 async function saveCategory() {
@@ -200,7 +202,7 @@ function renderRules() {
       <div class="admin-row-info">
         <span class="cat-swatch" style="background:${r.category_color}"></span>
         <span class="name">"${esc(r.merchant_pattern)}"</span>
-        <span class="meta">${r.match_type} → ${r.category_icon || ''} ${esc(r.category_name)}</span>
+        <span class="meta">${r.match_type} → ${esc(plainCategoryName(r.category_name))}</span>
       </div>
       <div class="admin-row-actions">
         <button class="btn-ghost" onclick="openRuleForm(${r.id})">Edit</button>
@@ -221,6 +223,7 @@ function openRuleForm(id) {
   populateRuleCategorySelect();
   if (rule) $('rule-category').value = rule.category_id;
 
+  document.body.classList.add('modal-open');
   $('rule-form-overlay').classList.remove('hidden');
 }
 
@@ -228,12 +231,13 @@ function populateRuleCategorySelect() {
   const sel = $('rule-category');
   sel.innerHTML = categories
     .filter(c => !c.is_transfer_class)
-    .map(c => `<option value="${c.id}">${c.icon || ''} ${esc(c.name)}</option>`)
+    .map(c => `<option value="${c.id}">${esc(plainCategoryName(c.name))}</option>`)
     .join('');
 }
 
 function closeRuleForm() {
   $('rule-form-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 async function saveRule() {
@@ -314,6 +318,12 @@ async function applyRulesRetroactive() {
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)
