@@ -2830,15 +2830,40 @@ header h1 {
   .monthly-cards-grid { grid-template-columns: 1fr; }
 }
 
+.fp-amount { display: inline-block; }
+
 /* Privacy mode — blur dollar amounts application-wide */
-.privacy-mode .fp-amount {
+.privacy-mode .fp-amount,
+.private-blur {
   filter: blur(7px);
   user-select: none;
   transition: filter 0.15s;
 }
-.privacy-mode .fp-amount:hover {
+.privacy-mode .fp-amount:hover,
+.private-blur:hover {
   filter: blur(0);
 }
-.privacy-mode canvas {
+.privacy-mode canvas,
+.private-blur-canvas {
   filter: blur(7px);
+}
+
+/* Dashboard / transaction amount containers that should always blur in privacy mode */
+.privacy-mode #net-amount,
+.privacy-mode #balance-amount,
+.privacy-mode .tx-amount,
+.privacy-mode #tx-stats .value,
+.privacy-mode .strip-meta,
+.privacy-mode .strip-label strong {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter 0.15s;
+}
+.privacy-mode #net-amount:hover,
+.privacy-mode #balance-amount:hover,
+.privacy-mode .tx-amount:hover,
+.privacy-mode #tx-stats .value:hover,
+.privacy-mode .strip-meta:hover,
+.privacy-mode .strip-label strong:hover {
+  filter: blur(0);
 }

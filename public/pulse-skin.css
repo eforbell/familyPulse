@@ -151,6 +151,90 @@
 }
 
 
+
+/* ──────────────────────────────────────────────────────────────────────
+   2.5 · Summary heroes (Budget / Recurring / Forecast)
+   Flatten legacy gradient summary shells into the sovereign surface.
+   ────────────────────────────────────────────────────────────────────── */
+
+.budget-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.budget-summary::before { content: none; }
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.summary-item { min-width: 0; }
+.summary-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}
+.summary-value {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.summary-prior {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--s-2);
+}
+
+.commitment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: var(--s-4);
+}
+
+.commitment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.commitment-pill-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.net-amount.loading-pulse {
+  color: var(--dim);
+}
+
+@media (max-width: 720px) {
+  .summary-row { grid-template-columns: 1fr; }
+  .summary-value { font-size: 32px; }
+}
+
 /* ──────────────────────────────────────────────────────────────────────
    3 · Transaction list rows (Pulse-specific composition)
    The chassis provides .list-row. Pulse adds amount + category-dot
