@@ -406,6 +406,16 @@ function clearFilterChip(key) {
 function prevPage() { if (currentPage > 0) { currentPage--; loadTransactions(); } }
 function nextPage() { currentPage++; loadTransactions(); }
 
+function isOverlayOpen(id) {
+  const el = $(id);
+  return !!el && !el.classList.contains('hidden');
+}
+
+function syncModalOpenState() {
+  const open = ['tx-detail-overlay','category-overlay','tx-note-editor-overlay','tx-attachment-editor-overlay'].some(isOverlayOpen);
+  document.body.classList.toggle('modal-open', open);
+}
+
 // ── Category assignment ──────────────────────────────────────
 
 function onTxClick(event, id) {
@@ -427,8 +437,8 @@ function openCategoryOverlay(txId, merchant) {
   }
 
   renderCategoryOptions();
-  document.body.classList.add('modal-open');
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function openBulkCategoryOverlay() {
@@ -436,8 +446,8 @@ function openBulkCategoryOverlay() {
   $('cat-overlay-title').textContent = `Assign to ${selectedIds.size} transactions`;
   $('create-rule-row').classList.add('hidden');
   renderCategoryOptions();
-  document.body.classList.add('modal-open');
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function renderCategoryOptions() {
@@ -491,8 +501,8 @@ async function pickCategory(categoryId) {
 
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
-  document.body.classList.remove('modal-open');
   assignTarget = null;
+  syncModalOpenState();
 }
 
 // ── Bulk selection ───────────────────────────────────────────
@@ -619,8 +629,8 @@ async function openTransactionDetail(id) {
   $('tx-detail-feedback').className = 'tx-detail-feedback hidden';
   $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
   hideDisplayNameSuggestions();
-  document.body.classList.add('modal-open');
   $('tx-detail-overlay').classList.remove('hidden');
+  syncModalOpenState();
 
   try {
     const data = await api(`api/transactions/${id}`);
@@ -636,8 +646,10 @@ function closeTransactionDetail() {
   currentDetailId = null;
   currentDetail = null;
   hideDisplayNameSuggestions();
+  closeTransactionNoteEditor();
+  closeTransactionAttachmentEditor();
   $('tx-detail-overlay').classList.add('hidden');
-  document.body.classList.remove('modal-open');
+  syncModalOpenState();
 }
 
 async function refreshCurrentDetail() {
@@ -693,23 +705,15 @@ function renderTransactionDetail() {
   }
   hideDisplayNameSuggestions();
 
-  const canEditNote = currentMember?.role === 'parent';
-  $('tx-note-input').classList.toggle('hidden', !canEditNote);
-  $('tx-note-actions').classList.toggle('hidden', !canEditNote);
-  $('tx-note-readonly').classList.toggle('hidden', canEditNote);
   $('tx-note-meta').textContent = note?.updated_at
     ? `Last updated ${formatDate(note.updated_at)}${note.updated_by_name ? ` by ${note.updated_by_name}` : ''}`
     : '';
+  $('tx-note-readonly').textContent = note?.text || '';
+  $('tx-note-readonly').classList.toggle('hidden', !note?.text);
+  $('tx-note-empty').classList.toggle('hidden', !!note?.text);
+  const noteEditor = $('tx-note-modal-input');
+  if (noteEditor) noteEditor.value = note?.text || '';
 
-  if (canEditNote) {
-    $('tx-note-input').value = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  } else {
-    $('tx-note-readonly').textContent = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  }
-
-  $('tx-attachment-upload').classList.toggle('hidden', currentMember?.role !== 'parent');
   renderAttachmentList(tx.attachments || []);
 }
 
@@ -830,6 +834,32 @@ function openCurrentCategoryEditor() {
   openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
 }
 
+function openTransactionNoteEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-note-editor-title').textContent = currentDetail.note?.text ? 'Edit note' : 'Add note';
+  $('tx-note-modal-input').value = currentDetail.note?.text || '';
+  $('tx-note-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionNoteEditor() {
+  const el = $('tx-note-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
+function openTransactionAttachmentEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-attachment-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionAttachmentEditor() {
+  const el = $('tx-attachment-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
 async function saveTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
@@ -840,10 +870,11 @@ async function saveTransactionNote() {
     const data = await api(`api/transactions/${currentDetailId}/note`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note: $('tx-note-input').value })
+      body: JSON.stringify({ note: $('tx-note-modal-input').value })
     });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note saved.';
   } catch (err) {
     feedback.className = 'tx-detail-feedback error';
@@ -861,6 +892,7 @@ async function clearTransactionNote() {
     const data = await api(`api/transactions/${currentDetailId}/note`, { method: 'DELETE' });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note cleared.';
   } catch (err) {
     feedback.className = 'tx-detail-feedback error';
@@ -889,6 +921,7 @@ async function uploadTransactionAttachments() {
     });
     input.value = '';
     await refreshCurrentDetail();
+    closeTransactionAttachmentEditor();
     feedback.textContent = 'Attachments uploaded.';
   } catch (err) {
     feedback.className = 'tx-detail-feedback error';

@@ -152,11 +152,15 @@ test.describe('Transaction memory detail', () => {
     await expect(page.locator('#tx-detail-overlay')).toBeVisible();
     await expect(page.locator('#tx-detail-title')).toHaveText('Home Depot');
 
-    await page.locator('#tx-note-input').fill('Keep for warranty claim');
-    await page.getByRole('button', { name: 'Save Note' }).click();
+    await page.getByRole('button', { name: 'Add note' }).click();
+    await expect(page.locator('#tx-note-editor-overlay')).toBeVisible();
+    await page.locator('#tx-note-modal-input').fill('Keep for warranty claim');
+    await page.locator('#tx-note-editor-overlay').getByRole('button', { name: 'Save note' }).click();
     await expect(page.locator('#tx-detail-feedback')).toContainText('Note saved.');
     await expect(page.locator('#tx-note-meta')).toContainText('Eric');
 
+    await page.getByRole('button', { name: 'Add receipt' }).click();
+    await expect(page.locator('#tx-attachment-editor-overlay')).toBeVisible();
     await page.setInputFiles('#tx-attachment-input', {
       name: 'receipt.pdf',
       mimeType: 'application/pdf',

@@ -88,6 +88,26 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+function categoricalPalette() {
+  return [
+    cssVar('--cat-01') || '#C4572A',
+    cssVar('--cat-02') || '#8B6914',
+    cssVar('--cat-03') || '#6BAF3D',
+    cssVar('--cat-04') || '#3B6E8F',
+    cssVar('--cat-05') || '#5BA4C9',
+    cssVar('--cat-06') || '#6F8A55',
+    cssVar('--cat-07') || '#D4A83A',
+    cssVar('--cat-08') || '#C99064',
+    cssVar('--cat-09') || '#6F6A5E'
+  ];
+}
+
+function paletteColorForCategory(id, fallbackIndex = 0) {
+  const palette = categoricalPalette();
+  if (id == null || Number.isNaN(Number(id))) return palette[fallbackIndex % palette.length];
+  return palette[Math.abs(Number(id)) % (palette.length - 1)];
+}
+
 function formatMonthLabel(period) {
   const [y, m] = period.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short' });
@@ -223,7 +243,7 @@ function renderCategoryDoughnut(period) {
       name: 'Other',
       icon: '',
       spent: rest.reduce((s, c) => s + c.spent, 0),
-      color: '#6b7280'
+      color: cssVar('--cat-09') || '#6F6A5E'
     });
   }
 
@@ -235,7 +255,7 @@ function renderCategoryDoughnut(period) {
 
   const labels = cats.map(c => plainCategoryName(c.name));
   const data = cats.map(c => c.spent);
-  const colors = cats.map(c => c.color || '#10b981');
+  const colors = cats.map((c, idx) => c.name === 'Other' ? (cssVar('--cat-09') || '#6F6A5E') : paletteColorForCategory(c.id, idx));
 
   categoryDoughnutChart = new Chart(canvas, {
     type: 'doughnut',
@@ -280,7 +300,7 @@ function renderCategoryTrends() {
   for (const month of trendsData.monthly) {
     for (const cat of month.categories) {
       totals[cat.id] = (totals[cat.id] || 0) + cat.spent;
-      catMeta[cat.id] = { name: cat.name, color: cat.color, icon: cat.icon };
+      catMeta[cat.id] = { name: cat.name, color: paletteColorForCategory(cat.id), icon: cat.icon };
     }
   }
 
@@ -300,7 +320,7 @@ function renderCategoryTrends() {
     });
 
     return {
-      label: `${meta.icon || ''} ${meta.name}`.trim(),
+      label: plainCategoryName(meta.name),
       data,
       borderColor: meta.color || '#10b981',
       backgroundColor: (meta.color || '#10b981') + '22',

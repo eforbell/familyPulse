@@ -559,9 +559,11 @@
 .tx-detail-feedback:not(.error) { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
 
 
-#category-overlay { z-index: 120; }
-#tx-detail-overlay { z-index: 110; }
-#kid-tx-detail-overlay { z-index: 110; }
+#category-overlay { z-index: 140; }
+#tx-note-editor-overlay,
+#tx-attachment-editor-overlay { z-index: 130; }
+#tx-detail-overlay,
+#kid-tx-detail-overlay { z-index: 120; }
 
 /* ──────────────────────────────────────────────────────────────────────
    11 · Category overlay items
@@ -593,14 +595,20 @@
 .cat-swatch { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; background: var(--cat-09); }
 
 .create-rule-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px 1fr;
   align-items: center;
-  gap: 8px;
-  font-size: var(--text-sm);
-  color: var(--muted);
+  gap: 12px;
+  font-size: var(--text-base);
+  color: var(--text);
   margin: var(--s-3) 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
   cursor: pointer;
 }
-.create-rule-row input { accent-color: var(--accent); }
+.create-rule-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+.create-rule-row strong { color: var(--text); }
 
 .tx-inline-action { min-height: 32px; padding: 6px 10px; }

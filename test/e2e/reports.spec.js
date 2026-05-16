@@ -83,6 +83,43 @@ test.describe('Reports page', () => {
     await expect(forecastBtn).toBeVisible();
   });
 
+
+  test('uses sovereign categorical palette for doughnut chart', async ({ page }) => {
+    await page.route('**/api/budget/trends?months=6', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          periods: ['2026-03','2026-04'],
+          monthly: [
+            { period: '2026-03', income: 1000, spending: 600, net_cash_flow: 400, categories: [
+              { id: 1, name: 'Auto Payment', spent: 120, color: '#ff0000', icon: '' },
+              { id: 2, name: 'Dining Out', spent: 90, color: '#00ff00', icon: '' },
+              { id: 3, name: 'Entertainment', spent: 80, color: '#0000ff', icon: '' }
+            ] },
+            { period: '2026-04', income: 1200, spending: 700, net_cash_flow: 500, categories: [
+              { id: 1, name: 'Auto Payment', spent: 140, color: '#ff0000', icon: '' },
+              { id: 2, name: 'Dining Out', spent: 110, color: '#00ff00', icon: '' },
+              { id: 3, name: 'Entertainment', spent: 95, color: '#0000ff', icon: '' }
+            ] }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/reports.html');
+    await expect(page.locator('#category-doughnut-chart')).toBeAttached();
+
+    const colors = await page.evaluate(() => {
+      const chart = window.Chart.getChart(document.getElementById('category-doughnut-chart'));
+      return chart?.data?.datasets?.[0]?.backgroundColor || [];
+    });
+
+    const allowed = ['rgb(196, 87, 42)','rgb(139, 105, 20)','rgb(107, 175, 61)','rgb(59, 110, 143)','rgb(91, 164, 201)','rgb(111, 138, 85)','rgb(212, 168, 58)','rgb(201, 144, 100)','rgb(111, 106, 94)', '#C4572A', '#8B6914', '#6BAF3D', '#3B6E8F', '#5BA4C9', '#6F8A55', '#D4A83A', '#C99064', '#6F6A5E'];
+    expect(colors.length).toBeGreaterThan(0);
+    for (const color of colors) expect(allowed).toContain(color);
+  });
+
   test('history section loads', async ({ page }) => {
     await page.goto('/reports.html');
     const historyList = page.locator('#query-history-list');

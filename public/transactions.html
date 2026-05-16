@@ -45,6 +45,45 @@
     </div>
   </div>
 
+  <div id="tx-note-editor-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tx-note-editor-title">
+    <div class="overlay-box">
+      <div class="modal-head">
+        <div>
+          <h2 id="tx-note-editor-title">Add note</h2>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeTransactionNoteEditor()">×</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="tx-note-modal-input" class="tx-note-input" rows="6" placeholder="Add context, warranty details, invoice notes…"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-primary" type="button" onclick="saveTransactionNote()">Save note</button>
+        <button class="btn-ghost" type="button" onclick="clearTransactionNote()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tx-attachment-editor-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tx-attachment-editor-title">
+    <div class="overlay-box">
+      <div class="modal-head">
+        <div>
+          <h2 id="tx-attachment-editor-title">Add receipt</h2>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeTransactionAttachmentEditor()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="tx-detail-subtle" style="margin-bottom:8px;">Upload receipts, invoices, or photos for this transaction.</div>
+        <div id="tx-attachment-upload" class="tx-attachment-upload" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input id="tx-attachment-input" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-primary" type="button" onclick="uploadTransactionAttachments()">Upload</button>
+        <button class="btn-ghost" type="button" onclick="closeTransactionAttachmentEditor()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div id="tx-detail-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tx-detail-title">
     <div class="overlay-box wide">
       <div class="modal-head">
@@ -105,7 +144,9 @@
         </section>
       </div>
       <div class="modal-foot">
-        <button id="tx-detail-category-btn" class="btn-ghost" type="button" onclick="openCurrentCategoryEditor()">Reassign category</button>
+        <button class="btn-ghost" type="button" onclick="openTransactionNoteEditor()">Add note</button>
+        <button class="btn-ghost" type="button" onclick="openTransactionAttachmentEditor()">Add receipt</button>
+        <button id="tx-detail-category-btn" class="btn-primary" type="button" onclick="openCurrentCategoryEditor()">Reassign category</button>
       </div>
     </div>
   </div>
