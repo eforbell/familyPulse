@@ -638,6 +638,7 @@ async function openAccountSelectionOverlay(itemId) {
   msg.textContent = 'Active accounts continue syncing. Historical accounts are preserved in Family Pulse but no longer updated from Plaid.';
   summary.textContent = 'Loading account state...';
   list.innerHTML = '<div class="empty-state loading-pulse">Loading...</div>';
+  document.body.classList.add('modal-open');
   document.getElementById('account-selection-overlay').classList.remove('hidden');
 
   try {
@@ -680,6 +681,7 @@ async function openAccountSelectionOverlay(itemId) {
 
 function closeAccountSelectionOverlay() {
   document.getElementById('account-selection-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   accountSelectionTarget = null;
 }
 
@@ -739,11 +741,13 @@ function openOwnerOverlay(itemId) {
       <span>${esc(m.name)}</span>
     </button>
   `).join('');
+  document.body.classList.add('modal-open');
   document.getElementById('owner-overlay').classList.remove('hidden');
 }
 
 function closeOwnerOverlay() {
   document.getElementById('owner-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   ownerTarget = null;
 }
 
@@ -782,11 +786,13 @@ function openDeleteOverlay(itemId, name, mode) {
     msg.textContent = `Disconnect ${name} from Plaid? Future syncs will stop and local history will be preserved.`;
     confirmBtn.textContent = 'Disconnect';
   }
+  document.body.classList.add('modal-open');
   document.getElementById('delete-overlay').classList.remove('hidden');
 }
 
 function closeDeleteOverlay() {
   document.getElementById('delete-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
   deleteTarget = null;
   deleteMode = 'disconnect';
 }

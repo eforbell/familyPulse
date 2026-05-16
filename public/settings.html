@@ -2,36 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | Settings</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script src="theme.js"></script>
-  <script src="privacy.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="theme.js?v=20260516c"></script>
+  <script src="privacy.js?v=20260516c"></script>
+  <link rel="stylesheet" href="style.css?v=20260516c">
+  <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
+  <link rel="stylesheet" href="tokens.css?v=20260516c">
+  <link rel="stylesheet" href="pulse-skin.css?v=20260516c">
 </head>
 <body data-nav-page="settings">
 
   <!-- Owner assignment overlay -->
-  <div id="owner-overlay" class="overlay hidden">
+  <div id="owner-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="owner-title">
     <div class="overlay-box">
-      <h2>Assign Owner</h2>
-      <p>Who owns these accounts?</p>
-      <div id="owner-member-list" class="member-grid"></div>
-      <button class="btn-ghost" style="width:100%;margin-top:0.75rem" onclick="closeOwnerOverlay()">Cancel</button>
+      <div class="modal-head">
+        <div>
+          <h2 id="owner-title">Assign owner</h2>
+          <p class="modal-sub">Who owns these accounts?</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeOwnerOverlay()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="owner-member-list" class="member-grid"></div>
+      </div>
     </div>
   </div>
 
   <!-- Confirm item action overlay -->
-  <div id="delete-overlay" class="overlay hidden">
+  <div id="delete-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="delete-title">
     <div class="overlay-box">
-      <h2 id="delete-title">Disconnect Institution</h2>
-      <p id="delete-msg">This will disconnect the institution from Plaid and preserve local history by default.</p>
-      <div class="form-actions">
+      <div class="modal-head">
+        <div>
+          <h2 id="delete-title">Disconnect Institution</h2>
+          <p id="delete-msg" class="modal-sub">This will disconnect the institution from Plaid and preserve local history by default.</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeDeleteOverlay()">×</button>
+      </div>
+      <div class="modal-foot">
         <button id="delete-confirm-btn" class="btn-danger" onclick="confirmDelete()">Disconnect</button>
         <button class="btn-ghost" onclick="closeDeleteOverlay()">Cancel</button>
       </div>
@@ -39,43 +57,41 @@
   </div>
 
   <!-- Account selection detail overlay -->
-  <div id="account-selection-overlay" class="overlay hidden">
-    <div class="overlay-box">
-      <h2 id="account-selection-title">Institution Accounts</h2>
-      <p id="account-selection-msg">See which accounts are actively syncing and which are retained as historical.</p>
-      <div id="account-selection-summary" class="settings-help-copy" style="margin-bottom:0.75rem"></div>
-      <div id="account-selection-list" class="admin-list" style="margin:0"></div>
-      <button class="btn-ghost" style="width:100%;margin-top:0.75rem" onclick="closeAccountSelectionOverlay()">Close</button>
+  <div id="account-selection-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="account-selection-title">
+    <div class="overlay-box wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="account-selection-title">Institution Accounts</h2>
+          <p id="account-selection-msg" class="modal-sub">See which accounts are actively syncing and which are retained as historical.</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeAccountSelectionOverlay()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="account-selection-summary" class="settings-help-copy" style="margin-bottom:0.75rem"></div>
+        <div id="account-selection-list" class="admin-list" style="margin:0"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" onclick="closeAccountSelectionOverlay()">Close</button>
+      </div>
     </div>
   </div>
 
   <div id="app">
-    <header>
+    <header class="app-header">
       <h1>Settings</h1>
       <div></div>
     </header>
 
-    <!-- Linked Institutions -->
+    <!-- Quick controls -->
     <section>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-        <h2 class="section-heading" style="margin:0">Linked Institutions</h2>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end">
-          <button id="link-btn" class="btn-primary" onclick="startLink()">+ Link Institution</button>
+      <h2 class="section-heading">Sync</h2>
+      <div class="theme-card">
+        <p class="theme-card-copy">Kick off a fresh sync when you want the latest balances, transactions, and forecasts immediately.</p>
+        <div class="form-actions">
+          <button class="btn-primary" onclick="triggerFullSync()">Sync All Now</button>
+          <div id="sync-result" style="font-size:0.85rem;color:var(--muted)"></div>
         </div>
       </div>
-      <p style="font-size:0.8rem;color:var(--muted);margin:0 0 0.75rem">
-        Checking, savings, credit, and loan accounts all link through the same institution flow. Older connections can enable liabilities later if extra consent is needed.
-      </p>
-      <div id="items-list" class="admin-list">
-        <div class="empty-state loading-pulse">Loading...</div>
-      </div>
-    </section>
-
-    <!-- Sync Status -->
-    <section style="margin-top:1.5rem">
-      <h2 class="section-heading">Sync</h2>
-      <button class="btn-ghost" onclick="triggerFullSync()">Sync All Now</button>
-      <div id="sync-result" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
     </section>
 
     <section style="margin-top:1.5rem">
@@ -90,10 +106,29 @@
       <h2 class="section-heading">Privacy</h2>
       <div class="theme-card">
         <p class="theme-card-copy">Hide dollar amounts across all views — useful when sharing your screen. Hover any blurred amount to reveal it. This setting is saved to this device only.</p>
-        <label class="checkbox-row">
+        <label class="settings-toggle-card" for="privacy-mode-toggle">
           <input type="checkbox" id="privacy-mode-toggle" onchange="togglePrivacyMode(this.checked)">
-          Hide dollar amounts (privacy mode)
+          <span class="settings-toggle-copy">
+            <span class="settings-toggle-title">Hide dollar amounts</span>
+            <span class="settings-toggle-sub">Privacy mode</span>
+          </span>
         </label>
+      </div>
+    </section>
+
+    <!-- Linked Institutions -->
+    <section style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h2 class="section-heading" style="margin:0">Linked Institutions</h2>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end">
+          <button id="link-btn" class="btn-primary" onclick="startLink()">+ Link Institution</button>
+        </div>
+      </div>
+      <p style="font-size:0.8rem;color:var(--muted);margin:0 0 0.75rem">
+        Checking, savings, credit, and loan accounts all link through the same institution flow. Older connections can enable liabilities later if extra consent is needed.
+      </p>
+      <div id="items-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading...</div>
       </div>
     </section>
 
@@ -206,8 +241,8 @@
     </section>
   </div>
 
-  <script src="nav.js"></script>
+  <script src="nav.js?v=20260516c"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
-  <script src="settings.js"></script>
+  <script src="settings.js?v=20260516c"></script>
 </body>
 </html>

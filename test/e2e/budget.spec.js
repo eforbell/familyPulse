@@ -31,6 +31,9 @@ test.describe('Budget page (parent)', () => {
     await expect(page.locator('#summary-spending')).toBeVisible();
     await expect(page.locator('#summary-net')).toBeVisible();
     await expect(page.locator('#commitment-strip')).toBeVisible();
+
+    const backgroundImage = await page.locator('#summary-hero').evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(backgroundImage.includes('gradient')).toBe(false);
   });
 
   test('month navigation changes the label', async ({ page }) => {

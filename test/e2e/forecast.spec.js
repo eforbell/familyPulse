@@ -48,6 +48,9 @@ test.describe('Forecast page', () => {
     await expect(page.locator('#hero-outlook')).toBeVisible();
     await expect(page.locator('#hero-danger')).toBeVisible();
 
+    const backgroundImage = await page.locator('#forecast-hero').evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(backgroundImage.includes('gradient')).toBe(false);
+
     // Balance should be a dollar amount
     const balanceText = await page.locator('#hero-balance').textContent();
     expect(balanceText).toMatch(/\$/);

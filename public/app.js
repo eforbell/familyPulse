@@ -68,15 +68,13 @@ async function loadCoverageIndicator() {
     const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
     const color = colorMap[data.status] || 'var(--muted)';
     const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
-    el.innerHTML = `<a href="accounts.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Liability Coverage: <strong style="color:${color}">${ratioLabel}</strong></span>
-      <span style="color:var(--muted)">${fmtMoney(data.obligation_total)} due</span>
-    </a>`;
+    el.innerHTML = `<a href="accounts.html" class="indicator-strip-link"><div class="strip-label">Liability coverage <strong style="color:${color}">${ratioLabel}</strong></div><div class="strip-meta">${fmtMoney(data.obligation_total)} due</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Coverage indicator failed:', err);
   }
 }
+
 
 async function loadRecurringIndicator() {
   try {
@@ -87,15 +85,13 @@ async function loadRecurringIndicator() {
       el.classList.add('hidden');
       return;
     }
-    el.innerHTML = `<a href="recurring.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Recurring plan: <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</span>
-      <span style="color:var(--muted)">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</span>
-    </a>`;
+    el.innerHTML = `<a href="recurring.html" class="indicator-strip-link"><div class="strip-label">Recurring plan <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</div><div class="strip-meta">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Recurring indicator failed:', err);
   }
 }
+
 
 async function loadForecastIndicator() {
   try {
@@ -103,10 +99,7 @@ async function loadForecastIndicator() {
     if (!el) return;
     const data = await api('api/cash-flow/forecast');
     if (!data || !data.projections || data.projections.length === 0) {
-      el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-        <span style="color:var(--muted)">Forecast available after first sync</span>
-        <span style="color:var(--muted)">&#8250;</span>
-      </a>`;
+      el.innerHTML = `<a href="forecast.html" class="indicator-strip-link"><div class="strip-label">Forecast available after first sync</div><div class="strip-meta">&#8250;</div></a>`;
       el.classList.remove('hidden');
       return;
     }
@@ -138,15 +131,13 @@ async function loadForecastIndicator() {
       rightText = '';
     }
 
-    el.innerHTML = `<a href="forecast.html" style="text-decoration:none;color:inherit;display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>Forecast: <strong style="color:${statusColor}">${statusText}</strong></span>
-      <span style="color:var(--muted)">${rightText} &#8250;</span>
-    </a>`;
+    el.innerHTML = `<a href="forecast.html" class="indicator-strip-link"><div class="strip-label">Forecast <strong style="color:${statusColor}">${statusText}</strong></div><div class="strip-meta">${rightText ? `${rightText} &#8250;` : '&#8250;'}</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Forecast indicator failed:', err);
   }
 }
+
 
 function withinDays(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -187,21 +178,34 @@ async function loadTransactions() {
 // ── Render: Dashboard ────────────────────────────────────────
 
 function renderDashboard(data) {
+  const liquidTotal = parseFloat(data.liquid_total) || 0;
+  const creditTotal = parseFloat(data.credit_total) || 0;
+  const accountCount = Number(data.account_count) || 0;
+  const historicalCount = Number(data.historical_account_count) || 0;
+  const coverageRatio = Math.abs(creditTotal) > 0 ? `${(liquidTotal / Math.abs(creditTotal)).toFixed(2)}×` : '—';
+
   $('net-amount').innerHTML = fmtMoney(data.net_position);
   $('net-amount').classList.remove('loading-pulse');
-
-  const historicalSummary = data.historical_account_count > 0
-    ? `<span><span class="label">Historical</span> <span class="value">${data.historical_account_count}</span></span>`
-    : '';
-
   $('balance-breakdown').innerHTML = `
-    <span><span class="label">Cash</span> <span class="value">${fmtMoney(data.liquid_total)}</span></span>
-    <span><span class="label">Depository basis</span> <span class="value">${esc(data.depository_balance_label || 'Available')}</span></span>
-    <span><span class="label">Credit</span> <span class="value" style="color:var(--red)">${fmtMoney(data.credit_total)}</span></span>
-    <span><span class="label">Active accounts</span> <span class="value">${data.account_count}</span></span>
-    ${historicalSummary}
+    <div class="item">
+      <div class="k">Cash</div>
+      <div class="v ok">${fmtMoney(liquidTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Credit</div>
+      <div class="v bad">${fmtMoney(creditTotal)}</div>
+    </div>
+    <div class="item">
+      <div class="k">Coverage</div>
+      <div class="v">${coverageRatio}</div>
+    </div>
+    <div class="item">
+      <div class="k">Accounts</div>
+      <div class="v">${accountCount}${historicalCount > 0 ? ` · +${historicalCount} hist` : ''}</div>
+    </div>
   `;
 }
+
 
 // ── Render: Transactions ─────────────────────────────────────
 
@@ -217,27 +221,35 @@ function renderTransactions() {
     const amt = parseFloat(tx.amount);
     const isCredit = amt < 0;
     const merchant = tx.effective_display_name || tx.merchant_name || tx.name || '—';
-    const catBadge = tx.category_name
-      ? `<span class="cat-badge" style="background:${hexToRgba(tx.category_color, 0.15)};border:1px solid ${hexToRgba(tx.category_color, 0.3)};color:${tx.category_color}">${tx.category_icon || ''} ${esc(tx.category_name)}</span>`
-      : '<span class="cat-badge uncat">uncategorized</span>';
     const pendingClass = tx.pending ? ' pending' : '';
     const selectedClass = selectedIds.has(tx.id) ? ' selected' : '';
+    const iconLetter = esc(merchant.trim().charAt(0).toUpperCase() || '•');
+    const iconClass = tx.category_name ? (isCredit ? 'in' : 'out') : 'uncat';
+    const categoryLine = tx.category_name
+      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span></div>`
+      : '<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span></div>';
+    const pendingTag = tx.pending ? '<span class="status-tag">Pending</span>' : '';
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
       <input type="checkbox" class="tx-check" ${selectedIds.has(tx.id) ? 'checked' : ''} onclick="onCheckbox(event, ${tx.id})">
+      <div class="tx-icon ${iconClass}">${iconLetter}</div>
       <div class="tx-main">
         <div class="tx-merchant">${esc(merchant)}</div>
-        <div class="tx-detail">
+        <div class="tx-sub">
           <span>${formatDate(tx.date)}</span>
-          <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
-          ${catBadge}
-          ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
+          <span class="sep">·</span>
+          <span class="tx-account">${esc(tx.account_name)}${tx.account_mask ? ` •••${esc(tx.account_mask)}` : ''}</span>
         </div>
+        ${categoryLine}
       </div>
-      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+      <div class="tx-amount-wrap">
+        <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+        ${pendingTag}
+      </div>
     </div>`;
   }).join('');
 }
+
 
 function renderStats() {
   $('tx-stats').innerHTML = `
@@ -277,6 +289,16 @@ function buildRecentTransactionParams() {
 function prevPage() { if (currentPage > 0) { currentPage--; loadTransactions(); } }
 function nextPage() { currentPage++; loadTransactions(); }
 
+function isOverlayOpen(id) {
+  const el = $(id);
+  return !!el && !el.classList.contains('hidden');
+}
+
+function syncModalOpenState() {
+  const open = ['tx-detail-overlay','category-overlay','tx-note-editor-overlay','tx-attachment-editor-overlay'].some(isOverlayOpen);
+  document.body.classList.toggle('modal-open', open);
+}
+
 // ── Category assignment ──────────────────────────────────────
 
 function onTxClick(event, id) {
@@ -299,6 +321,7 @@ function openCategoryOverlay(txId, merchant) {
 
   renderCategoryOptions();
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function openBulkCategoryOverlay() {
@@ -307,6 +330,7 @@ function openBulkCategoryOverlay() {
   $('create-rule-row').classList.add('hidden');
   renderCategoryOptions();
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function renderCategoryOptions() {
@@ -315,7 +339,7 @@ function renderCategoryOptions() {
     .map(c => `
       <button class="cat-option" onclick="pickCategory(${c.id})">
         <span class="cat-swatch" style="background:${c.color}"></span>
-        <span>${c.icon || ''} ${esc(c.name)}</span>
+        <span>${esc(plainCategoryName(c.name))}</span>
       </button>
     `).join('');
 }
@@ -363,6 +387,7 @@ async function pickCategory(categoryId) {
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
   assignTarget = null;
+  syncModalOpenState();
 }
 
 // ── Transaction detail ───────────────────────────────────────
@@ -376,17 +401,18 @@ async function openTransactionDetail(id) {
   $('tx-detail-amount').textContent = '—';
   $('tx-detail-category').textContent = '—';
   $('tx-detail-raw').textContent = '—';
-  $('tx-detail-feedback').className = 'recurring-detail-feedback hidden';
+  $('tx-detail-feedback').className = 'tx-detail-feedback hidden';
   $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
   hideDisplayNameSuggestions();
   $('tx-detail-overlay').classList.remove('hidden');
+  syncModalOpenState();
 
   try {
     const data = await api(`api/transactions/${id}`);
     currentDetail = data.transaction;
     renderTransactionDetail();
   } catch (err) {
-    $('tx-detail-feedback').className = 'recurring-detail-feedback error';
+    $('tx-detail-feedback').className = 'tx-detail-feedback error';
     $('tx-detail-feedback').textContent = err.message || 'Could not load transaction detail';
   }
 }
@@ -395,7 +421,10 @@ function closeTransactionDetail() {
   currentDetailId = null;
   currentDetail = null;
   hideDisplayNameSuggestions();
+  closeTransactionNoteEditor();
+  closeTransactionAttachmentEditor();
   $('tx-detail-overlay').classList.add('hidden');
+  syncModalOpenState();
 }
 
 async function refreshCurrentDetail() {
@@ -423,7 +452,7 @@ function renderTransactionDetail() {
   ].filter(Boolean).join(' · ');
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
-  $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';
@@ -439,11 +468,7 @@ function renderTransactionDetail() {
     $('tx-display-name-input').value = tx.display_name_override || '';
     $('tx-display-name-rule-check').checked = tx.rename_rule ? true : !tx.raw_display_name_is_check_like;
     $('tx-display-name-rule-hint').classList.remove('hidden');
-    $('tx-display-name-rule-hint').textContent = tx.rename_rule
-      ? `Future exact matches already rename to "${tx.rename_rule.display_name}".`
-      : tx.raw_display_name_is_check_like
-        ? 'Check-style text defaults to one-off rename only.'
-        : 'Enable this to bind the cleaned-up name to this exact synced source text.';
+    $('tx-display-name-rule-hint').textContent = 'Apply name change to future matches';
     $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
   } else {
     $('tx-display-name-readonly').textContent = tx.display_name_override || '';
@@ -451,23 +476,15 @@ function renderTransactionDetail() {
   }
   hideDisplayNameSuggestions();
 
-  const canEditNote = currentMember?.role === 'parent';
-  $('tx-note-input').classList.toggle('hidden', !canEditNote);
-  $('tx-note-actions').classList.toggle('hidden', !canEditNote);
-  $('tx-note-readonly').classList.toggle('hidden', canEditNote);
   $('tx-note-meta').textContent = note?.updated_at
     ? `Last updated ${formatDate(note.updated_at)}${note.updated_by_name ? ` by ${note.updated_by_name}` : ''}`
     : '';
+  $('tx-note-readonly').textContent = note?.text || '';
+  $('tx-note-readonly').classList.toggle('hidden', !note?.text);
+  $('tx-note-empty').classList.toggle('hidden', !!note?.text);
+  const noteEditor = $('tx-note-modal-input');
+  if (noteEditor) noteEditor.value = note?.text || '';
 
-  if (canEditNote) {
-    $('tx-note-input').value = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  } else {
-    $('tx-note-readonly').textContent = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  }
-
-  $('tx-attachment-upload').classList.toggle('hidden', currentMember?.role !== 'parent');
   renderAttachmentList(tx.attachments || []);
 }
 
@@ -481,7 +498,7 @@ async function saveTransactionDisplayName() {
 async function submitTransactionDisplayName({ displayName, applyToFuture }) {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving display name…';
 
   try {
@@ -498,7 +515,7 @@ async function submitTransactionDisplayName({ displayName, applyToFuture }) {
     renderTransactionDetail();
     feedback.textContent = 'Display name saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save display name';
   }
 }
@@ -563,23 +580,50 @@ function openCurrentCategoryEditor() {
   openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
 }
 
+function openTransactionNoteEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-note-editor-title').textContent = currentDetail.note?.text ? 'Edit note' : 'Add note';
+  $('tx-note-modal-input').value = currentDetail.note?.text || '';
+  $('tx-note-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionNoteEditor() {
+  const el = $('tx-note-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
+function openTransactionAttachmentEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-attachment-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionAttachmentEditor() {
+  const el = $('tx-attachment-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
 async function saveTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving note…';
 
   try {
     const data = await api(`api/transactions/${currentDetailId}/note`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note: $('tx-note-input').value })
+      body: JSON.stringify({ note: $('tx-note-modal-input').value })
     });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save note';
   }
 }
@@ -587,16 +631,17 @@ async function saveTransactionNote() {
 async function clearTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Clearing note…';
 
   try {
     const data = await api(`api/transactions/${currentDetailId}/note`, { method: 'DELETE' });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note cleared.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not clear note';
   }
 }
@@ -607,7 +652,7 @@ async function uploadTransactionAttachments() {
   if (!input.files || input.files.length === 0) return;
 
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Uploading attachments…';
 
   const form = new FormData();
@@ -620,9 +665,10 @@ async function uploadTransactionAttachments() {
     });
     input.value = '';
     await refreshCurrentDetail();
+    closeTransactionAttachmentEditor();
     feedback.textContent = 'Attachments uploaded.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not upload attachments';
   }
 }
@@ -630,7 +676,7 @@ async function uploadTransactionAttachments() {
 async function deleteTransactionAttachment(id) {
   if (currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Deleting attachment…';
 
   try {
@@ -638,7 +684,7 @@ async function deleteTransactionAttachment(id) {
     await refreshCurrentDetail();
     feedback.textContent = 'Attachment deleted.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not delete attachment';
   }
 }
@@ -699,6 +745,12 @@ function updateWhoBtn() {
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)

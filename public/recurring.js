@@ -167,6 +167,7 @@ async function openRecurringDetail(recurringId) {
   $('recurring-detail-feedback').className = 'recurring-detail-feedback hidden';
   renderStatusButtons(row);
   $('recurring-detail-history').innerHTML = '<div class="empty-state loading-pulse">Loading history…</div>';
+  document.body.classList.add('modal-open');
   $('recurring-detail-overlay').classList.remove('hidden');
 
   try {
@@ -181,6 +182,7 @@ async function openRecurringDetail(recurringId) {
 function closeRecurringDetail() {
   currentDetailId = null;
   $('recurring-detail-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function renderStatusButtons(row) {

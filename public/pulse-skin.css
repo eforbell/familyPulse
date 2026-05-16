@@ -1,0 +1,619 @@
+/* ════════════════════════════════════════════════════════════════════════
+   Family Pulse — skin
+   Pulse-specific layout that doesn't generalize to the rest of the suite.
+   Load AFTER sovereign-chassis.css and tokens.css.
+
+   Everything in this file should be either:
+     (a) a Pulse-specific compositional piece (net-position card layout,
+         coverage indicator, magic-card, recurring-card)
+     (b) a small override of a chassis primitive for a Pulse-only context
+
+   If you find yourself reaching for "list-row" or "modal" styles here,
+   stop — those belong in the chassis so every app inherits the fix.
+   ════════════════════════════════════════════════════════════════════════ */
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   1 · Net Position hero
+   Flat surface, Source Sans 3 700 numeral, 4-cell breakdown grid.
+   Replaces the old gradient + radial-glow hero from style.css.
+   ────────────────────────────────────────────────────────────────────── */
+
+.net-position-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  margin-bottom: var(--s-3);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--duration-fast);
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+.net-position-card:hover {
+  border-color: var(--accent-border-soft);
+  text-decoration: none;
+}
+
+.net-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: var(--s-1);
+}
+
+.net-amount {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--text);
+  margin-bottom: var(--s-1);
+}
+
+.net-delta {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  margin-bottom: var(--s-3);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.net-delta.flat { color: var(--muted); }
+.net-delta.down { color: var(--bad); }
+
+.net-position-card .rule {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 0 var(--s-3);
+}
+
+.balance-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-3) var(--s-4);
+}
+@media (max-width: 520px) {
+  .balance-breakdown-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.balance-breakdown-grid .item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.balance-breakdown-grid .k {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.balance-breakdown-grid .v {
+  font-size: var(--text-md);
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.005em;
+}
+.balance-breakdown-grid .v.ok  { color: var(--ok); }
+.balance-breakdown-grid .v.bad { color: var(--bad); }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   2 · Coverage / Recurring / Forecast — flat indicator strip
+   Replaces the boxed `.coverage-indicator` cards from style.css with
+   a quieter divider-style row that lives under the hero.
+   ────────────────────────────────────────────────────────────────────── */
+
+.indicator-strip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  margin-bottom: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+.indicator-strip:hover {
+  border-color: var(--accent-border-soft);
+  text-decoration: none;
+}
+.indicator-strip-link {
+  display: contents;
+  color: inherit;
+  text-decoration: none;
+}
+.indicator-strip .strip-label {
+  color: var(--muted);
+}
+.indicator-strip .strip-label strong { color: var(--text); }
+.indicator-strip .strip-meta {
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.indicator-strip .strip-meta .ok   { color: var(--ok);   font-weight: 600; }
+.indicator-strip .strip-meta .bad  { color: var(--bad);  font-weight: 600; }
+.indicator-strip .strip-meta .warn { color: var(--warn); font-weight: 600; }
+
+@media (max-width: 480px) {
+  .indicator-strip { grid-template-columns: 1fr; }
+  .indicator-strip .strip-meta { text-align: left; }
+}
+
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   2.5 · Summary heroes (Budget / Recurring / Forecast)
+   Flatten legacy gradient summary shells into the sovereign surface.
+   ────────────────────────────────────────────────────────────────────── */
+
+.budget-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.budget-summary::before { content: none; }
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.summary-item { min-width: 0; }
+.summary-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}
+.summary-value {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.summary-prior {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--s-2);
+}
+
+.commitment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: var(--s-4);
+}
+
+.commitment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.commitment-pill-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.net-amount.loading-pulse {
+  color: var(--dim);
+}
+
+@media (max-width: 720px) {
+  .summary-row { grid-template-columns: 1fr; }
+  .summary-value { font-size: 32px; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   3 · Transaction list rows (Pulse-specific composition)
+   The chassis provides .list-row. Pulse adds amount + category-dot
+   conventions for transactions.
+   ────────────────────────────────────────────────────────────────────── */
+
+.tx-list { /* alias of .list-group for back-compat with app.js selectors */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--s-3);
+}
+
+.tx-row {
+  display: grid;
+  grid-template-columns: 18px 32px 1fr auto;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  min-height: 64px;
+}
+.tx-row:last-child { border-bottom: 0; }
+.tx-row:hover    { background: var(--surface2); }
+.tx-row.selected { background: var(--accent-wash); }
+.tx-row.pending  { opacity: 0.80; }
+
+.tx-check {
+  width: 16px; height: 16px;
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+
+.tx-icon {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.tx-icon.in    { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok); }
+.tx-icon.out   { background: var(--surface2); }
+.tx-icon.uncat { background: var(--surface2); color: var(--dim); }
+
+.tx-main { min-width: 0; }
+.tx-merchant {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tx-sub {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tx-sub .sep { color: var(--dim); }
+
+.tx-cat-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.tx-cat-line .cat-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cat-09);
+  flex-shrink: 0;
+}
+.tx-cat-line.uncat { color: var(--dim); font-style: italic; }
+.tx-cat-line.uncat .cat-dot { background: var(--dim); }
+
+.tx-amount-wrap {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.tx-amount {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--text);
+}
+.tx-amount.credit { color: var(--ok); }
+.tx-amount.debit  { color: var(--text); }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   4 · Transaction filter (search-bar + chip rail + "More" disclosure)
+   ────────────────────────────────────────────────────────────────────── */
+
+.tx-filter { margin-bottom: var(--s-3); }
+.tx-filter .filter-rail { margin-top: var(--s-3); }
+.tx-filter .filter-disclosure { margin-top: var(--s-3); }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   5 · Bulk action bar (selected transactions)
+   ────────────────────────────────────────────────────────────────────── */
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px var(--s-4);
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-border-soft);
+  border-radius: var(--radius);
+  margin-bottom: var(--s-2);
+  font-size: var(--text-sm);
+}
+.bulk-bar #bulk-count { color: var(--accent); font-weight: 600; flex: 1; }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   6 · Tx stats row (count + net total above list)
+   ────────────────────────────────────────────────────────────────────── */
+
+.tx-stats {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-5);
+  padding: 0 var(--s-1);
+  margin-bottom: var(--s-2);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.tx-stats .value {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   7 · Pagination
+   ────────────────────────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--s-3);
+}
+.pagination button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   8 · Pulse Intelligence ("magic") cards — minor polish
+   ────────────────────────────────────────────────────────────────────── */
+
+.magic-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: var(--s-2);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.magic-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--s-4);
+  cursor: pointer;
+  min-height: 52px;
+}
+.magic-card-header:hover { background: var(--surface2); }
+.magic-card-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.magic-card-toggle {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--surface2);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: transform var(--duration-fast), background var(--duration-fast);
+}
+.magic-card.open .magic-card-toggle { transform: rotate(45deg); background: var(--accent-soft); color: var(--accent); }
+.magic-card-body { padding: 0 var(--s-4) var(--s-4); }
+.magic-card-body.hidden { display: none; }
+
+.magic-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--s-3);
+}
+.magic-preset-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  padding: 7px 12px;
+  font-size: var(--text-sm);
+  min-height: 36px;
+}
+.magic-preset-btn:hover {
+  border-color: var(--accent-border-soft);
+  color: var(--text);
+  background: var(--accent-wash);
+}
+
+.magic-input-row {
+  display: flex;
+  gap: var(--s-2);
+}
+.magic-input { flex: 1; }
+
+.magic-result {
+  margin-top: var(--s-3);
+  padding: var(--s-4);
+  background: var(--surface2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+.magic-result p {
+  color: var(--muted);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  margin-bottom: var(--s-2);
+}
+.magic-result p:last-child { margin-bottom: 0; }
+
+.magic-disclaimer {
+  font-size: var(--text-xs);
+  color: var(--dim);
+  text-align: center;
+  padding: var(--s-2) 0;
+  margin-top: var(--s-1);
+}
+
+.section-heading {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin-bottom: var(--s-3);
+  margin-top: var(--s-5);
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   9 · Sign-out avatar (header right slot)
+   ────────────────────────────────────────────────────────────────────── */
+
+.who-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: border-color var(--duration-fast);
+  min-height: 40px;  /* override chassis 44 floor — visual avatar */
+}
+.who-btn:hover {
+  border-color: var(--accent);
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   10 · Tx detail modal (Pulse-specific summary block)
+   The chassis owns the modal shell (.overlay, .overlay-box, .modal-head/
+   body/foot). Pulse only adds the summary contents.
+   ────────────────────────────────────────────────────────────────────── */
+
+.tx-detail-display-name,
+.tx-detail-amount,
+.tx-detail-category,
+.tx-detail-raw {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.tx-detail-amount-value.credit { color: var(--ok); font-weight: 700; }
+.tx-detail-amount-value.debit  { color: var(--text); font-weight: 700; }
+
+.tx-detail-section { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--border-subtle); }
+.tx-detail-section h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.tx-detail-subtle { font-size: var(--text-sm); color: var(--muted); }
+.tx-detail-checkbox { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+.tx-detail-checkbox input { accent-color: var(--accent); }
+.tx-detail-feedback { padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: var(--s-3); font-size: var(--text-sm); }
+.tx-detail-feedback.error { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad-border); }
+.tx-detail-feedback:not(.error) { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+
+
+#category-overlay { z-index: 140; }
+#tx-note-editor-overlay,
+#tx-attachment-editor-overlay { z-index: 130; }
+#tx-detail-overlay,
+#kid-tx-detail-overlay { z-index: 120; }
+
+/* ──────────────────────────────────────────────────────────────────────
+   11 · Category overlay items
+   ────────────────────────────────────────────────────────────────────── */
+
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--s-3) 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.cat-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-base);
+  text-align: left;
+  min-height: 44px;
+  transition: border-color var(--duration-fast), background var(--duration-fast);
+}
+.cat-option:hover { border-color: var(--accent); background: var(--accent-wash); }
+.cat-swatch { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; background: var(--cat-09); }
+
+.create-rule-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--text-base);
+  color: var(--text);
+  margin: var(--s-3) 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  cursor: pointer;
+}
+.create-rule-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+.create-rule-row strong { color: var(--text); }
+
+.tx-inline-action { min-height: 32px; padding: 6px 10px; }

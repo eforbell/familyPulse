@@ -87,9 +87,7 @@ function renderDashboard() {
   // No linked accounts — show empty state
   if (d.accounts.length === 0) {
     balEl.textContent = '--';
-    $('balance-detail').innerHTML = `
-      <span style="color:var(--muted)">No accounts linked yet. Ask a parent to connect your account in Settings.</span>
-    `;
+    $('balance-detail').innerHTML = `<div class="item"><div class="k">Status</div><div class="v" style="color:var(--muted)">No accounts linked yet</div></div>`;
     $('transactions-section').innerHTML = '';
     return;
   }
@@ -97,9 +95,9 @@ function renderDashboard() {
   balEl.innerHTML = fmtMoney(d.balance_total);
 
   $('balance-detail').innerHTML = `
-    <span><span class="label">Accounts</span> <span class="value">${d.accounts.length}</span></span>
-    <span><span class="label">Depository basis</span> <span class="value">${esc(d.depository_balance_label || 'Available')}</span></span>
-    <span><span class="label">Spent this month</span> <span class="value">${fmtMoney(d.month_spending)}</span></span>
+    <div class="item"><div class="k">Accounts</div><div class="v">${d.accounts.length}</div></div>
+    <div class="item"><div class="k">Basis</div><div class="v">${esc(d.depository_balance_label || 'Available')}</div></div>
+    <div class="item"><div class="k">Spent</div><div class="v">${fmtMoney(d.month_spending)}</div></div>
   `;
 
   // Budget
@@ -148,7 +146,7 @@ function renderCategoryChart(breakdown) {
   const canvas = $('category-chart');
   if (!canvas || typeof Chart === 'undefined') return;
 
-  const labels = breakdown.map(c => `${c.icon || ''} ${c.name}`);
+  const labels = breakdown.map(c => plainCategoryName(c.name));
   const data = breakdown.map(c => c.spent);
   const colors = breakdown.map(c => c.color || '#10b981');
 
@@ -188,7 +186,7 @@ function renderTransactions(txns) {
     const amt = parseFloat(t.amount);
     const amtClass = amt < 0 ? 'credit' : 'debit';
     const catBadge = t.category_name
-      ? `<span class="cat-badge" style="background:${t.category_color || '#6b7280'}22;border:1px solid ${t.category_color || '#6b7280'}55;color:${t.category_color || '#6b7280'}">${t.category_icon || ''} ${esc(t.category_name)}</span>`
+      ? `<span class="cat-badge" style="background:${t.category_color || '#6b7280'}22;border:1px solid ${t.category_color || '#6b7280'}55;color:${t.category_color || '#6b7280'}">${esc(plainCategoryName(t.category_name))}</span>`
       : '<span class="cat-badge uncat">Uncategorized</span>';
 
     return `
@@ -215,6 +213,7 @@ async function openTransactionDetail(txId) {
   $('kid-tx-detail-meta').textContent = 'Loading…';
   $('kid-tx-detail-display-name').textContent = '—';
   $('kid-tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
+  document.body.classList.add('modal-open');
   $('kid-tx-detail-overlay').classList.remove('hidden');
 
   try {
@@ -230,6 +229,7 @@ function closeTransactionDetail() {
   currentDetailId = null;
   currentDetail = null;
   $('kid-tx-detail-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function renderTransactionDetail() {
@@ -249,7 +249,7 @@ function renderTransactionDetail() {
     tx.source_removed ? 'removed upstream, kept locally' : ''
   ].filter(Boolean).join(' · ');
   $('kid-tx-detail-amount').innerHTML = fmtMoney(tx.amount);
-  $('kid-tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('kid-tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
   $('kid-tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
   $('kid-tx-note-readonly').classList.toggle('hidden', !note?.text);
   $('kid-tx-note-readonly').textContent = note?.text || '';
@@ -285,14 +285,16 @@ function openCategoryOverlay(txId, merchantName) {
   list.innerHTML = categories.map(c => `
     <button class="cat-option" onclick="assignCategory(${c.id})">
       <span class="cat-swatch" style="background:${c.color || '#6b7280'}"></span>
-      <span>${c.icon || ''} ${esc(c.name)}</span>
+      <span>${esc(plainCategoryName(c.name))}</span>
     </button>
   `).join('');
+  document.body.classList.add('modal-open');
   $('category-overlay').classList.remove('hidden');
 }
 
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
+  if (!$('kid-tx-detail-overlay') || $('kid-tx-detail-overlay').classList.contains('hidden')) document.body.classList.remove('modal-open');
   catTarget = null;
 }
 
@@ -343,6 +345,12 @@ function updateWhoBtn() {
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)

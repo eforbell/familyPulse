@@ -18,6 +18,7 @@ let currentDetailId = null;
 let currentDetail = null;
 let displayNameSuggestionController = null;
 let transactionSearchSuggestionController = null;
+const FILTER_DISCLOSURE_KEY = 'pulse-transactions-filter-more-open';
 
 // ── Boot ─────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([loadAccounts(), loadCategories()]);
   populateFilterDropdowns();
   applyUrlParams();
+  restoreFilterDisclosure();
+  renderFilterChips();
   updatePageTitle();
   setBackLink();
   await loadTransactions();
@@ -36,9 +39,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('filter-from').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-to').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-search').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 300));
-  $('filter-transfers').addEventListener('change', resetAndLoad);
-  $('filter-hidden').addEventListener('change', resetAndLoad);
-  $('filter-sort').addEventListener('change', resetAndLoad);
+  $('filter-transfers').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
+  $('filter-hidden').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
+  $('filter-sort').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('btn-dedup').addEventListener('click', runDedup);
   initDisplayNameSuggestionController();
   initTransactionSearchSuggestionController();
@@ -105,7 +108,7 @@ function updatePageTitle() {
     parts.push('Uncategorized');
   } else if (catVal) {
     const cat = categories.find(c => String(c.id) === catVal);
-    if (cat) parts.push(`${cat.icon || ''} ${cat.name}`.trim());
+    if (cat) parts.push(plainCategoryName(cat.name));
   }
 
   // Search term
@@ -206,43 +209,44 @@ function renderTransactions() {
     const amt = parseFloat(tx.amount);
     const isCredit = amt < 0;
     const merchant = tx.effective_display_name || tx.merchant_name || tx.name || '—';
-    const catBadge = tx.category_name
-      ? `<span class="cat-badge" style="background:${hexToRgba(tx.category_color, 0.15)};border:1px solid ${hexToRgba(tx.category_color, 0.3)};color:${tx.category_color}">${tx.category_icon || ''} ${esc(tx.category_name)}</span>`
-      : '<span class="cat-badge uncat">uncategorized</span>';
     const pendingClass = tx.pending ? ' pending' : '';
     const selectedClass = selectedIds.has(tx.id) ? ' selected' : '';
-    const sourceBadge = `<span class="cat-badge">${esc(tx.source || 'unknown')}</span>`;
-    const accountStatusBadge = tx.account_sync_status === 'historical'
-      ? '<span class="cat-badge uncat">historical account</span>'
-      : '';
-    const hiddenBadge = tx.is_hidden
-      ? `<span class="cat-badge uncat">suppressed${tx.hidden_reason ? `: ${esc(tx.hidden_reason)}` : ''}</span>`
-      : '';
+    const iconLetter = esc(merchant.trim().charAt(0).toUpperCase() || '•');
+    const iconClass = tx.category_name ? (isCredit ? 'in' : 'out') : 'uncat';
+    const sourceBadge = tx.source && tx.source !== 'plaid' ? `<span class="status-tag info">${esc(tx.source)}</span>` : '';
+    const accountStatusBadge = tx.account_sync_status === 'historical' ? '<span class="status-tag">Historical</span>' : '';
+    const hiddenBadge = tx.is_hidden ? '<span class="status-tag bad">Suppressed</span>' : '';
     const suppressButton = tx.is_hidden
-      ? `<button class="btn-ghost tx-inline-action" onclick="unhideTx(event, ${tx.id})" title="Restore">Restore</button>`
+      ? `<button class="btn-ghost btn-xs tx-inline-action" onclick="unhideTx(event, ${tx.id})" title="Restore">Restore</button>`
       : (tx.source !== 'plaid'
-          ? `<button class="btn-ghost tx-inline-action" onclick="hideTx(event, ${tx.id})" title="Suppress duplicate">Suppress</button>`
+          ? `<button class="btn-ghost btn-xs tx-inline-action" onclick="hideTx(event, ${tx.id})" title="Suppress duplicate">Suppress</button>`
           : '');
+    const categoryLine = tx.category_name
+      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`
+      : `<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`;
+    const pendingTag = tx.pending ? '<span class="status-tag">Pending</span>' : '';
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
       <input type="checkbox" class="tx-check" ${selectedIds.has(tx.id) ? 'checked' : ''} onclick="onCheckbox(event, ${tx.id})">
+      <div class="tx-icon ${iconClass}">${iconLetter}</div>
       <div class="tx-main">
         <div class="tx-merchant">${esc(merchant)}</div>
-        <div class="tx-detail">
+        <div class="tx-sub">
           <span>${formatDate(tx.date)}</span>
-          <span class="tx-account">${esc(tx.account_name)} ···${esc(tx.account_mask || '')}</span>
-          ${catBadge}
-          ${sourceBadge}
-          ${accountStatusBadge}
-          ${hiddenBadge}
-          ${suppressButton}
-          ${tx.pending ? '<span style="color:var(--yellow)">pending</span>' : ''}
+          <span class="sep">·</span>
+          <span class="tx-account">${esc(tx.account_name)}${tx.account_mask ? ` •••${esc(tx.account_mask)}` : ''}</span>
         </div>
+        ${categoryLine}
       </div>
-      <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+      <div class="tx-amount-wrap">
+        <div class="tx-amount ${isCredit ? 'credit' : 'debit'}">${fmtTxAmount(amt)}</div>
+        ${pendingTag}
+        ${suppressButton}
+      </div>
     </div>`;
   }).join('');
 }
+
 
 function renderStats() {
   $('tx-stats').innerHTML = `
@@ -285,7 +289,7 @@ function populateFilterDropdowns() {
     if (c.is_transfer_class) continue;
     const opt = document.createElement('option');
     opt.value = c.id;
-    opt.textContent = `${c.icon || ''} ${c.name}`;
+    opt.textContent = plainCategoryName(c.name);
     opt.dataset.dynamic = '1';
     catSelect.appendChild(opt);
   }
@@ -326,11 +330,91 @@ function resetAndLoad() {
   currentPage = 0;
   selectedIds.clear();
   updateBulkBar();
+  renderFilterChips();
   loadTransactions();
+}
+
+function toggleFilterDisclosure(force) {
+  const panel = $('filter-more');
+  const shouldOpen = typeof force === 'boolean' ? force : panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !shouldOpen);
+  sessionStorage.setItem(FILTER_DISCLOSURE_KEY, shouldOpen ? '1' : '0');
+  renderFilterChips();
+}
+
+function restoreFilterDisclosure() {
+  const isOpen = sessionStorage.getItem(FILTER_DISCLOSURE_KEY) === '1';
+  $('filter-more').classList.toggle('hidden', !isOpen);
+}
+
+function renderFilterChips() {
+  const accountId = $('filter-account').value;
+  const categoryId = $('filter-category').value;
+  const search = $('filter-search').value.trim();
+  const from = $('filter-from').value;
+  const to = $('filter-to').value;
+  const sort = $('filter-sort').value || 'date_desc';
+  const showTransfers = $('filter-transfers').checked;
+  const showHidden = $('filter-hidden').checked;
+  const isOpen = !$('filter-more').classList.contains('hidden');
+  const account = accounts.find(entry => String(entry.id) === accountId);
+  const category = categoryId === '0' ? { name: 'Uncategorized' } : categories.find(entry => String(entry.id) === categoryId);
+  const chips = [];
+
+  if (account) chips.push({ key: 'account', label: account.name || 'Account' });
+  if (category) chips.push({ key: 'category', label: plainCategoryName(category.name) || 'Category' });
+  if (search) chips.push({ key: 'search', label: `Search: ${search}` });
+  if (from || to) chips.push({ key: 'date', label: `${from ? formatDate(from) : 'Start'} → ${to ? formatDate(to) : 'Now'}` });
+  if (sort !== 'date_desc') {
+    const sortLabels = { date_asc: 'Oldest first', amount_desc: 'Largest amount', amount_asc: 'Smallest amount' };
+    chips.push({ key: 'sort', label: sortLabels[sort] || sort });
+  }
+  if (!showTransfers) chips.push({ key: 'transfers', label: 'Transfers hidden' });
+  if (showHidden) chips.push({ key: 'hidden', label: 'Suppressed shown' });
+  if (dedupRunFilter) chips.push({ key: 'dedup', label: `Dedup run #${dedupRunFilter}` });
+
+  $('filter-chips').innerHTML = `
+    <button type="button" class="filter-chip" id="filter-chip-trigger" aria-expanded="${isOpen ? 'true' : 'false'}" onclick="toggleFilterDisclosure()">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 5h14M6 10h8M9 15h2"/></svg>
+      <span>Filters</span>
+    </button>
+    ${chips.map(chip => `
+      <button type="button" class="filter-chip active" onclick="clearFilterChip('${chip.key}')">
+        <span>${esc(chip.label)}</span>
+        <span class="chip-x" aria-hidden="true"></span>
+      </button>
+    `).join('')}
+  `;
+}
+
+function clearFilterChip(key) {
+  if (key === 'account') $('filter-account').value = '';
+  if (key === 'category') $('filter-category').value = '';
+  if (key === 'search') $('filter-search').value = '';
+  if (key === 'date') {
+    $('filter-from').value = '';
+    $('filter-to').value = '';
+  }
+  if (key === 'sort') $('filter-sort').value = 'date_desc';
+  if (key === 'transfers') $('filter-transfers').checked = true;
+  if (key === 'hidden') $('filter-hidden').checked = false;
+  if (key === 'dedup') dedupRunFilter = null;
+  updatePageTitle();
+  resetAndLoad();
 }
 
 function prevPage() { if (currentPage > 0) { currentPage--; loadTransactions(); } }
 function nextPage() { currentPage++; loadTransactions(); }
+
+function isOverlayOpen(id) {
+  const el = $(id);
+  return !!el && !el.classList.contains('hidden');
+}
+
+function syncModalOpenState() {
+  const open = ['tx-detail-overlay','category-overlay','tx-note-editor-overlay','tx-attachment-editor-overlay'].some(isOverlayOpen);
+  document.body.classList.toggle('modal-open', open);
+}
 
 // ── Category assignment ──────────────────────────────────────
 
@@ -354,6 +438,7 @@ function openCategoryOverlay(txId, merchant) {
 
   renderCategoryOptions();
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function openBulkCategoryOverlay() {
@@ -362,6 +447,7 @@ function openBulkCategoryOverlay() {
   $('create-rule-row').classList.add('hidden');
   renderCategoryOptions();
   $('category-overlay').classList.remove('hidden');
+  syncModalOpenState();
 }
 
 function renderCategoryOptions() {
@@ -370,7 +456,7 @@ function renderCategoryOptions() {
     .map(c => `
       <button class="cat-option" onclick="pickCategory(${c.id})">
         <span class="cat-swatch" style="background:${c.color}"></span>
-        <span>${c.icon || ''} ${esc(c.name)}</span>
+        <span>${esc(plainCategoryName(c.name))}</span>
       </button>
     `).join('');
 }
@@ -416,6 +502,7 @@ async function pickCategory(categoryId) {
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
   assignTarget = null;
+  syncModalOpenState();
 }
 
 // ── Bulk selection ───────────────────────────────────────────
@@ -539,17 +626,18 @@ async function openTransactionDetail(id) {
   $('tx-detail-amount').textContent = '—';
   $('tx-detail-category').textContent = '—';
   $('tx-detail-raw').textContent = '—';
-  $('tx-detail-feedback').className = 'recurring-detail-feedback hidden';
+  $('tx-detail-feedback').className = 'tx-detail-feedback hidden';
   $('tx-attachment-list').innerHTML = '<div class="empty-state loading-pulse">Loading attachments…</div>';
   hideDisplayNameSuggestions();
   $('tx-detail-overlay').classList.remove('hidden');
+  syncModalOpenState();
 
   try {
     const data = await api(`api/transactions/${id}`);
     currentDetail = data.transaction;
     renderTransactionDetail();
   } catch (err) {
-    $('tx-detail-feedback').className = 'recurring-detail-feedback error';
+    $('tx-detail-feedback').className = 'tx-detail-feedback error';
     $('tx-detail-feedback').textContent = err.message || 'Could not load transaction detail';
   }
 }
@@ -558,7 +646,10 @@ function closeTransactionDetail() {
   currentDetailId = null;
   currentDetail = null;
   hideDisplayNameSuggestions();
+  closeTransactionNoteEditor();
+  closeTransactionAttachmentEditor();
   $('tx-detail-overlay').classList.add('hidden');
+  syncModalOpenState();
 }
 
 async function refreshCurrentDetail() {
@@ -586,7 +677,7 @@ function renderTransactionDetail() {
   ].filter(Boolean).join(' · ');
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
-  $('tx-detail-category').textContent = tx.category_name || 'Uncategorized';
+  $('tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';
@@ -602,11 +693,7 @@ function renderTransactionDetail() {
     $('tx-display-name-input').value = tx.display_name_override || '';
     $('tx-display-name-rule-check').checked = tx.rename_rule ? true : !tx.raw_display_name_is_check_like;
     $('tx-display-name-rule-hint').classList.remove('hidden');
-    $('tx-display-name-rule-hint').textContent = tx.rename_rule
-      ? `Future exact matches already rename to "${tx.rename_rule.display_name}".`
-      : tx.raw_display_name_is_check_like
-        ? 'Check-style text defaults to one-off rename only.'
-        : 'Enable this to bind the cleaned-up name to this exact synced source text.';
+    $('tx-display-name-rule-hint').textContent = 'Apply name change to future matches';
     $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
   } else {
     $('tx-display-name-readonly').textContent = tx.display_name_override || '';
@@ -614,23 +701,15 @@ function renderTransactionDetail() {
   }
   hideDisplayNameSuggestions();
 
-  const canEditNote = currentMember?.role === 'parent';
-  $('tx-note-input').classList.toggle('hidden', !canEditNote);
-  $('tx-note-actions').classList.toggle('hidden', !canEditNote);
-  $('tx-note-readonly').classList.toggle('hidden', canEditNote);
   $('tx-note-meta').textContent = note?.updated_at
     ? `Last updated ${formatDate(note.updated_at)}${note.updated_by_name ? ` by ${note.updated_by_name}` : ''}`
     : '';
+  $('tx-note-readonly').textContent = note?.text || '';
+  $('tx-note-readonly').classList.toggle('hidden', !note?.text);
+  $('tx-note-empty').classList.toggle('hidden', !!note?.text);
+  const noteEditor = $('tx-note-modal-input');
+  if (noteEditor) noteEditor.value = note?.text || '';
 
-  if (canEditNote) {
-    $('tx-note-input').value = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  } else {
-    $('tx-note-readonly').textContent = note?.text || '';
-    $('tx-note-empty').classList.toggle('hidden', !!note?.text);
-  }
-
-  $('tx-attachment-upload').classList.toggle('hidden', currentMember?.role !== 'parent');
   renderAttachmentList(tx.attachments || []);
 }
 
@@ -644,7 +723,7 @@ async function saveTransactionDisplayName() {
 async function submitTransactionDisplayName({ displayName, applyToFuture }) {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving display name…';
 
   try {
@@ -661,7 +740,7 @@ async function submitTransactionDisplayName({ displayName, applyToFuture }) {
     renderTransactionDetail();
     feedback.textContent = 'Display name saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save display name';
   }
 }
@@ -751,23 +830,50 @@ function openCurrentCategoryEditor() {
   openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
 }
 
+function openTransactionNoteEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-note-editor-title').textContent = currentDetail.note?.text ? 'Edit note' : 'Add note';
+  $('tx-note-modal-input').value = currentDetail.note?.text || '';
+  $('tx-note-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionNoteEditor() {
+  const el = $('tx-note-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
+function openTransactionAttachmentEditor() {
+  if (!currentDetail || currentMember?.role !== 'parent') return;
+  $('tx-attachment-editor-overlay').classList.remove('hidden');
+  syncModalOpenState();
+}
+
+function closeTransactionAttachmentEditor() {
+  const el = $('tx-attachment-editor-overlay');
+  if (el) el.classList.add('hidden');
+  syncModalOpenState();
+}
+
 async function saveTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving note…';
 
   try {
     const data = await api(`api/transactions/${currentDetailId}/note`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note: $('tx-note-input').value })
+      body: JSON.stringify({ note: $('tx-note-modal-input').value })
     });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save note';
   }
 }
@@ -775,16 +881,17 @@ async function saveTransactionNote() {
 async function clearTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Clearing note…';
 
   try {
     const data = await api(`api/transactions/${currentDetailId}/note`, { method: 'DELETE' });
     currentDetail = data.transaction;
     renderTransactionDetail();
+    closeTransactionNoteEditor();
     feedback.textContent = 'Note cleared.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not clear note';
   }
 }
@@ -795,7 +902,7 @@ async function uploadTransactionAttachments() {
   if (!input.files || input.files.length === 0) return;
 
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Uploading attachments…';
 
   const form = new FormData();
@@ -810,9 +917,10 @@ async function uploadTransactionAttachments() {
     });
     input.value = '';
     await refreshCurrentDetail();
+    closeTransactionAttachmentEditor();
     feedback.textContent = 'Attachments uploaded.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not upload attachments';
   }
 }
@@ -820,7 +928,7 @@ async function uploadTransactionAttachments() {
 async function deleteTransactionAttachment(id) {
   if (currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Deleting attachment…';
 
   try {
@@ -828,7 +936,7 @@ async function deleteTransactionAttachment(id) {
     await refreshCurrentDetail();
     feedback.textContent = 'Attachment deleted.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not delete attachment';
   }
 }
@@ -864,6 +972,12 @@ function setQuickDateRange(range) {
   $('filter-to').value = to;
   resetAndLoad();
   updatePageTitle();
+}
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
 }
 
 function esc(str) {

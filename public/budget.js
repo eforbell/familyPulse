@@ -118,7 +118,7 @@ async function renderHotSpots() {
         <div class="hotspot-card">
           <a class="hotspot-link" href="transactions.html?category_id=${a.category_id}&period=${currentPeriod}">
             <div class="hotspot-header">
-              <span class="hotspot-name">${a.icon || ''} ${esc(a.category_name)}</span>
+              <span class="hotspot-name">${esc(plainCategoryName(a.category_name))}</span>
               <span class="hotspot-pct">${Math.round(parseFloat(pct))}%</span>
             </div>
             <div class="hotspot-detail">
@@ -207,7 +207,7 @@ function renderGrid() {
     return `
       <div class="budget-card${borderClass}" onclick="openDetail(${c.id})">
         <div class="budget-card-header">
-          <span class="budget-card-name">${c.icon || ''} ${esc(c.name)}</span>
+          <span class="budget-card-name">${esc(plainCategoryName(c.name))}</span>
           <span class="budget-card-spent">${fmtMoney(c.spent)}</span>
         </div>
         ${c.budgeted > 0 ? `
@@ -228,7 +228,7 @@ function renderGrid() {
 async function openDetail(categoryId) {
   try {
     const detail = await api(`api/budget/category/${categoryId}?period=${currentPeriod}`);
-    $('detail-title').textContent = `${detail.icon || ''} ${detail.name}`;
+    $('detail-title').textContent = plainCategoryName(detail.name);
 
     const budgeted = parseFloat(detail.budget_amount) || 0;
     $('detail-meta').textContent = budgeted > 0
@@ -254,6 +254,7 @@ async function openDetail(categoryId) {
     }
 
     $('detail-view-all').href = `transactions.html?category_id=${categoryId}&period=${currentPeriod}`;
+    document.body.classList.add('modal-open');
     $('detail-overlay').classList.remove('hidden');
   } catch (err) {
     console.error('Detail load failed:', err);
@@ -288,6 +289,7 @@ function renderDetailForecast(forecast) {
 
 function closeDetail() {
   $('detail-overlay').classList.add('hidden');
+  document.body.classList.remove('modal-open');
 }
 
 function viewUncategorized() {
@@ -334,6 +336,12 @@ function getCurrentPeriod() {
 // ── Helpers ──────────────────────────────────────────────────
 
 function $(id) { return document.getElementById(id); }
+
+function plainCategoryName(name) {
+  return String(name || '')
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Regional_Indicator}\u200D\uFE0F\s]+/gu, '')
+    .trim();
+}
 
 function esc(str) {
   return String(str)

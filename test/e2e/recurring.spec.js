@@ -25,6 +25,8 @@ test.describe('Recurring page', () => {
     await expect(page.locator('#recurring-summary')).toBeVisible();
     await expect(page.locator('#recurring-summary')).not.toHaveClass(/loading-pulse/, { timeout: 10_000 });
     await expect(page.locator('#bill-calendar')).toBeVisible();
+    const backgroundImage = await page.locator('#recurring-summary').evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(backgroundImage.includes('gradient')).toBe(false);
     await expect(page.locator('#recurring-list')).toBeVisible();
     await expect(page.locator('#recurring-stale')).toBeVisible();
   });

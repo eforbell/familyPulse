@@ -2,40 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | Budget</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script src="theme.js"></script>
-  <script src="privacy.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="theme.js?v=20260516c"></script>
+  <script src="privacy.js?v=20260516c"></script>
+  <link rel="stylesheet" href="style.css?v=20260516c">
+  <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
+  <link rel="stylesheet" href="tokens.css?v=20260516c">
+  <link rel="stylesheet" href="pulse-skin.css?v=20260516c">
 </head>
 <body data-nav-page="budget">
 
   <!-- Category detail overlay -->
-  <div id="detail-overlay" class="overlay hidden">
-    <div class="overlay-box" style="max-width:500px">
-      <h2 id="detail-title">Category Detail</h2>
-      <div id="detail-meta" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem"></div>
-      <div id="detail-forecast" class="detail-forecast hidden">
-        <div id="detail-forecast-badge" class="detail-forecast-badge"></div>
-        <div id="detail-forecast-copy" class="detail-forecast-copy"></div>
-        <div id="detail-forecast-recurring" class="detail-forecast-recurring hidden"></div>
+  <div id="detail-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="overlay-box wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="detail-title">Category Detail</h2>
+          <p id="detail-meta" class="modal-sub"></p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closeDetail()">×</button>
       </div>
-      <div id="detail-txns" class="detail-txn-list"></div>
-      <a id="detail-view-all" href="#" class="btn-ghost" style="width:100%;margin-top:0.75rem;text-align:center;display:block">View all transactions</a>
-      <button class="btn-ghost" style="width:100%;margin-top:0.5rem" onclick="closeDetail()">Close</button>
+      <div class="modal-body">
+        <div id="detail-forecast" class="detail-forecast hidden">
+          <div id="detail-forecast-badge" class="detail-forecast-badge"></div>
+          <div id="detail-forecast-copy" class="detail-forecast-copy"></div>
+          <div id="detail-forecast-recurring" class="detail-forecast-recurring hidden"></div>
+        </div>
+        <div id="detail-txns" class="detail-txn-list"></div>
+      </div>
+      <div class="modal-foot">
+        <a id="detail-view-all" href="#" class="btn-ghost">View all transactions</a>
+        <button class="btn-ghost" onclick="closeDetail()">Close</button>
+      </div>
     </div>
   </div>
 
   <div id="app">
 
     <!-- Header -->
-    <header>
+    <header class="app-header">
       <h1>Budget</h1>
       <div></div>
     </header>
@@ -98,7 +114,7 @@
 
   </div>
 
-  <script src="nav.js"></script>
-  <script src="budget.js"></script>
+  <script src="nav.js?v=20260516c"></script>
+  <script src="budget.js?v=20260516c"></script>
 </body>
 </html>

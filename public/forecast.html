@@ -2,49 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b0b0b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F4">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#141310">
   <meta name="apple-mobile-web-app-title" content="Family Pulse">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Family Pulse | Forecast</title>
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <script src="theme.js"></script>
-  <script src="privacy.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="theme.js?v=20260516c"></script>
+  <script src="privacy.js?v=20260516c"></script>
+  <link rel="stylesheet" href="style.css?v=20260516c">
+  <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
+  <link rel="stylesheet" href="tokens.css?v=20260516c">
+  <link rel="stylesheet" href="pulse-skin.css?v=20260516c">
 </head>
 <body data-nav-page="forecast">
 
   <!-- Planned expense modal -->
-  <div id="planned-overlay" class="overlay hidden">
-    <div class="overlay-box" style="max-width:400px">
-      <h2 id="planned-modal-title">Add Planned Expense</h2>
+  <div id="planned-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="planned-modal-title">
+    <div class="overlay-box">
+      <div class="modal-head">
+        <div>
+          <h2 id="planned-modal-title">Add Planned Expense</h2>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closePlannedModal()">×</button>
+      </div>
       <form id="planned-form" autocomplete="off">
-        <input id="planned-type" type="hidden" value="expense">
-        <label class="field-label">Name
-          <input id="planned-name" type="text" class="field-input" required placeholder="e.g. New tires">
-        </label>
-        <label class="field-label">Amount ($)
-          <input id="planned-amount" type="number" class="field-input" required min="0.01" step="0.01" placeholder="0.00">
-        </label>
-        <label class="field-label">Date
-          <input id="planned-date" type="date" class="field-input" required>
-        </label>
-        <label class="field-label">Notes (optional)
-          <input id="planned-notes" type="text" class="field-input" placeholder="Optional notes">
-        </label>
-        <div id="planned-error" class="form-error hidden"></div>
-        <div style="display:flex;gap:0.5rem;margin-top:1rem">
-          <button type="submit" class="btn-primary" style="flex:1">Save</button>
-          <button type="button" class="btn-ghost" style="flex:1" onclick="closePlannedModal()">Cancel</button>
+        <div class="modal-body">
+          <input id="planned-type" type="hidden" value="expense">
+          <label class="field-label">Name
+            <input id="planned-name" type="text" class="field-input" required placeholder="e.g. New tires">
+          </label>
+          <label class="field-label">Amount ($)
+            <input id="planned-amount" type="number" class="field-input" required min="0.01" step="0.01" placeholder="0.00">
+          </label>
+          <label class="field-label">Date
+            <input id="planned-date" type="date" class="field-input" required>
+          </label>
+          <label class="field-label">Notes (optional)
+            <input id="planned-notes" type="text" class="field-input" placeholder="Optional notes">
+          </label>
+          <div id="planned-error" class="form-error hidden"></div>
+        </div>
+        <div class="modal-foot">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="btn-ghost" onclick="closePlannedModal()">Cancel</button>
         </div>
       </form>
     </div>
   </div>
 
   <div id="app">
-    <header>
+    <header class="app-header">
       <h1>Forecast</h1>
       <div>
         <button id="refresh-btn" class="btn-ghost btn-sm" onclick="refreshForecast()">Refresh</button>
@@ -122,7 +136,7 @@
       <section>
         <h2 class="section-heading">
           Planned Income
-          <button class="btn-ghost btn-sm" onclick="openPlannedModal('income')">+ Add</button>
+          <button class="btn-ghost btn-sm" onclick="openPlannedModal('income')">Add income</button>
         </h2>
         <div id="planned-income-list" class="planned-list"></div>
         <div id="planned-income-empty" class="hidden" style="color:var(--muted);font-size:var(--text-sm);padding:1rem 0">
@@ -144,7 +158,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="nav.js"></script>
-  <script src="forecast.js"></script>
+  <script src="nav.js?v=20260516c"></script>
+  <script src="forecast.js?v=20260516c"></script>
 </body>
 </html>
