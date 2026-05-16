@@ -2110,6 +2110,45 @@ header h1 {
   line-height: 1.5;
 }
 
+
+.settings-toggle-card {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 84px;
+  padding: 16px 18px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+}
+.settings-toggle-card:hover {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.settings-toggle-card input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--accent);
+}
+.settings-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-toggle-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.settings-toggle-sub {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
 .theme-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

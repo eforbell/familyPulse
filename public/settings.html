@@ -82,27 +82,16 @@
       <div></div>
     </header>
 
-    <!-- Linked Institutions -->
+    <!-- Quick controls -->
     <section>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
-        <h2 class="section-heading" style="margin:0">Linked Institutions</h2>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end">
-          <button id="link-btn" class="btn-primary" onclick="startLink()">+ Link Institution</button>
+      <h2 class="section-heading">Sync</h2>
+      <div class="theme-card">
+        <p class="theme-card-copy">Kick off a fresh sync when you want the latest balances, transactions, and forecasts immediately.</p>
+        <div class="form-actions">
+          <button class="btn-primary" onclick="triggerFullSync()">Sync All Now</button>
+          <div id="sync-result" style="font-size:0.85rem;color:var(--muted)"></div>
         </div>
       </div>
-      <p style="font-size:0.8rem;color:var(--muted);margin:0 0 0.75rem">
-        Checking, savings, credit, and loan accounts all link through the same institution flow. Older connections can enable liabilities later if extra consent is needed.
-      </p>
-      <div id="items-list" class="admin-list">
-        <div class="empty-state loading-pulse">Loading...</div>
-      </div>
-    </section>
-
-    <!-- Sync Status -->
-    <section style="margin-top:1.5rem">
-      <h2 class="section-heading">Sync</h2>
-      <button class="btn-ghost" onclick="triggerFullSync()">Sync All Now</button>
-      <div id="sync-result" style="margin-top:0.5rem;font-size:0.85rem;color:var(--muted)"></div>
     </section>
 
     <section style="margin-top:1.5rem">
@@ -117,10 +106,29 @@
       <h2 class="section-heading">Privacy</h2>
       <div class="theme-card">
         <p class="theme-card-copy">Hide dollar amounts across all views — useful when sharing your screen. Hover any blurred amount to reveal it. This setting is saved to this device only.</p>
-        <label class="checkbox-row">
+        <label class="settings-toggle-card" for="privacy-mode-toggle">
           <input type="checkbox" id="privacy-mode-toggle" onchange="togglePrivacyMode(this.checked)">
-          Hide dollar amounts (privacy mode)
+          <span class="settings-toggle-copy">
+            <span class="settings-toggle-title">Hide dollar amounts</span>
+            <span class="settings-toggle-sub">Privacy mode</span>
+          </span>
         </label>
+      </div>
+    </section>
+
+    <!-- Linked Institutions -->
+    <section style="margin-top:1.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+        <h2 class="section-heading" style="margin:0">Linked Institutions</h2>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:flex-end">
+          <button id="link-btn" class="btn-primary" onclick="startLink()">+ Link Institution</button>
+        </div>
+      </div>
+      <p style="font-size:0.8rem;color:var(--muted);margin:0 0 0.75rem">
+        Checking, savings, credit, and loan accounts all link through the same institution flow. Older connections can enable liabilities later if extra consent is needed.
+      </p>
+      <div id="items-list" class="admin-list">
+        <div class="empty-state loading-pulse">Loading...</div>
       </div>
     </section>
 
