@@ -131,6 +131,11 @@
   border-color: var(--accent-border-soft);
   text-decoration: none;
 }
+.indicator-strip-link {
+  display: contents;
+  color: inherit;
+  text-decoration: none;
+}
 .indicator-strip .strip-label {
   color: var(--muted);
 }

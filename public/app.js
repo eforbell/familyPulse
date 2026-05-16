@@ -68,11 +68,7 @@ async function loadCoverageIndicator() {
     const colorMap = { healthy: 'var(--green)', warning: 'var(--yellow)', danger: 'var(--red)' };
     const color = colorMap[data.status] || 'var(--muted)';
     const ratioLabel = data.ratio !== null ? `${data.ratio}x` : '--';
-    el.innerHTML = `
-      <div class="strip-label">Liability coverage <strong style="color:${color}">${ratioLabel}</strong></div>
-      <div class="strip-meta">${fmtMoney(data.obligation_total)} due</div>
-    `;
-    el.onclick = () => { window.location.href = 'accounts.html'; };
+    el.innerHTML = `<a href="accounts.html" class="indicator-strip-link"><div class="strip-label">Liability coverage <strong style="color:${color}">${ratioLabel}</strong></div><div class="strip-meta">${fmtMoney(data.obligation_total)} due</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Coverage indicator failed:', err);
@@ -89,11 +85,7 @@ async function loadRecurringIndicator() {
       el.classList.add('hidden');
       return;
     }
-    el.innerHTML = `
-      <div class="strip-label">Recurring plan <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</div>
-      <div class="strip-meta">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</div>
-    `;
-    el.onclick = () => { window.location.href = 'recurring.html'; };
+    el.innerHTML = `<a href="recurring.html" class="indicator-strip-link"><div class="strip-label">Recurring plan <strong>${fmtMoney(data.committed_monthly_total)}</strong> committed</div><div class="strip-meta">${data.active_count} active · ${fmtMoney(data.recurring_income_monthly_total)} inbound</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Recurring indicator failed:', err);
@@ -107,11 +99,7 @@ async function loadForecastIndicator() {
     if (!el) return;
     const data = await api('api/cash-flow/forecast');
     if (!data || !data.projections || data.projections.length === 0) {
-      el.innerHTML = `
-        <div class="strip-label">Forecast available after first sync</div>
-        <div class="strip-meta">&#8250;</div>
-      `;
-      el.onclick = () => { window.location.href = 'forecast.html'; };
+      el.innerHTML = `<a href="forecast.html" class="indicator-strip-link"><div class="strip-label">Forecast available after first sync</div><div class="strip-meta">&#8250;</div></a>`;
       el.classList.remove('hidden');
       return;
     }
@@ -143,11 +131,7 @@ async function loadForecastIndicator() {
       rightText = '';
     }
 
-    el.innerHTML = `
-      <div class="strip-label">Forecast <strong style="color:${statusColor}">${statusText}</strong></div>
-      <div class="strip-meta">${rightText ? `${rightText} &#8250;` : '&#8250;'}</div>
-    `;
-    el.onclick = () => { window.location.href = 'forecast.html'; };
+    el.innerHTML = `<a href="forecast.html" class="indicator-strip-link"><div class="strip-label">Forecast <strong style="color:${statusColor}">${statusText}</strong></div><div class="strip-meta">${rightText ? `${rightText} &#8250;` : '&#8250;'}</div></a>`;
     el.classList.remove('hidden');
   } catch (err) {
     console.error('Forecast indicator failed:', err);
@@ -514,7 +498,7 @@ async function saveTransactionDisplayName() {
 async function submitTransactionDisplayName({ displayName, applyToFuture }) {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving display name…';
 
   try {
@@ -531,7 +515,7 @@ async function submitTransactionDisplayName({ displayName, applyToFuture }) {
     renderTransactionDetail();
     feedback.textContent = 'Display name saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save display name';
   }
 }
@@ -625,7 +609,7 @@ function closeTransactionAttachmentEditor() {
 async function saveTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Saving note…';
 
   try {
@@ -639,7 +623,7 @@ async function saveTransactionNote() {
     closeTransactionNoteEditor();
     feedback.textContent = 'Note saved.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not save note';
   }
 }
@@ -647,7 +631,7 @@ async function saveTransactionNote() {
 async function clearTransactionNote() {
   if (!currentDetailId || currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Clearing note…';
 
   try {
@@ -657,7 +641,7 @@ async function clearTransactionNote() {
     closeTransactionNoteEditor();
     feedback.textContent = 'Note cleared.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not clear note';
   }
 }
@@ -668,7 +652,7 @@ async function uploadTransactionAttachments() {
   if (!input.files || input.files.length === 0) return;
 
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Uploading attachments…';
 
   const form = new FormData();
@@ -684,7 +668,7 @@ async function uploadTransactionAttachments() {
     closeTransactionAttachmentEditor();
     feedback.textContent = 'Attachments uploaded.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not upload attachments';
   }
 }
@@ -692,7 +676,7 @@ async function uploadTransactionAttachments() {
 async function deleteTransactionAttachment(id) {
   if (currentMember?.role !== 'parent') return;
   const feedback = $('tx-detail-feedback');
-  feedback.className = 'recurring-detail-feedback';
+  feedback.className = 'tx-detail-feedback';
   feedback.textContent = 'Deleting attachment…';
 
   try {
@@ -700,7 +684,7 @@ async function deleteTransactionAttachment(id) {
     await refreshCurrentDetail();
     feedback.textContent = 'Attachment deleted.';
   } catch (err) {
-    feedback.className = 'recurring-detail-feedback error';
+    feedback.className = 'tx-detail-feedback error';
     feedback.textContent = err.message || 'Could not delete attachment';
   }
 }
