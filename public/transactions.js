@@ -693,11 +693,7 @@ function renderTransactionDetail() {
     $('tx-display-name-input').value = tx.display_name_override || '';
     $('tx-display-name-rule-check').checked = tx.rename_rule ? true : !tx.raw_display_name_is_check_like;
     $('tx-display-name-rule-hint').classList.remove('hidden');
-    $('tx-display-name-rule-hint').textContent = tx.rename_rule
-      ? `Future exact matches already rename to "${tx.rename_rule.display_name}".`
-      : tx.raw_display_name_is_check_like
-        ? 'Check-style text defaults to one-off rename only.'
-        : 'Enable this to bind the cleaned-up name to this exact synced source text.';
+    $('tx-display-name-rule-hint').textContent = 'Apply name change to future matches';
     $('tx-display-name-empty').classList.toggle('hidden', !!tx.display_name_override);
   } else {
     $('tx-display-name-readonly').textContent = tx.display_name_override || '';
