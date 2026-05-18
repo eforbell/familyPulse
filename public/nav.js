@@ -76,16 +76,16 @@
   const mobileHTML = mobileItems.map(item => {
     const active = item.id === activePage ? ' active' : '';
     return `<a href="${item.href}" class="nav-item${active}" data-nav="${item.id}">
-      <span class="nav-icon">${icons[item.icon]}</span>
+      <span class="nav-icon-bg"><span class="nav-icon">${icons[item.icon]}</span></span>
       <span class="nav-label">${item.label}</span>
     </a>`;
   }).join('');
 
   // More button — active if current page is in moreItems
   const moreActive = moreItems.some(m => m.id === activePage) ? ' active' : '';
-  const moreBtn = `<button class="nav-item nav-brand-mobile${moreActive}" id="more-nav-btn" aria-label="Pulse menu">
-    <span class="nav-brand-mark"><img src="icon-32.png" alt="" width="18" height="18"></span>
-    <span class="nav-label">Pulse</span>
+  const moreBtn = `<button class="nav-item${moreActive}" id="more-nav-btn" aria-label="More">
+    <span class="nav-icon-bg"><span class="nav-icon">${icons.more}</span></span>
+    <span class="nav-label">More</span>
   </button>`;
 
   bottomBar.innerHTML = mobileHTML + (moreItems.length > 0 ? moreBtn : '');
