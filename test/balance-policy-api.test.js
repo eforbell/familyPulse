@@ -16,6 +16,8 @@ let parentSessionToken;
 let kidSessionToken;
 let itemId;
 let parentAccountId;
+let investmentAccountId;
+let parentCreditAccountId;
 let kidAccountId;
 
 const PARENT_NAME = 'BalancePolicyParent';
@@ -113,6 +115,7 @@ describe('balance policy API', () => {
         owner = $2
       RETURNING id
     `, [itemId, PARENT_NAME]);
+    investmentAccountId = investmentAccount.id;
 
     const { rows: [kidAccount] } = await pool.query(`
       INSERT INTO accounts (
@@ -133,6 +136,19 @@ describe('balance policy API', () => {
       ON CONFLICT DO NOTHING
     `, [kidAccountId, kidMemberId]);
 
+    const { rows: [parentCreditAccount] } = await pool.query(`
+      INSERT INTO accounts (
+        plaid_account_id, item_id, name, type, subtype, mask, current_balance, available_balance, owner
+      )
+      VALUES ('acct-balance-parent-credit', $1, 'Parent Credit Card', 'credit', 'credit card', '4444', 600.00, NULL, $2)
+      ON CONFLICT (plaid_account_id) DO UPDATE SET
+        current_balance = 600.00,
+        available_balance = NULL,
+        owner = $2
+      RETURNING id
+    `, [itemId, PARENT_NAME]);
+    parentCreditAccountId = parentCreditAccount.id;
+
     await pool.query(`
       INSERT INTO app_config (key, value) VALUES ('balance_basis', 'available_preferred')
       ON CONFLICT (key) DO UPDATE SET value = 'available_preferred'
@@ -144,7 +160,7 @@ describe('balance policy API', () => {
     await pool.query('DELETE FROM account_members WHERE account_id = $1', [kidAccountId]);
     await pool.query(`
       DELETE FROM accounts
-      WHERE plaid_account_id IN ('acct-balance-parent-checking', 'acct-balance-parent-mm', 'acct-balance-kid-checking')
+      WHERE plaid_account_id IN ('acct-balance-parent-checking', 'acct-balance-parent-mm', 'acct-balance-kid-checking', 'acct-balance-parent-credit')
     `);
     await pool.query('DELETE FROM items WHERE item_id = $1', [ITEM_KEY]);
     await pool.query('DELETE FROM family_members WHERE name IN ($1, $2)', [PARENT_NAME, KID_NAME]);
@@ -202,7 +218,7 @@ describe('balance policy API', () => {
     assert.ok(parentGroup);
     assert.equal(
       parentGroup.reduce((sum, account) => sum + account.display_balance, 0),
-      2850
+      3450
     );
     const checking = parentGroup.find(account => account.id === parentAccountId);
     assert.equal(checking.display_balance, 850);
@@ -215,6 +231,19 @@ describe('balance policy API', () => {
     const kidGroup = data.groups[KID_NAME];
     assert.ok(kidGroup);
     assert.equal(kidGroup[0].display_balance, 450);
+  });
+
+  it('orders owner groups by cash balances first, then liabilities by balance descending', async () => {
+    const res = await parentReq('api/accounts/dashboard');
+    assert.equal(res.status, 200);
+    const data = await res.json();
+
+    const parentGroup = data.groups[PARENT_NAME];
+    assert.ok(parentGroup);
+    assert.deepEqual(
+      parentGroup.map((account) => account.id),
+      [investmentAccountId, parentAccountId, parentCreditAccountId]
+    );
   });
 
   it('excludes historical accounts from live dashboard totals while retaining them separately', async () => {
@@ -236,7 +265,7 @@ describe('balance policy API', () => {
       assert.equal(parentData.account_count, baselineParentData.account_count - 2);
       assert.equal(parentData.historical_account_count, baselineParentData.historical_account_count + 2);
       assert.equal(parentData.liquid_total, baselineParentData.liquid_total - 1300);
-      assert.equal(parentData.groups[PARENT_NAME].length, 1);
+      assert.equal(parentData.groups[PARENT_NAME].length, 2);
       assert.equal(parentData.groups[KID_NAME], undefined);
       assert.equal(parentData.historical_groups[PARENT_NAME][0].id, parentAccountId);
       assert.equal(parentData.historical_groups[KID_NAME][0].id, kidAccountId);
