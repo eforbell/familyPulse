@@ -12,8 +12,28 @@ const { issueBootstrapToken, TOKEN_TTL_MS } = require('./lib/bootstrap-token');
 const app = express();
 const PORT = process.env.PORT || 3003;
 const TZ = process.env.HOUSEHOLD_TIMEZONE || 'America/New_York';
+const DEFAULT_SOVEREIGN_FONT_SANS_CSS_URL = 'https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap';
+const DEFAULT_SOVEREIGN_FONT_MONO_CSS_URL = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap';
 
 const { requireAuth, requireParent } = require('./lib/auth');
+
+function buildSovereignFontsCss() {
+  const source = String(process.env.SOVEREIGN_FONT_SOURCE || 'google').trim().toLowerCase();
+  if (source === 'off') return '/* Sovereign fonts disabled via SOVEREIGN_FONT_SOURCE=off */\n';
+
+  const isLocal = source === 'local';
+  const sansUrl = (isLocal ? process.env.SOVEREIGN_FONT_SANS_CSS_URL_LOCAL : process.env.SOVEREIGN_FONT_SANS_CSS_URL)
+    || DEFAULT_SOVEREIGN_FONT_SANS_CSS_URL;
+  const monoUrl = (isLocal ? process.env.SOVEREIGN_FONT_MONO_CSS_URL_LOCAL : process.env.SOVEREIGN_FONT_MONO_CSS_URL)
+    || DEFAULT_SOVEREIGN_FONT_MONO_CSS_URL;
+
+  return [
+    '/* Generated from environment: /sovereign-fonts.css */',
+    `@import url('${sansUrl}');`,
+    `@import url('${monoUrl}');`,
+    '',
+  ].join('\n');
+}
 
 app.use(express.json());
 
@@ -128,6 +148,12 @@ app.get('/kids/:name', async (req, res, next) => {
 // Setup page alias — supports /setup path used by Homebase install flows.
 app.get('/setup', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'setup.html'));
+});
+
+app.get('/sovereign-fonts.css', (_req, res) => {
+  res.set('content-type', 'text/css; charset=utf-8');
+  res.set('cache-control', 'public, max-age=300');
+  res.send(buildSovereignFontsCss());
 });
 
 // Static files — AFTER auth gate so HTML pages are protected
