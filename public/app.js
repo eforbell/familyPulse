@@ -888,6 +888,13 @@ async function loadMagicPanel() {
     const data = await api('api/magic/digest');
     if (data.digest) {
       $('magic-digest').classList.remove('hidden');
+      const meta = $('magic-digest-meta');
+      if (meta) {
+        const anchor = data.period || 'n/a';
+        const month = data.data_period || 'n/a';
+        meta.textContent = `Weekly anchor: ${anchor} · Data period: ${month} (month-to-date)`;
+        meta.classList.remove('hidden');
+      }
       $('magic-digest-content').innerHTML = renderMarkdown(data.digest);
     }
   } catch { /* ignore */ }
