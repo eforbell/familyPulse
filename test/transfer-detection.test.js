@@ -8,7 +8,7 @@ const { Pool } = require('pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // We need a fresh set of test data for transfer detection
-let itemId, acctId1, acctId2;
+let itemId, acctId1, acctId2, loanAcctId;
 
 before(async () => {
   // Create test item + two accounts
@@ -35,6 +35,14 @@ before(async () => {
     RETURNING id
   `, [itemId]);
   acctId2 = a2.id;
+
+  const { rows: [loanAcct] } = await pool.query(`
+    INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+    VALUES ('acct-xfer-mortgage', $1, 'Mortgage', 'loan', 'mortgage', '3333', 250000)
+    ON CONFLICT (plaid_account_id) DO UPDATE SET name = 'Mortgage'
+    RETURNING id
+  `, [itemId]);
+  loanAcctId = loanAcct.id;
 });
 
 after(async () => {
@@ -178,6 +186,23 @@ describe('transfer detection', () => {
       // Should not be flagged as inter_account (same account)
       if (rows[0].is_transfer) {
         assert.notEqual(rows[0].transfer_type, 'inter_account');
+      }
+    });
+
+    it('does not match transfers into loan accounts', async () => {
+      await insertTx('tx-xfer-loan-out-1', acctId1, -1800.00, today, 'Mortgage Payment', null);
+      await insertTx('tx-xfer-loan-in-1', loanAcctId, 1800.00, today, 'Mortgage Payment Received', null);
+
+      const { detectTransfers } = require('../lib/transfer-detection');
+      await detectTransfers(7);
+
+      const { rows } = await pool.query(
+        "SELECT plaid_transaction_id, is_transfer, transfer_type FROM transactions WHERE plaid_transaction_id IN ('tx-xfer-loan-out-1', 'tx-xfer-loan-in-1') ORDER BY plaid_transaction_id"
+      );
+      assert.equal(rows.length, 2);
+      for (const row of rows) {
+        assert.equal(row.is_transfer, false);
+        assert.equal(row.transfer_type, null);
       }
     });
 
