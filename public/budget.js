@@ -231,7 +231,7 @@ async function openDetail(categoryId) {
     $('detail-title').textContent = plainCategoryName(detail.name);
 
     const budgeted = parseFloat(detail.budget_amount) || 0;
-    $('detail-meta').textContent = budgeted > 0
+    $('detail-meta').innerHTML = budgeted > 0
       ? `Budget: ${fmtMoney(budgeted)} — ${detail.transactions.length} transactions`
       : `${detail.transactions.length} transactions`;
 
