@@ -13,6 +13,17 @@ let baseUrl;
 let parentSessionToken;
 let kidSessionToken;
 let createdExpenseId;
+
+function futureDate(daysAhead = 15) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAhead);
+  return d.toISOString().slice(0, 10);
+}
+function futureMonth() {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1, 1);
+  return d.toISOString().slice(0, 7);
+}
 let createdIncomeId;
 
 function req(pathname, opts = {}) {
@@ -95,7 +106,7 @@ describe('planned expenses API', () => {
         body: JSON.stringify({
           name: 'Test: New tires',
           amount: 800,
-          scheduled_date: '2026-05-15',
+          scheduled_date: futureDate(),
           notes: 'All four tires'
         })
       });
@@ -111,7 +122,7 @@ describe('planned expenses API', () => {
     it('rejects missing name', async () => {
       const res = await req('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ amount: 100, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ amount: 100, scheduled_date: futureDate() })
       });
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -121,7 +132,7 @@ describe('planned expenses API', () => {
     it('rejects negative amount', async () => {
       const res = await req('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Bad', amount: -50, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ name: 'Test: Bad', amount: -50, scheduled_date: futureDate() })
       });
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -131,7 +142,7 @@ describe('planned expenses API', () => {
     it('rejects zero amount', async () => {
       const res = await req('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Zero', amount: 0, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ name: 'Test: Zero', amount: 0, scheduled_date: futureDate() })
       });
       assert.equal(res.status, 400);
     });
@@ -149,7 +160,7 @@ describe('planned expenses API', () => {
     it('rejects kid session (parent-only)', async () => {
       const res = await kidReq('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Kid try', amount: 100, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ name: 'Test: Kid try', amount: 100, scheduled_date: futureDate() })
       });
       assert.ok([401, 403].includes(res.status));
     });
@@ -157,7 +168,7 @@ describe('planned expenses API', () => {
     it('rejects unauthenticated request', async () => {
       const res = await unauthReq('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Unauth', amount: 100, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ name: 'Test: Unauth', amount: 100, scheduled_date: futureDate() })
       });
       assert.equal(res.status, 401);
     });
@@ -196,7 +207,7 @@ describe('planned expenses API', () => {
       // Create a separate expense to mark complete
       const createRes = await req('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Complete me', amount: 50, scheduled_date: '2026-06-01' })
+        body: JSON.stringify({ name: 'Test: Complete me', amount: 50, scheduled_date: futureDate() })
       });
       const created = await createRes.json();
 
@@ -388,7 +399,7 @@ describe('planned expenses API', () => {
         body: JSON.stringify({
           name: 'Test: Bonus payment',
           amount: 5000,
-          scheduled_date: '2026-06-15',
+          scheduled_date: futureDate(30),
           type: 'income'
         })
       });
@@ -404,7 +415,7 @@ describe('planned expenses API', () => {
     it('rejects invalid type value', async () => {
       const res = await req('api/cash-flow/planned-expenses', {
         method: 'POST',
-        body: JSON.stringify({ name: 'Test: Bad type', amount: 100, scheduled_date: '2026-06-01', type: 'gift' })
+        body: JSON.stringify({ name: 'Test: Bad type', amount: 100, scheduled_date: futureDate(), type: 'gift' })
       });
       assert.equal(res.status, 400);
     });
@@ -424,9 +435,10 @@ describe('planned expenses API', () => {
       assert.equal(res.status, 200);
       const data = await res.json();
       assert.ok(Array.isArray(data.monthly_outlook));
-      const juneMonth = data.monthly_outlook.find(m => m.month && m.month.startsWith('2026-06'));
-      assert.ok(juneMonth, 'Expected a June 2026 monthly outlook entry');
-      assert.ok(juneMonth.planned_income_total > 0, 'planned_income_total should be > 0 for the month with income');
+      const targetMonth = futureDate(30).slice(0, 7);
+      const incomeMonth = data.monthly_outlook.find(m => m.month && m.month.startsWith(targetMonth));
+      assert.ok(incomeMonth, `Expected a ${targetMonth} monthly outlook entry`);
+      assert.ok(incomeMonth.planned_income_total > 0, 'planned_income_total should be > 0 for the month with income');
     });
 
     it('can update type via PATCH', async () => {
