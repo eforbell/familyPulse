@@ -283,15 +283,28 @@ function populateFilterDropdowns() {
 
   // Category dropdown
   const catSelect = $('filter-category');
-  const existingCats = catSelect.querySelectorAll('option[data-dynamic]');
+  const existingCats = catSelect.querySelectorAll('option[data-dynamic], optgroup[data-dynamic]');
   existingCats.forEach(o => o.remove());
-  for (const c of categories) {
-    if (c.is_transfer_class) continue;
+  const spending = categories.filter(c => !c.is_transfer_class);
+  const transfers = categories.filter(c => c.is_transfer_class);
+  for (const c of spending) {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = plainCategoryName(c.name);
     opt.dataset.dynamic = '1';
     catSelect.appendChild(opt);
+  }
+  if (transfers.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Transfers';
+    group.dataset.dynamic = '1';
+    for (const c of transfers) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = plainCategoryName(c.name);
+      group.appendChild(opt);
+    }
+    catSelect.appendChild(group);
   }
 }
 
