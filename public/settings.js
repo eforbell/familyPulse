@@ -827,9 +827,15 @@ async function syncItem(itemId) {
 
 async function triggerFullSync() {
   const el = document.getElementById('sync-result');
-  el.textContent = 'Syncing all...';
+  const rescanEl = document.getElementById('full-recurring-rescan');
+  const fullRecurringRescan = Boolean(rescanEl && rescanEl.checked);
+  el.textContent = fullRecurringRescan ? 'Syncing all (full recurring rescan)...' : 'Syncing all...';
   try {
-    const data = await api('api/sync', { method: 'POST' });
+    const data = await api('api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullRecurringRescan })
+    });
     el.textContent = formatSyncSummary(data);
     await loadItems();
   } catch (err) {

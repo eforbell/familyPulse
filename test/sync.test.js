@@ -402,4 +402,25 @@ describe('sync — recurring detection integration', () => {
     assert.equal(result.recurring_detected, 0);
     assert.ok(result.items >= 1);
   });
+
+  it('passes forceFullScan to recurring detection when a full rescan is requested', async () => {
+    plaid.getAccounts = async () => ({ accounts: [] });
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-recurring-sync-rescan'
+    });
+    let receivedOptions = null;
+    recurringDetector.detectRecurringCashflows = async (options = {}) => {
+      receivedOptions = options;
+      return { candidates: [] };
+    };
+
+    await syncAll(); // default: incremental
+    assert.equal(receivedOptions.forceFullScan, undefined);
+
+    await syncAll({ forceRecurringFullScan: true });
+    assert.equal(receivedOptions.forceFullScan, true);
+  });
 });

@@ -87,8 +87,13 @@
         <p class="theme-card-copy">Kick off a fresh sync when you want the latest balances, transactions, and forecasts immediately.</p>
         <div class="form-actions">
           <button class="btn-primary" onclick="triggerFullSync()">Sync All Now</button>
+          <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;color:var(--muted);cursor:pointer">
+            <input type="checkbox" id="full-recurring-rescan">
+            Full recurring rescan
+          </label>
           <div id="sync-result" style="font-size:0.85rem;color:var(--muted)"></div>
         </div>
+        <p class="theme-card-copy" style="font-size:0.8rem;margin-top:0.25rem">Re-evaluates every merchant for recurring patterns (not just changed ones). Use after detection improvements or when an expected recurring item is missing.</p>
       </div>
     </section>
 

@@ -550,7 +550,9 @@ app.get('/api/status', requireParent, async (req, res) => {
 
 app.post('/api/sync', async (req, res) => {
   try {
-    const result = await syncAll();
+    const result = await syncAll({
+      forceRecurringFullScan: Boolean(req.body && req.body.fullRecurringRescan)
+    });
     res.json({
       ...result,
       synced: result.items,
