@@ -164,6 +164,33 @@ describe('recurring-detector', () => {
     assert.equal(income.latest_amount, 4626);
   });
 
+  it('detects weekday-anchored monthly income with a 35-day leg amid retro lumps and a pending latest', () => {
+    // Weekday-anchored benefit income (Nth-weekday cadence -> Apr 8 to May 13 = 35 days),
+    // paid to a primary + two equal secondary beneficiaries on the same day. Includes
+    // retroactive back-pay lump sums that must be ignored, and the latest month's primary
+    // leg still pending (excluded from the candidate set until it posts).
+    const results = detectRecurringCandidates([
+      tx(7001, -28000.00, '2026-03-04', 'Regional Benefits Agency'), // one-off back-pay lump
+      tx(7002, -6400.00, '2026-03-09', 'Regional Benefits Agency'), // retro lump
+      tx(7003, -6400.00, '2026-03-09', 'Regional Benefits Agency'), // retro lump
+      tx(7101, -640.00, '2026-04-08', 'Regional Benefits Agency'),
+      tx(7102, -640.00, '2026-04-08', 'Regional Benefits Agency'),
+      tx(7103, -2400.00, '2026-04-08', 'Regional Benefits Agency'),
+      tx(7204, -640.00, '2026-05-13', 'Regional Benefits Agency'),
+      tx(7205, -640.00, '2026-05-13', 'Regional Benefits Agency'),
+      tx(7206, -2400.00, '2026-05-13', 'Regional Benefits Agency'),
+      tx(7307, -2400.00, '2026-06-10', 'Regional Benefits Agency', { pending: true }),
+      tx(7308, -640.00, '2026-06-10', 'Regional Benefits Agency'),
+      tx(7309, -640.00, '2026-06-10', 'Regional Benefits Agency')
+    ], { asOfDate: '2026-06-18' });
+
+    assert.equal(results.length, 1);
+    assert.equal(results[0].cashflow_type, 'income');
+    assert.equal(results[0].frequency, 'monthly');
+    assert.equal(results[0].latest_amount, 3680); // 640 + 640 + 2400 (full April/May month)
+    assert.equal(results[0].status, 'active');
+  });
+
   it('does not let a one-off same-day charge break a clean monthly stream', () => {
     const candidate = analyzeRecurringGroup([
       tx(1, 50.00, '2026-01-01', 'GYM'),
