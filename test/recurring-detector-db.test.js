@@ -18,6 +18,12 @@ before(async () => {
     'utf8'
   );
   await pool.query(migrationSql);
+  // 022 redefines the identity index (drops the volatile schedule anchor); apply
+  // it so this file is self-contained when run in isolation.
+  await pool.query(fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '022-recurring-identity-drop-anchor.sql'),
+    'utf8'
+  ));
 
   const { rows: [item] } = await pool.query(`
     INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
@@ -172,5 +178,61 @@ describe('recurring-detector DB integration', () => {
     assert.equal(rows[0].count, 1);
 
     await pool.query("DELETE FROM recurring_expenses WHERE merchant_key = 'manual service'");
+  });
+
+  it('does not duplicate when the deposit day drifts (weekday-anchored schedule)', async () => {
+    const base = {
+      merchant_key: 'drift benefits',
+      merchant_name: 'Drift Benefits',
+      cashflow_type: 'income',
+      frequency: 'monthly',
+      confidence: 'high',
+      status: 'active',
+      latest_account_id: accountId,
+      latest_amount: 4626.00,
+      prior_amount: 4626.00,
+      price_change_pct: 0,
+      price_change_direction: null,
+      price_change_date: null,
+      first_seen_date: '2026-04-15',
+      last_seen_date: '2026-05-20',
+      expected_next_date: '2026-06-20',
+      interval_days: 30,
+      tolerance_days: 3,
+      schedule_anchor_type: 'day_of_month',
+      schedule_anchor_value: '20', // May deposit landed on the 20th
+      source_txn_count: 2,
+      latest_transaction_id: null
+    };
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await upsertRecurringCandidate(client, base, '2026-05-21');
+      // Next month the deposit lands on the 17th -> anchor day changes 20 -> 17.
+      await upsertRecurringCandidate(client, {
+        ...base,
+        last_seen_date: '2026-06-17',
+        expected_next_date: '2026-07-17',
+        schedule_anchor_value: '17',
+        source_txn_count: 3
+      }, '2026-06-18');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    const { rows } = await pool.query(`
+      SELECT COUNT(*)::int AS count, MAX(schedule_anchor_value) AS anchor, MAX(last_seen_date) AS last_seen
+      FROM recurring_expenses
+      WHERE merchant_key = 'drift benefits' AND cashflow_type = 'income' AND frequency = 'monthly'
+    `);
+    assert.equal(rows[0].count, 1); // one row, not two
+    assert.equal(rows[0].anchor, '17'); // anchor refreshed to the latest deposit day
+
+    await pool.query("DELETE FROM recurring_expenses WHERE merchant_key = 'drift benefits'");
   });
 });

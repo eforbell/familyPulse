@@ -114,7 +114,10 @@ describe('database schema', () => {
     assert.equal(rows.length, 1);
   });
 
-  it('recurring_expenses identity index coalesces nullable anchor fields', async () => {
+  it('recurring_expenses identity index excludes the volatile schedule anchor', async () => {
+    // Identity is (merchant_key, cashflow_type, frequency) only. The schedule
+    // anchor drifts for weekday-anchored schedules (e.g. SSA pays the Nth
+    // weekday), so including it would re-duplicate items as the day shifts.
     const { rows } = await pool.query(`
       SELECT indexdef
       FROM pg_indexes
@@ -123,8 +126,8 @@ describe('database schema', () => {
         AND indexname = 'ux_recurring_expenses_identity'
     `);
     assert.equal(rows.length, 1);
-    assert.match(rows[0].indexdef, /COALESCE\(schedule_anchor_type, ''(?:::text)?\)/);
-    assert.match(rows[0].indexdef, /COALESCE\(schedule_anchor_value, ''(?:::text)?\)/);
+    assert.match(rows[0].indexdef, /\(merchant_key, cashflow_type, frequency\)/);
+    assert.doesNotMatch(rows[0].indexdef, /schedule_anchor/);
   });
 
   it('migration is idempotent (re-run does not fail)', async () => {
