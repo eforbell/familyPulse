@@ -140,6 +140,43 @@ describe('recurring-detector', () => {
     assert.equal(candidate, null);
   });
 
+  it('detects a multi-beneficiary same-day income stream (e.g. Social Security)', () => {
+    // Primary + two child beneficiaries all paid on the same day each month.
+    // SSA pays on a weekday schedule, so the day-of-month drifts (15th, 20th, 17th).
+    const results = detectRecurringCandidates([
+      tx(1, -771.00, '2026-04-15', 'Social Security Administration'),
+      tx(2, -771.00, '2026-04-15', 'Social Security Administration'),
+      tx(3, -3084.00, '2026-04-15', 'Social Security Administration'),
+      tx(4, -771.00, '2026-05-20', 'Social Security Administration'),
+      tx(5, -771.00, '2026-05-20', 'Social Security Administration'),
+      tx(6, -3084.00, '2026-05-20', 'Social Security Administration'),
+      tx(7, -3084.00, '2026-06-17', 'Social Security Administration'),
+      tx(8, -771.00, '2026-06-17', 'Social Security Administration'),
+      tx(9, -771.00, '2026-06-17', 'Social Security Administration')
+    ], { asOfDate: '2026-06-18' });
+
+    assert.equal(results.length, 1);
+    const income = results[0];
+    assert.equal(income.cashflow_type, 'income');
+    assert.equal(income.frequency, 'monthly');
+    assert.equal(income.status, 'active');
+    // All same-day beneficiaries fold into one monthly occurrence: 3084 + 771 + 771.
+    assert.equal(income.latest_amount, 4626);
+  });
+
+  it('does not let a one-off same-day charge break a clean monthly stream', () => {
+    const candidate = analyzeRecurringGroup([
+      tx(1, 50.00, '2026-01-01', 'GYM'),
+      tx(2, 50.00, '2026-02-01', 'GYM'),
+      tx(3, 30.00, '2026-02-01', 'GYM'), // one-off same-day noise, not a recurring band
+      tx(4, 50.00, '2026-03-01', 'GYM')
+    ], { asOfDate: '2026-03-05' });
+
+    assert.ok(candidate);
+    assert.equal(candidate.frequency, 'monthly');
+    assert.equal(candidate.latest_amount, 50);
+  });
+
   it('converts supported frequencies to monthly equivalents', () => {
     assert.equal(monthlyEquivalent(100, 'weekly'), 433);
     assert.equal(monthlyEquivalent(100, 'biweekly'), 217);
