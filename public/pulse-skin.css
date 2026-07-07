@@ -624,6 +624,7 @@
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.35rem;
+  margin-left: 0.85rem;
   padding: 0.28rem 0.35rem 0.28rem 0.55rem;
   border: 1px solid color-mix(in srgb, var(--accent, #7c3aed) 28%, transparent);
   border-radius: 999px;
@@ -648,5 +649,6 @@
   .tx-suggestion {
     border-radius: 14px;
     flex-wrap: wrap;
+    margin-left: 0;
   }
 }
