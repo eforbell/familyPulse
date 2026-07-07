@@ -96,6 +96,10 @@ describe('POST /api/bootstrap/household', () => {
   it('installs default categories when install_starter_content is true', async () => {
     const { rows } = await pool.query('SELECT count(*)::int AS count FROM categories');
     assert.ok(rows[0].count >= 18, `expected ≥18 categories, got ${rows[0].count}`);
+    const { rows: [travel] } = await pool.query(
+      "SELECT exclude_from_learning FROM categories WHERE name = 'Travel'"
+    );
+    assert.equal(travel.exclude_from_learning, true);
   });
 
   it('installs auto-categorization rules', async () => {
