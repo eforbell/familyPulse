@@ -397,6 +397,11 @@ describe('POST /api/transactions/:id/create-rule', () => {
       VALUES ($1, $2, 29.99, '2026-03-09', $3, $3, false, false, 'test', NULL)
       RETURNING id
     `, [`tx-api-rule-future-${Date.now()}`, accountId, merchant]);
+    const { rows: [pendingMatch] } = await pool.query(`
+      INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
+      VALUES ($1, $2, 39.99, '2026-03-10', $3, $3, true, false, 'test', NULL)
+      RETURNING id
+    `, [`tx-api-rule-pending-${Date.now()}`, accountId, merchant]);
 
     const res = await fetch(`${baseUrl}/api/transactions/${seed.id}/create-rule`, {
       method: 'POST',
@@ -413,6 +418,12 @@ describe('POST /api/transactions/:id/create-rule', () => {
       [futureMatch.id]
     );
     assert.equal(updated.category_id, assignCategoryId);
+
+    const { rows: [pending] } = await pool.query(
+      'SELECT category_id FROM transactions WHERE id = $1',
+      [pendingMatch.id]
+    );
+    assert.equal(pending.category_id, null);
   });
 });
 
