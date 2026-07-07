@@ -1,0 +1,197 @@
+{
+  "branchName": "feature/learned-auto-categorization",
+  "projectName": "Learned Auto-Categorization",
+  "description": "Make transaction categorization learn from household history so parents stop re-categorizing the same merchants every month. When a parent categorizes a transaction, Family Pulse remembers the merchant-fingerprint-to-category association and applies it automatically on future syncs. High-confidence matches auto-apply silently with provenance; lower-confidence matches surface as one-tap suggestions instead of blank uncategorized rows. Fully deterministic in v1 — no LLM calls.",
+  "timing": {
+    "draftedOn": "2026-07-07",
+    "plannedEarliestExecution": "immediately — no gating features",
+    "gatingCondition": "None. Builds on existing merchant-normalizer fingerprints (Feature 19) and the categorization pipeline (Feature 1/4). Independent of Feature 23 push notifications."
+  },
+  "principles": [
+    "The parent's manual categorization is the training signal; the system learns silently from normal use with zero extra dialogs",
+    "Explicit category_rules always outrank learned associations; learned associations outrank Plaid taxonomy fallback",
+    "A manually-set category is never overwritten by any automatic pass — manual is terminal",
+    "Auto-apply only on unanimous history (every prior occurrence of this fingerprint has the same category, minimum occurrence count met); anything less is a suggestion, not an action",
+    "Suggestions are one-tap accept/reject and must work well on mobile — the goal is turning categorization from typing into confirming",
+    "A rejected suggestion is remembered and never re-offered for the same fingerprint-category pair",
+    "Contextual categories don't teach: categories flagged exclude_from_learning (e.g. Vacation, where dining/gas/flights all get stamped regardless of merchant) never create learned rules, never count in history votes, and are never suggested — mirroring the existing exclude_from_baseline pattern from migration 016",
+    "Every automatically assigned category carries visible provenance (rule / learned / plaid) so trust is inspectable",
+    "V1 is pure SQL + deterministic code — no OpenAI calls anywhere in this feature",
+    "SECRETS INVARIANT: learned rules store only merchant fingerprints and category ids — no tokens, no account identifiers beyond existing transaction rows"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — migration 023 adds learned_category_rules table plus categorization provenance and suggestion columns on transactions",
+    "integrationPoints": "lib/sync.js post-sync categorization pass, lib/categorization.js precedence chain, PUT /api/transactions/:id/category and bulk-categorize endpoints as learning hooks, transactions page suggestion chips",
+    "testing": "node:test for learning/vote/precedence logic with fixture histories; Playwright for suggestion accept/reject flows on the transactions page"
+  },
+  "executionStatus": {
+    "mode": "Seed stories with passes false and update during implementation.",
+    "branch": "feature/learned-auto-categorization",
+    "lastUpdatedOn": "2026-07-07",
+    "summary": "Drafted. Not started.",
+    "currentFocus": "Slice A: schema + learning capture on manual categorization endpoints.",
+    "deferredForV1": [
+      "LLM fallback classifier for never-before-seen merchants (single category-id output feeding the suggestion queue, no prose) — revisit after v1 hit-rate is measured",
+      "Amount- or account-conditional learned rules (e.g. same merchant, different category above a dollar threshold)",
+      "Kid-surface exposure of suggestions — suggestions are parent-only in v1",
+      "Bulk backfill review UI for re-scoring the entire historical uncategorized set beyond the standard retroactive pass",
+      "Learned-rule management/admin page — v1 exposes learned rules read-only via API for debugging only"
+    ]
+  },
+  "userStories": [
+    {
+      "id": "LAC-024-001",
+      "title": "Manual categorization silently teaches the system",
+      "acceptanceCriteria": [
+        "When a parent sets or changes a transaction's category via PUT /api/transactions/:id/category, Family Pulse upserts a learned_category_rules row keyed by the transaction's merchant fingerprint (buildMerchantFingerprint) with the chosen category",
+        "The bulk categorize endpoint records the same learning for every affected transaction's fingerprint",
+        "Re-categorizing a merchant to a different category updates the learned association to the new category rather than accumulating conflicting rows",
+        "Learning capture never blocks or fails the categorization request — learning errors are logged and swallowed",
+        "Transactions with an 'unknown' fingerprint (no usable merchant text) do not create learned rules",
+        "Categorizing into a category flagged exclude_from_learning creates and updates no learned rule — the vacation-stamping workflow (Mobil charge stamped Vacation) must leave the merchant's everyday learned association untouched",
+        "Kid role cannot trigger learning because kids cannot categorize (existing guard remains intact)"
+      ],
+      "priority": 1,
+      "estimatedLines": "+120/-10",
+      "testStrategy": "node:test covering upsert-on-change semantics, unknown-fingerprint skip, and non-blocking failure behavior via the existing categories/transactions API test harness.",
+      "passes": false
+    },
+    {
+      "id": "LAC-024-002",
+      "title": "History vote auto-applies categories on sync",
+      "acceptanceCriteria": [
+        "During the post-sync categorization pass, each uncategorized non-transfer non-hidden transaction is fingerprinted and checked against learned_category_rules and against historical categorized transactions sharing the fingerprint",
+        "If a learned rule exists (applies immediately at count 1 — operator categorization is trusted), or if all prior categorized occurrences of the fingerprint (minimum 3) agree on one category, the category is auto-applied with categorization_source = 'learned'",
+        "Precedence is explicit category_rules first, then learned associations; Plaid taxonomy no longer silently auto-applies — it becomes suggestion-only (behavior change from Feature 1 documented in the migration notes)",
+        "Transactions whose category was set manually (categorization_source = 'manual') are never touched by any automatic pass, including applyRulesRetroactive",
+        "History votes exclude priors whose current category is flagged exclude_from_learning from both numerator and denominator — vacation-stamped occurrences of a merchant neither vote for Vacation nor break unanimity for the merchant's everyday category",
+        "The sync log line reports counts by source: rules, learned, plaid, suggested",
+        "categorizeMany avoids per-row queries for the history vote — fingerprint histories are computed in bulk (single grouped query), keeping sync time flat as transaction count grows"
+      ],
+      "priority": 1,
+      "estimatedLines": "+180/-40",
+      "testStrategy": "node:test with fixture histories: unanimous ≥3 auto-applies, 2-occurrence unanimity does not, explicit rule beats conflicting learned rule, manual rows untouched, bulk-query behavior asserted via result counts.",
+      "passes": false
+    },
+    {
+      "id": "LAC-024-003",
+      "title": "Low-confidence matches become one-tap suggestions",
+      "acceptanceCriteria": [
+        "When history for a fingerprint is majority-but-not-unanimous, or the only signal is the Plaid taxonomy mapping for a never-seen merchant, the transaction gets suggested_category_id and suggestion_source populated instead of a silent category assignment",
+        "Categories flagged exclude_from_learning are never proposed as suggestions",
+        "The transactions page shows uncategorized rows with a suggestion as a compact chip: suggested category name with accept and reject affordances, usable one-handed on mobile",
+        "Accepting applies the category, marks categorization_source = 'manual' semantics for learning purposes (it reinforces the learned rule), and clears the suggestion fields",
+        "Rejecting clears the suggestion and records the fingerprint-category rejection so the same pair is never suggested again; a different category may still be suggested later",
+        "An 'Uncategorized with suggestions' count is visible from the transactions page filter area so the review pass is discoverable",
+        "Suggestion accept/reject endpoints are parent-only"
+      ],
+      "priority": 1,
+      "estimatedLines": "+220/-20",
+      "testStrategy": "node:test for suggestion generation thresholds, rejection memory, and auth guards; Playwright for chip rendering, accept updating the row in place, and reject removing the chip.",
+      "passes": false
+    },
+    {
+      "id": "LAC-024-004",
+      "title": "Provenance is visible and manual always wins",
+      "acceptanceCriteria": [
+        "Transaction API payloads include categorization_source (manual, rule, learned, plaid, or null)",
+        "The transaction detail overlay shows a small provenance badge explaining why the current category was applied",
+        "Manually changing a category on an auto-categorized transaction sets categorization_source = 'manual' and updates the learned association per LAC-024-001",
+        "Existing transactions are backfilled to categorization_source = 'manual' where a category is set, so history is protected from retroactive automatic passes from day one",
+        "applyRulesRetroactive respects the manual guard and reports how many rows it skipped for that reason"
+      ],
+      "priority": 2,
+      "estimatedLines": "+110/-15",
+      "testStrategy": "node:test for source transitions and retroactive-pass guard; Playwright spot-check for badge presence in the detail overlay.",
+      "passes": false
+    },
+    {
+      "id": "LAC-024-005",
+      "title": "Learned rules are inspectable for debugging",
+      "acceptanceCriteria": [
+        "A parent-only GET endpoint lists learned rules with fingerprint, category, occurrence count, last-applied timestamp, and rejection pairs",
+        "The endpoint is read-only in v1 — no learned-rule editing UI (deleting a bad association happens by re-categorizing a transaction, which updates it)",
+        "Learned rule and rejection tables are included in db/clear-linked-data.js preservation notes with an explicit decision on clear-vs-preserve (preserve, since they encode household intent like categories and category_rules)"
+      ],
+      "priority": 3,
+      "estimatedLines": "+70/-5",
+      "testStrategy": "node:test for endpoint shape and parent-only guard.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "A single early miscategorization could propagate silently via auto-apply. Mitigation: unanimous-history threshold of 3, provenance badge, manual correction immediately rewrites the learned rule, and the review-queue path for anything ambiguous.",
+      "Fingerprint collisions (two genuinely different merchants normalizing to the same fingerprint) could cross-categorize. Mitigation: fingerprints already drive recurring detection reliably for this household; collisions surface visibly via provenance and are correctable in one tap."
+    ],
+    "low": [
+      "History-vote query cost on large transaction tables. Mitigation: single grouped query per sync pass plus index on the new fingerprint-backed lookup.",
+      "Suggestion chips could clutter the transactions list. Mitigation: chips render only on uncategorized rows with a pending suggestion.",
+      "Backfilling categorization_source = 'manual' for all existing categorized rows slightly overstates manual intent for rows that were originally rule/plaid-applied. Accepted: it errs on the side of never clobbering existing data."
+    ],
+    "operational": [
+      "If the deferred LLM fallback ships later, it must feed the suggestion queue only — never auto-apply — preserving the deterministic-auto-apply invariant.",
+      "Learned rules encode household intent; back them up with the same cadence as categories and category_rules."
+    ]
+  },
+  "preFlightChecklist": [
+    "DECIDED 2026-07-07: a learned rule created by explicit manual categorization applies immediately at count 1 — operator categorization is trusted as direct teaching; the ≥3 unanimity threshold applies only to inferred history votes with no learned rule",
+    "DECIDED 2026-07-07: Plaid taxonomy fallback is demoted from silent auto-apply to suggestion-only — it is the least reliable signal and now has a suggestion surface",
+    "Decide suggestion majority threshold (recommended: >= 60% of learning-eligible priors with >= 3 total occurrences)",
+    "DECIDED 2026-07-07: migration 023 seeds exclude_from_learning = true for both Vacation and Travel — Vacation is the active stamp-over category today; Travel is reserved for future unreimbursed business travel, which is the same contextual stamp-over pattern, so it ships pre-protected (admin toggle remains if repurposed)",
+    "Expose the exclude_from_learning flag in the admin category editor alongside the existing exclude_from_baseline toggle",
+    "Verify buildMerchantFingerprint output distribution on the real transaction table for collision hot-spots before trusting auto-apply (one-off SQL check)",
+    "Confirm index strategy: expression index or stored fingerprint column on transactions (recommended: stored column populated on sync, backfilled in migration 023)"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Schema + learning capture",
+      "goal": "Migration 023 and silent learning from the existing categorization endpoints.",
+      "notes": [
+        "learned_category_rules (fingerprint, category_id, source, occurrence stats) + suggestion_rejections (fingerprint, category_id)",
+        "categories.exclude_from_learning flag (mirrors exclude_from_baseline), seeded true for Vacation and Travel, editable in admin",
+        "transactions: categorization_source, suggested_category_id, suggestion_source, merchant_fingerprint columns with backfill",
+        "Hook PUT category and bulk endpoints; upsert semantics; never block the request"
+      ]
+    },
+    {
+      "name": "Slice B: Sync-time history vote + precedence chain",
+      "goal": "Auto-apply unanimous matches and generate suggestions during categorizeMany.",
+      "notes": [
+        "Bulk fingerprint-history query, no per-row lookups",
+        "Precedence: category_rules > learned (count-1 trusted); plaid demoted to suggestion-only (decided 2026-07-07)",
+        "Manual guard in categorizeMany and applyRulesRetroactive; per-source counts in sync log"
+      ]
+    },
+    {
+      "name": "Slice C: Suggestion review UI + provenance",
+      "goal": "One-tap accept/reject chips on the transactions page and provenance badge in detail overlay.",
+      "notes": [
+        "Mobile-first chip layout on uncategorized rows",
+        "Accept reinforces learning; reject writes rejection memory",
+        "Suggestions-pending count near existing filters"
+      ]
+    },
+    {
+      "name": "Slice D: Inspection endpoint + regression coverage",
+      "goal": "Read-only learned-rules endpoint plus full test sweep.",
+      "notes": [
+        "Parent-only GET for learned rules and rejections",
+        "clear-linked-data.js preservation decision documented",
+        "Playwright regression on existing categorize and create-rule flows to prove no behavior change"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+700/-90",
+    "storiesCount": 5,
+    "filesCreated": [
+      "db/migrations/023-learned-categorization.sql",
+      "lib/learned-categorization.js",
+      "test/learned-categorization.test.js"
+    ]
+  }
+}
