@@ -617,3 +617,36 @@
 .create-rule-row strong { color: var(--text); }
 
 .tx-inline-action { min-height: 32px; padding: 6px 10px; }
+
+/* Feature 24: learned categorization suggestion chips */
+.tx-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding: 0.28rem 0.35rem 0.28rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent, #7c3aed) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #7c3aed) 8%, transparent);
+  color: var(--text);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tx-suggestion-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tx-suggestion .btn-xs {
+  min-height: 28px;
+  padding: 0 0.5rem;
+}
+
+@media (max-width: 560px) {
+  .tx-suggestion {
+    border-radius: 14px;
+    flex-wrap: wrap;
+  }
+}

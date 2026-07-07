@@ -1,7 +1,7 @@
 {
-  "currentFeature": "Feature #22a: Merchant Rename Suggestions",
-  "status": "complete",
-  "prdPath": "planning/features/feature-22a-prd.json",
+  "currentFeature": "Feature #24: Learned Auto-Categorization",
+  "status": "in_progress",
+  "prdPath": "planning/features/feature-24-prd.json",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
@@ -29,7 +29,8 @@
   ],
   "skippedFeatures": [],
   "futureFeatures": [
-    "Feature #9: Planning & Goals (after Feature 20 provides the forward-looking engine)",
-    "Feature #23: Push Notification Reminders Foundation"
+    "Feature #25: Recurring Stream Health Alerts (price creep, missed income, new commitments — pairs with Feature 23 plumbing)",
+    "Feature #23: Push Notification Reminders Foundation",
+    "Feature #9: Planning & Goals (after Feature 20 provides the forward-looking engine; sinking-funds/envelope angle per 2026-07-07 review)"
   ]
 }

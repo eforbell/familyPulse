@@ -71,3 +71,12 @@ INSERT INTO app_config (key, value) VALUES
   ('large_expense_threshold', '1000'),
   ('budget_overrun_threshold_pct', '15')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+
+-- Learned categorization contextual exclusions (Feature 24)
+UPDATE categories
+SET exclude_from_learning = true
+WHERE name IN ('Vacation', 'Travel')
+  AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'categories' AND column_name = 'exclude_from_learning'
+  );

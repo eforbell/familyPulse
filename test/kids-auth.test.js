@@ -183,9 +183,9 @@ describe('kids authorization', () => {
     assert.equal(res.status, 403);
   });
 
-  // ── Kid CAN categorize own transaction ──────────────────────
+  // ── Feature 24: kids cannot create learned categorization signals ──
 
-  it('kid can categorize own transaction', async () => {
+  it('kid gets 403 when categorizing own transaction', async () => {
     // Get a valid category ID
     const catRes = await kidReq('api/categories');
     const cats = await catRes.json();
@@ -195,7 +195,7 @@ describe('kids authorization', () => {
       method: 'PUT',
       body: JSON.stringify({ category_id: cats[0].id })
     });
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 403);
   });
 
   it('kid gets 403 when categorizing parent transaction', async () => {

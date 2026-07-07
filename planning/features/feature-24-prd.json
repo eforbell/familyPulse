@@ -30,8 +30,8 @@
     "mode": "Seed stories with passes false and update during implementation.",
     "branch": "feature/learned-auto-categorization",
     "lastUpdatedOn": "2026-07-07",
-    "summary": "Drafted. Not started.",
-    "currentFocus": "Slice A: schema + learning capture on manual categorization endpoints.",
+    "summary": "In progress. Schema, backend learning/suggestion flow, admin flag, transaction suggestion chips, and targeted unit coverage implemented locally; full DB/e2e verification blocked by unavailable local test Postgres.",
+    "currentFocus": "Run migration-backed API/e2e smoke tests once the local test database is available; harden any regressions.",
     "deferredForV1": [
       "LLM fallback classifier for never-before-seen merchants (single category-id output feeding the suggestion queue, no prose) — revisit after v1 hit-rate is measured",
       "Amount- or account-conditional learned rules (e.g. same merchant, different category above a dollar threshold)",

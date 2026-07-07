@@ -221,9 +221,19 @@ function renderTransactions() {
       : (tx.source !== 'plaid'
           ? `<button class="btn-ghost btn-xs tx-inline-action" onclick="hideTx(event, ${tx.id})" title="Suppress duplicate">Suppress</button>`
           : '');
+    const provenanceBadge = tx.categorization_source && tx.categorization_source !== 'manual'
+      ? `<span class="status-tag info" title="Categorized by ${esc(tx.categorization_source)}">${esc(tx.categorization_source)}</span>`
+      : '';
+    const suggestionChip = !tx.category_id && tx.suggested_category_id
+      ? `<div class="tx-suggestion" onclick="event.stopPropagation()">
+          <span class="tx-suggestion-label">Suggest: ${esc(plainCategoryName(tx.suggested_category_name))}</span>
+          <button class="btn-ghost btn-xs" onclick="acceptCategorySuggestion(event, ${tx.id})">Accept</button>
+          <button class="btn-ghost btn-xs" onclick="rejectCategorySuggestion(event, ${tx.id})">Reject</button>
+        </div>`
+      : '';
     const categoryLine = tx.category_name
-      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`
-      : `<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`;
+      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span>${provenanceBadge}${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`
+      : `<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>${suggestionChip}`;
     const pendingTag = tx.pending ? '<span class="status-tag">Pending</span>' : '';
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
@@ -249,9 +259,11 @@ function renderTransactions() {
 
 
 function renderStats() {
+  const suggestionCount = transactions.filter(tx => !tx.category_id && tx.suggested_category_id).length;
   $('tx-stats').innerHTML = `
     <span><span class="label">Showing</span> <span class="value">${transactions.length} of ${txTotal}</span></span>
     <span><span class="label">Net</span> <span class="value">${fmtTxAmount(txSum)}</span></span>
+    ${suggestionCount ? `<span><span class="label">Suggestions</span> <span class="value">${suggestionCount}</span></span>` : ''}
   `;
 }
 
@@ -512,6 +524,28 @@ async function pickCategory(categoryId) {
   }
 }
 
+async function acceptCategorySuggestion(event, transactionId) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${transactionId}/category-suggestion/accept`, { method: 'POST' });
+    await loadTransactions();
+    if (currentDetailId === transactionId) await refreshCurrentDetail();
+  } catch (err) {
+    console.error('Suggestion accept failed:', err);
+  }
+}
+
+async function rejectCategorySuggestion(event, transactionId) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${transactionId}/category-suggestion/reject`, { method: 'POST' });
+    await loadTransactions();
+    if (currentDetailId === transactionId) await refreshCurrentDetail();
+  } catch (err) {
+    console.error('Suggestion reject failed:', err);
+  }
+}
+
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
   assignTarget = null;
@@ -690,7 +724,13 @@ function renderTransactionDetail() {
   ].filter(Boolean).join(' · ');
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
-  $('tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
+  const provenance = tx.categorization_source && tx.categorization_source !== 'manual'
+    ? ` <span class="status-tag info">${esc(tx.categorization_source)}</span>`
+    : '';
+  const suggestion = !tx.category_name && tx.suggested_category_name
+    ? ` <span class="status-tag info">suggested: ${esc(plainCategoryName(tx.suggested_category_name))}</span>`
+    : '';
+  $('tx-detail-category').innerHTML = `${esc(plainCategoryName(tx.category_name) || 'Uncategorized')}${provenance}${suggestion}`;
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';

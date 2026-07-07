@@ -45,7 +45,7 @@ function renderCategories() {
         <div class="admin-row-copy">
           <span class="name">${esc(plainCategoryName(c.name))}</span>
           <span class="meta">
-            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}
+            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}${c.exclude_from_learning ? ' · excluded from learning' : ''}
           </span>
         </div>
       </div>
@@ -77,6 +77,7 @@ function openCategoryForm(id) {
   $('cat-income').checked = cat?.is_income || false;
   $('cat-transfer').checked = cat?.is_transfer_class || false;
   $('cat-exclude-from-baseline').checked = cat?.exclude_from_baseline || false;
+  $('cat-exclude-from-learning').checked = cat?.exclude_from_learning || false;
   selectedColor = cat?.color || '#6b7280';
 
   // Render color palette
@@ -93,14 +94,19 @@ function syncCategoryFlags() {
   const isIncome = $('cat-income').checked;
   const isTransfer = $('cat-transfer').checked;
   const excludeToggle = $('cat-exclude-from-baseline');
+  const learningToggle = $('cat-exclude-from-learning');
 
   if (isIncome && isTransfer) {
     $('cat-transfer').checked = false;
   }
 
   excludeToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
+  learningToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
   if (excludeToggle.disabled) {
     excludeToggle.checked = false;
+  }
+  if (learningToggle.disabled) {
+    learningToggle.checked = false;
   }
 }
 
@@ -125,7 +131,8 @@ async function saveCategory() {
     icon: $('cat-icon').value.trim() || null,
     is_income: $('cat-income').checked,
     is_transfer_class: $('cat-transfer').checked,
-    exclude_from_baseline: $('cat-exclude-from-baseline').checked
+    exclude_from_baseline: $('cat-exclude-from-baseline').checked,
+    exclude_from_learning: $('cat-exclude-from-learning').checked
   };
 
   if (!body.name) return alert('Name is required');
