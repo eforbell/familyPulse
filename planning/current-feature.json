@@ -1,7 +1,7 @@
 {
-  "currentFeature": "Feature #24: Learned Auto-Categorization",
-  "status": "in_progress",
-  "prdPath": "planning/features/feature-24-prd.json",
+  "currentFeature": "Feature #25: Recurring Stream Health Alerts",
+  "status": "ready_to_begin",
+  "prdPath": "planning/features/feature-25-prd.json",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",
     "Feature #2: Transaction Browser (Web UI)",
@@ -25,11 +25,11 @@
     "Feature #20: Predictive Cash Flow Engine",
     "Feature #21: Transaction Memory",
     "Feature #22: Transaction Identity Overrides",
-    "Feature #22a: Merchant Rename Suggestions"
+    "Feature #22a: Merchant Rename Suggestions",
+    "Feature #24: Learned Auto-Categorization"
   ],
   "skippedFeatures": [],
   "futureFeatures": [
-    "Feature #25: Recurring Stream Health Alerts (price creep, missed income, new commitments — pairs with Feature 23 plumbing)",
     "Feature #23: Push Notification Reminders Foundation",
     "Feature #9: Planning & Goals (after Feature 20 provides the forward-looking engine; sinking-funds/envelope angle per 2026-07-07 review)"
   ]

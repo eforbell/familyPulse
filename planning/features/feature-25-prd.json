@@ -1,0 +1,195 @@
+{
+  "branchName": "feature/recurring-health-alerts",
+  "projectName": "Recurring Stream Health Alerts",
+  "description": "Turn the recurring detector's existing intelligence into proactive alerts. The detector already computes price changes, expected next dates, and staleness — but that knowledge sits passively on the recurring page waiting to be noticed. This feature bridges detections into the existing notification pipeline: subscription price creep, missed expected income, and newly detected recurring commitments become deliverable events with per-member subscriptions, cooldowns, and dedup. Deterministic end to end — no LLM.",
+  "timing": {
+    "draftedOn": "2026-07-07",
+    "plannedEarliestExecution": "after Feature 24 merges (migration numbering coordination only — no functional dependency)",
+    "gatingCondition": "None functionally. Recurring substrate (Features 19/22) and notification foundation (migrations 019/020, brrr transport, send-notifications.js runner) already exist. Independent of Feature 23 push reminders. Take the next available migration number after Feature 24's 023."
+  },
+  "principles": [
+    "Alert on what the detector already knows — this feature adds event plumbing, not new inference, except for missed-income timing",
+    "Missed income must fire on the stream's own schedule tolerance (expected_next_date + tolerance_days), not the 2x-interval stale heuristic — a late paycheck matters in days, not weeks",
+    "Every alert is deterministic and explains itself with numbers: prior amount, new amount, percent, expected date, days late",
+    "One notification per distinct event: source_key dedup + cooldown via existing notification_event_state, so a price change alerts once, not on every sync",
+    "Ignored and likely_cancelled streams never alert; paused streams never alert",
+    "Alerts respect per-member subscriptions exactly like existing event types — parents subscribe, kids are out of scope",
+    "In-app visibility mirrors every notification: the recurring page shows the same alerts, so nothing is notification-only",
+    "No LLM anywhere in this feature — these are the highest signal-per-word notifications a cash-flow app can send precisely because they are just numbers",
+    "SECRETS INVARIANT: notification payloads contain merchant display names, amounts, and dates only — no account numbers, tokens, or institution identifiers"
+  ],
+  "techStack": {
+    "language": "Node.js + vanilla JS",
+    "runtime": "Express.js",
+    "database": "PostgreSQL — one migration extending the event_type CHECK constraints (pattern from migration 020) and adding a recurring_alert_events table for event provenance",
+    "integrationPoints": "lib/recurring-detector.js post-detection hook, lib/notification-rules.js EVENT_TYPES registry + evaluateNotificationCandidates, scripts/send-notifications.js runner (unchanged), public/recurring.html alert surfacing, admin notification settings",
+    "testing": "node:test for event generation, thresholds, dedup, and subscription gating with fixture streams; Playwright for recurring page alert rendering and admin toggles"
+  },
+  "executionStatus": {
+    "mode": "Seed stories with passes false and update during implementation.",
+    "branch": "feature/recurring-health-alerts",
+    "lastUpdatedOn": "2026-07-07",
+    "summary": "Drafted. Not started. Queued behind Feature 24.",
+    "currentFocus": "Not started.",
+    "deferredForV1": [
+      "Missed expense/bill alerts (autopay failed) — same mechanism as missed income; ship income first where the household stakes are clearest, then extend by config",
+      "Price-drop notifications (direction = down) — visible on the recurring page already; not worth a push in v1",
+      "Cancellation confirmation flow (likely_cancelled -> confirm-and-archive UI)",
+      "Digest-style batching of multiple alerts into one notification",
+      "Kid-facing alert surfaces"
+    ]
+  },
+  "userStories": [
+    {
+      "id": "RHA-025-001",
+      "title": "Price creep on a recurring stream raises an event",
+      "acceptanceCriteria": [
+        "When the detector records a price change with direction = 'up' and price_change_pct >= the configured threshold (app_config price_creep_threshold_pct, default 5), a recurring_price_creep event candidate is created",
+        "The event payload includes merchant name, prior amount, new amount, percent change, and frequency — enough to act on without opening the app",
+        "source_key is derived from the stream identity plus price_change_date so one price change alerts exactly once, regardless of how many syncs re-observe it",
+        "Streams with status ignored, paused, or likely_cancelled never generate price events",
+        "A subsequent distinct price change on the same stream (new price_change_date) is a new event",
+        "Downward price changes generate no notification in v1"
+      ],
+      "priority": 1,
+      "estimatedLines": "+110/-5",
+      "testStrategy": "node:test with fixture streams: at-threshold fires, below-threshold does not, dedup across repeated evaluation, status exclusions, and repeat-change re-fire.",
+      "passes": false
+    },
+    {
+      "id": "RHA-025-002",
+      "title": "Missed expected income alerts within days, not weeks",
+      "acceptanceCriteria": [
+        "An active income stream whose expected_next_date + tolerance_days has passed with no new occurrence in recurring_expense_history generates a recurring_missed_income event",
+        "The check runs as part of the existing post-sync recurring refresh so a deposit that arrived in the same sync cancels the candidate before evaluation",
+        "The event payload includes merchant name, expected date, days overdue, and typical amount",
+        "source_key is derived from the stream identity plus the specific missed expected_next_date so one missed occurrence alerts once, and the next missed occurrence is a distinct event",
+        "When the income eventually arrives, no retraction notification is sent in v1 — the recurring page simply returns to healthy state",
+        "Override fields (override_expected_next_date) are respected as the authoritative expected date when set",
+        "The existing stale/likely_cancelled status transitions are unchanged — this alert is additive and faster, not a replacement"
+      ],
+      "priority": 1,
+      "estimatedLines": "+140/-10",
+      "testStrategy": "node:test with date-controlled fixtures: fires at expected+tolerance+1, does not fire within tolerance, same-sync arrival suppresses, override date respected, per-occurrence dedup.",
+      "passes": false
+    },
+    {
+      "id": "RHA-025-003",
+      "title": "New recurring commitment detection catches silent subscriptions",
+      "acceptanceCriteria": [
+        "When the detector inserts a recurring_expenses row that did not previously exist (new stream identity) with cashflow_type = 'expense' and confidence medium or high, a recurring_new_commitment event is generated — the free-trial-quietly-converted case",
+        "The event payload includes merchant name, amount, frequency, and first/last seen dates",
+        "New income streams do not notify in v1 (new paychecks are never a surprise to the household)",
+        "Streams first detected during a historical backfill or initial detection run do not flood notifications — a one-time high-water mark (streams existing before this feature's migration) is exempt",
+        "source_key is the stream identity so a given commitment alerts exactly once ever",
+        "Low-confidence new streams do not notify but remain visible on the recurring page as today"
+      ],
+      "priority": 1,
+      "estimatedLines": "+100/-5",
+      "testStrategy": "node:test: new medium/high expense stream fires, income does not, low confidence does not, pre-existing streams exempt via migration marker, once-ever dedup.",
+      "passes": false
+    },
+    {
+      "id": "RHA-025-004",
+      "title": "Events ride the existing notification pipeline end to end",
+      "acceptanceCriteria": [
+        "Migration extends the event_type CHECK constraints on member_notification_subscriptions, notification_event_state, and notification_delivery_log with the three new types (exact pattern from migration 020)",
+        "The three event types are registered in lib/notification-rules.js EVENT_TYPES with household-friendly labels and descriptions, and evaluateNotificationCandidates emits their candidates",
+        "Per-member subscriptions, interruption levels, cooldowns, and delivery logging work identically to existing event types with zero changes to scripts/send-notifications.js beyond what candidate evaluation provides",
+        "price_creep_threshold_pct is configurable in the admin notification settings alongside existing thresholds",
+        "Each new event type can be independently enabled/disabled per member like existing types",
+        "Notification copy follows the existing 'Family Pulse:' prefix convention and stays under a phone lock-screen-friendly length"
+      ],
+      "priority": 1,
+      "estimatedLines": "+150/-20",
+      "testStrategy": "node:test extending notification-rules.test.js: registry shape, candidate emission, subscription gating, cooldown state writes; dry-run pass through send-notifications flow with fixtures.",
+      "passes": false
+    },
+    {
+      "id": "RHA-025-005",
+      "title": "Recurring page mirrors every alert in-app",
+      "acceptanceCriteria": [
+        "The recurring page shows an alerts strip summarizing active health events: price creep (existing Up X% badge extended), missed income (days overdue), and recent new commitments",
+        "Each alert links or scrolls to the affected stream card",
+        "Alert history is inspectable: a recurring_alert_events table records generated events with timestamps so 'did Pulse tell me about this?' is answerable",
+        "The strip renders correctly on mobile (iOS web wrapper) — single-column stacking, no horizontal scroll",
+        "Kids do not see the alerts strip (recurring page access rules unchanged)"
+      ],
+      "priority": 2,
+      "estimatedLines": "+160/-15",
+      "testStrategy": "node:test for alert-history endpoint shape and role gating; Playwright for strip rendering, mobile viewport, and stream-card linkage.",
+      "passes": false
+    }
+  ],
+  "riskAssessment": {
+    "high": [],
+    "medium": [
+      "Missed-income false positives from schedule drift (weekday-anchored deposits like SSA shift dates month to month). Mitigation: per-stream tolerance_days is already tuned per frequency window, overrides are authoritative, and Feature 22's anchor-drop fix removed the duplicate-stream source of drift; monitor and widen tolerance per stream if needed.",
+      "Notification fatigue if thresholds are too sensitive. Mitigation: 5% default price-creep threshold, once-ever/once-per-occurrence dedup, per-member opt-in per event type, and existing cooldown machinery."
+    ],
+    "low": [
+      "Initial-detection flood of new-commitment alerts. Mitigation: migration high-water mark exempts all pre-existing streams.",
+      "Amount-band noise on variable recurring charges (e.g. utilities) misread as price creep. Mitigation: detector already bands amounts with tolerance; threshold applies to the banded change the detector itself reports.",
+      "Migration numbering collision with in-flight Feature 24. Mitigation: take the next available number at implementation time; PRD deliberately does not hardcode one."
+    ],
+    "operational": [
+      "brrr transport availability is a household infrastructure dependency shared with existing notifications — no new failure mode, but alerts inherit its outages.",
+      "If Feature 23 (push reminders foundation) later changes transports, these events must migrate with the existing four event types as a unit."
+    ]
+  },
+  "preFlightChecklist": [
+    "Confirm default price_creep_threshold_pct (recommended 5) and whether it should be absolute-dollar-gated too (e.g. ignore creep under $2/month even if over threshold)",
+    "Decide missed-income evaluation timing: post-sync hook only (recommended — three syncs daily is fresh enough) vs. its own cron",
+    "Confirm the new-commitment confidence floor (recommended: medium)",
+    "Verify per-stream tolerance_days values look sane on the live recurring_expenses table before trusting them as the missed-income grace period",
+    "Decide whether recurring_alert_events history needs a retention cap (recommended: keep forever — it is tiny)",
+    "Take the next available migration number after Feature 24 lands"
+  ],
+  "executionSlices": [
+    {
+      "name": "Slice A: Event generation from detector state",
+      "goal": "Price creep, missed income, and new commitment candidates computed post-sync with dedup keys.",
+      "notes": [
+        "Post-detection hook in the recurring refresh path",
+        "recurring_alert_events table + migration with constraint extensions and new-commitment high-water mark",
+        "Pure functions for each detector -> event rule, fixture-tested"
+      ]
+    },
+    {
+      "name": "Slice B: Pipeline registration + admin config",
+      "goal": "Three new event types delivered end to end through the existing notification machinery.",
+      "notes": [
+        "EVENT_TYPES registry entries + evaluateNotificationCandidates emission",
+        "price_creep_threshold_pct in admin notification settings",
+        "Dry-run verification via send-notifications.js --dry-run"
+      ]
+    },
+    {
+      "name": "Slice C: In-app alerts strip + history",
+      "goal": "Recurring page mirrors all alerts with mobile-first layout and inspectable history.",
+      "notes": [
+        "Alerts strip above existing stream sections",
+        "Alert-history endpoint (parent-scoped)",
+        "Playwright coverage including mobile viewport"
+      ]
+    },
+    {
+      "name": "Slice D: Tuning + regression sweep",
+      "goal": "Thresholds validated against live stream data; existing notification and recurring behavior proven unchanged.",
+      "notes": [
+        "One-off SQL sanity check of tolerance_days and price_change distributions on production data",
+        "Regression: existing four event types still evaluate and deliver identically",
+        "Recurring page existing sections (active/stale/cancelled) unchanged"
+      ]
+    }
+  ],
+  "metrics": {
+    "estimatedTotalLines": "+660/-55",
+    "storiesCount": 5,
+    "filesCreated": [
+      "db/migrations/0XX-recurring-health-alerts.sql (number assigned at implementation)",
+      "lib/recurring-alerts.js",
+      "test/recurring-alerts.test.js"
+    ]
+  }
+}
