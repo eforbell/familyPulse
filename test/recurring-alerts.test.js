@@ -6,7 +6,8 @@ const {
   buildMissedIncomeEvent,
   buildNewCommitmentEvent,
   buildPriceCreepEvent,
-  buildRecurringAlertEvents
+  buildRecurringAlertEvents,
+  resolveInactiveMissedIncomeAlerts
 } = require('../lib/recurring-alerts');
 
 const baseExpense = {
@@ -80,4 +81,31 @@ describe('recurring health alert event rules', () => {
       'recurring_price_creep'
     ]);
   });
+
+  it('auto-resolves missed income alerts that are no longer active', async () => {
+    const queries = [];
+    const client = {
+      async query(sql, params) {
+        queries.push({ sql, params });
+        return { rows: [], rowCount: 0 };
+      }
+    };
+
+    await resolveInactiveMissedIncomeAlerts(client, [{
+      event_type: 'recurring_missed_income',
+      source_key: 'recurring:7:missed-income:2026-07-19'
+    }]);
+
+    assert.equal(queries.length, 1);
+    assert.ok(String(queries[0].sql).includes("event_type = 'recurring_missed_income'"));
+    assert.ok(String(queries[0].sql).includes('source_key <> ALL'));
+    assert.deepEqual(queries[0].params, [['recurring:7:missed-income:2026-07-19']]);
+
+    queries.length = 0;
+    await resolveInactiveMissedIncomeAlerts(client, []);
+    assert.equal(queries.length, 1);
+    assert.ok(String(queries[0].sql).includes('dismissed_at IS NULL'));
+    assert.equal(queries[0].params, undefined);
+  });
+
 });
