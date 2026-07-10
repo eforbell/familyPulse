@@ -29,8 +29,8 @@
     "mode": "Seed stories with passes false and update during implementation.",
     "branch": "feature/recurring-health-alerts",
     "lastUpdatedOn": "2026-07-10",
-    "summary": "Started. Core recurring health alert plumbing is implemented: migration 024, alert event generation, notification candidate integration, recurring-page alert strip, price threshold config, and regression tests.",
-    "currentFocus": "Next slice: broaden UI polish/e2e coverage and run production-like dry-run validation with seeded recurring alert events.",
+    "summary": "Started. Core recurring health alert plumbing is implemented and validated: migration 024, alert event generation, notification candidate integration, recurring-page alert strip, price threshold config, unit/API regressions, full node suite, and recurring Playwright spec.",
+    "currentFocus": "Next slice: production-like dry-run validation with seeded recurring alert events and any polish from live review.",
     "deferredForV1": [
       "Missed expense/bill alerts (autopay failed) — same mechanism as missed income; ship income first where the household stakes are clearest, then extend by config",
       "Price-drop notifications (direction = down) — visible on the recurring page already; not worth a push in v1",
@@ -122,7 +122,8 @@
       "priority": 2,
       "estimatedLines": "+160/-15",
       "testStrategy": "node:test for alert-history endpoint shape and role gating; Playwright for strip rendering, mobile viewport, and stream-card linkage.",
-      "passes": false
+      "passes": true,
+      "implementationNote": "Recurring page alert strip and parent dismiss implemented; npx playwright test test/e2e/recurring.spec.js passed 4/4 on 2026-07-10 after local Playwright browser install."
     }
   ],
   "riskAssessment": {
