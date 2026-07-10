@@ -286,7 +286,7 @@ const DEFAULT_CATEGORIES = [
   { name: 'Subscriptions',   color: '#6366f1', is_income: false, is_transfer_class: false, icon: '📦' },
   { name: 'Home & Garden',   color: '#84cc16', is_income: false, is_transfer_class: false, icon: '🏡' },
   { name: 'Insurance',       color: '#78716c', is_income: false, is_transfer_class: false, icon: '🛡️' },
-  { name: 'Travel',          color: '#0ea5e9', is_income: false, is_transfer_class: false, icon: '✈️' },
+  { name: 'Travel',          color: '#0ea5e9', is_income: false, is_transfer_class: false, icon: '✈️', exclude_from_learning: true },
   { name: 'Income',          color: '#10b981', is_income: true,  is_transfer_class: false, icon: '💰' },
   { name: 'Transfer',        color: '#9ca3af', is_income: false, is_transfer_class: true,  icon: '🔄' },
   { name: 'CC Payment',      color: '#9ca3af', is_income: false, is_transfer_class: true,  icon: '💳' },
@@ -323,8 +323,11 @@ const DEFAULT_APP_CONFIG = [
 async function installStarterContent() {
   for (const cat of DEFAULT_CATEGORIES) {
     await pool.query(
-      'INSERT INTO categories (name, color, is_income, is_transfer_class, icon) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (name) DO NOTHING',
-      [cat.name, cat.color, cat.is_income, cat.is_transfer_class, cat.icon]
+      `INSERT INTO categories (name, color, is_income, is_transfer_class, icon, exclude_from_learning)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (name) DO UPDATE SET
+         exclude_from_learning = categories.exclude_from_learning OR EXCLUDED.exclude_from_learning`,
+      [cat.name, cat.color, cat.is_income, cat.is_transfer_class, cat.icon, !!cat.exclude_from_learning]
     );
   }
   for (const [key, value] of DEFAULT_APP_CONFIG) {

@@ -221,9 +221,10 @@ function renderTransactions() {
       : (tx.source !== 'plaid'
           ? `<button class="btn-ghost btn-xs tx-inline-action" onclick="hideTx(event, ${tx.id})" title="Suppress duplicate">Suppress</button>`
           : '');
-    const categoryLine = tx.category_name
-      ? `<div class="tx-cat-line"><span class="cat-dot" style="background:${esc(tx.category_color || '#6F6A5E')}"></span><span>${esc(plainCategoryName(tx.category_name))}</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`
-      : `<div class="tx-cat-line uncat"><span class="cat-dot"></span><span>Uncategorized · tap to assign</span>${sourceBadge}${accountStatusBadge}${hiddenBadge}</div>`;
+    const categoryLine = window.TransactionCategorizationUI.renderCategoryLine(
+      tx,
+      `${sourceBadge}${accountStatusBadge}${hiddenBadge}`
+    );
     const pendingTag = tx.pending ? '<span class="status-tag">Pending</span>' : '';
 
     return `<div class="tx-row${pendingClass}${selectedClass}" data-id="${tx.id}" onclick="onTxClick(event, ${tx.id})">
@@ -249,9 +250,11 @@ function renderTransactions() {
 
 
 function renderStats() {
+  const suggestionCount = transactions.filter(tx => !tx.category_id && tx.suggested_category_id).length;
   $('tx-stats').innerHTML = `
     <span><span class="label">Showing</span> <span class="value">${transactions.length} of ${txTotal}</span></span>
     <span><span class="label">Net</span> <span class="value">${fmtTxAmount(txSum)}</span></span>
+    ${suggestionCount ? `<span><span class="label">Suggestions</span> <span class="value">${suggestionCount}</span></span>` : ''}
   `;
 }
 
@@ -512,6 +515,28 @@ async function pickCategory(categoryId) {
   }
 }
 
+async function acceptCategorySuggestion(event, transactionId) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${transactionId}/category-suggestion/accept`, { method: 'POST' });
+    await loadTransactions();
+    if (currentDetailId === transactionId) await refreshCurrentDetail();
+  } catch (err) {
+    console.error('Suggestion accept failed:', err);
+  }
+}
+
+async function rejectCategorySuggestion(event, transactionId) {
+  event.stopPropagation();
+  try {
+    await api(`api/transactions/${transactionId}/category-suggestion/reject`, { method: 'POST' });
+    await loadTransactions();
+    if (currentDetailId === transactionId) await refreshCurrentDetail();
+  } catch (err) {
+    console.error('Suggestion reject failed:', err);
+  }
+}
+
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
   assignTarget = null;
@@ -690,7 +715,7 @@ function renderTransactionDetail() {
   ].filter(Boolean).join(' · ');
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
-  $('tx-detail-category').textContent = plainCategoryName(tx.category_name) || 'Uncategorized';
+  $('tx-detail-category').innerHTML = window.TransactionCategorizationUI.renderDetailCategory(tx);
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';

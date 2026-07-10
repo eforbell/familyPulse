@@ -17,6 +17,8 @@ function usage() {
     '- app_config\n' +
     '- categories\n' +
     '- category_rules\n' +
+    '- learned_category_rules\n' +
+    '- suggestion_rejections\n' +
     '- schema_migrations\n'
   );
 }
@@ -90,7 +92,7 @@ async function main() {
       for (const result of results) {
         console.log(`- ${result.table}: ${result.deleted}`);
       }
-      console.log('Preserved categories, rules, family members, sessions, app_config, schema migrations, and the Monarch import sentinel item.');
+      console.log('Preserved categories, rules, learned categorization intent, family members, sessions, app_config, schema migrations, and the Monarch import sentinel item.');
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

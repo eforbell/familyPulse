@@ -274,3 +274,12 @@
   - Suggestion selection should only fill the editor field, not save or toggle future-rule behavior; keeping save explicit preserves the mental model from Feature 22
   - Reusing the existing detail overlay on both dashboard and transactions page keeps the feature accretive rather than spawning a new merchant-management surface
 ---
+
+---
+2026-07-07 - Feature 24 partial implementation
+- Added migration 023 for learned_category_rules, suggestion_rejections, merchant_fingerprint, categorization provenance, pending suggestion fields, and exclude_from_learning.
+- Added deterministic learned-categorization core and wired sync-time categorization precedence: explicit rules auto-apply first; learned rules / unanimous history auto-apply; Plaid taxonomy and majority history become suggestions.
+- Wired manual category endpoints and bulk categorization to update learned rules non-blockingly and mark manual provenance.
+- Added parent-only suggestion accept/reject endpoints, read-only learned-rules endpoint, transaction API fields, admin exclude-from-learning toggle, and mobile suggestion chips.
+- Verification: node --check on touched JS; node --test --require ./test/bootstrap.js test/categorization.test.js test/learned-categorization.test.js passed (16 tests).
+- Full npm test/e2e not run because local test Postgres on localhost:5434 was unavailable during test:prepare.
