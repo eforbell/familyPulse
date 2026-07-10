@@ -28,9 +28,9 @@
   "executionStatus": {
     "mode": "Seed stories with passes false and update during implementation.",
     "branch": "feature/recurring-health-alerts",
-    "lastUpdatedOn": "2026-07-07",
-    "summary": "Drafted. Not started. Queued behind Feature 24.",
-    "currentFocus": "Not started.",
+    "lastUpdatedOn": "2026-07-10",
+    "summary": "Started. Core recurring health alert plumbing is implemented: migration 024, alert event generation, notification candidate integration, recurring-page alert strip, price threshold config, and regression tests.",
+    "currentFocus": "Next slice: broaden UI polish/e2e coverage and run production-like dry-run validation with seeded recurring alert events.",
     "deferredForV1": [
       "Missed expense/bill alerts (autopay failed) — same mechanism as missed income; ship income first where the household stakes are clearest, then extend by config",
       "Price-drop notifications (direction = down) — visible on the recurring page already; not worth a push in v1",
@@ -54,7 +54,8 @@
       "priority": 1,
       "estimatedLines": "+110/-5",
       "testStrategy": "node:test with fixture streams: at-threshold fires, below-threshold does not, dedup across repeated evaluation, status exclusions, and repeat-change re-fire.",
-      "passes": false
+      "passes": true,
+      "implementationNote": "Initial vertical slice implemented on 2026-07-10; covered by recurring-alerts and notification-rules tests."
     },
     {
       "id": "RHA-025-002",
@@ -71,7 +72,8 @@
       "priority": 1,
       "estimatedLines": "+140/-10",
       "testStrategy": "node:test with date-controlled fixtures: fires at expected+tolerance+1, does not fire within tolerance, same-sync arrival suppresses, override date respected, per-occurrence dedup.",
-      "passes": false
+      "passes": true,
+      "implementationNote": "Initial vertical slice implemented on 2026-07-10; covered by recurring-alerts and notification-rules tests."
     },
     {
       "id": "RHA-025-003",
@@ -87,7 +89,8 @@
       "priority": 1,
       "estimatedLines": "+100/-5",
       "testStrategy": "node:test: new medium/high expense stream fires, income does not, low confidence does not, pre-existing streams exempt via migration marker, once-ever dedup.",
-      "passes": false
+      "passes": true,
+      "implementationNote": "Initial vertical slice implemented on 2026-07-10; covered by recurring-alerts and notification-rules tests."
     },
     {
       "id": "RHA-025-004",
@@ -103,7 +106,8 @@
       "priority": 1,
       "estimatedLines": "+150/-20",
       "testStrategy": "node:test extending notification-rules.test.js: registry shape, candidate emission, subscription gating, cooldown state writes; dry-run pass through send-notifications flow with fixtures.",
-      "passes": false
+      "passes": true,
+      "implementationNote": "Initial vertical slice implemented on 2026-07-10; covered by recurring-alerts and notification-rules tests."
     },
     {
       "id": "RHA-025-005",
