@@ -4,6 +4,7 @@
 let currentMember = null;
 let recurringRows = [];
 let currentDetailId = null;
+let recurringAlerts = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -24,15 +25,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadRecurring() {
   try {
-    const [summary, recurring, calendar] = await Promise.all([
+    const [summary, recurring, calendar, alerts] = await Promise.all([
       api('api/recurring/summary'),
       api('api/recurring'),
-      api('api/recurring/calendar?days=30')
+      api('api/recurring/calendar?days=30'),
+      api('api/recurring/alerts?limit=10')
     ]);
 
     recurringRows = recurring.recurring || [];
+    recurringAlerts = alerts.alerts || [];
     renderSummary(summary);
     renderCalendar(calendar.calendar || []);
+    renderRecurringAlerts(recurringAlerts);
     renderRecurringLists(recurringRows);
     $('recurring-summary').classList.remove('loading-pulse');
   } catch (err) {
@@ -40,6 +44,7 @@ async function loadRecurring() {
     $('recurring-list').innerHTML = '<div class="empty-state">Error loading recurring items</div>';
     $('recurring-stale').innerHTML = '';
     $('bill-calendar').innerHTML = '<div class="empty-state">Error loading bill calendar</div>';
+    $('recurring-alerts-section').classList.add('hidden');
   }
 }
 
@@ -58,6 +63,51 @@ function renderSummary(data) {
       <strong>${data.stale_count || 0}</strong>
     </div>
   `;
+}
+
+
+function renderRecurringAlerts(alerts) {
+  const section = $('recurring-alerts-section');
+  const root = $('recurring-alerts');
+  if (!section || !root) return;
+  if (!alerts.length) {
+    section.classList.add('hidden');
+    root.innerHTML = '';
+    return;
+  }
+
+  section.classList.remove('hidden');
+  root.innerHTML = alerts.map(alert => {
+    const tone = alert.event_type === 'recurring_missed_income'
+      ? 'urgent'
+      : alert.event_type === 'recurring_price_creep'
+        ? 'warn'
+        : 'info';
+    const dismiss = currentMember?.role === 'parent'
+      ? `<button class="btn-ghost recurring-alert-dismiss" type="button" onclick="dismissRecurringAlert(${alert.id})">Dismiss</button>`
+      : '';
+    return `
+      <div class="recurring-alert-card ${tone}">
+        <div class="recurring-alert-main">
+          <div class="recurring-alert-title">${esc(alert.title)}</div>
+          <div class="recurring-alert-message">${esc(alert.message)}</div>
+          <div class="recurring-alert-meta">${esc(alert.merchant_name || 'Recurring')} · ${formatDate(alert.occurred_on)}</div>
+        </div>
+        ${dismiss}
+      </div>
+    `;
+  }).join('');
+}
+
+async function dismissRecurringAlert(alertId) {
+  if (currentMember?.role !== 'parent') return;
+  try {
+    await api(`api/recurring/alerts/${alertId}/dismiss`, { method: 'POST' });
+    recurringAlerts = recurringAlerts.filter(alert => alert.id !== alertId);
+    renderRecurringAlerts(recurringAlerts);
+  } catch (err) {
+    console.error('Recurring alert dismiss failed:', err);
+  }
 }
 
 function renderCalendar(items) {

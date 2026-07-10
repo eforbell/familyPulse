@@ -32,7 +32,7 @@ function req(path, opts = {}) {
 }
 
 before(async () => {
-  for (const migrationName of ['019-notification-foundation.sql', '020-notification-phase2-rules.sql']) {
+  for (const migrationName of ['019-notification-foundation.sql', '020-notification-phase2-rules.sql', '024-recurring-health-alerts.sql']) {
     const migrationSql = fs.readFileSync(
       path.join(__dirname, '..', 'db', 'migrations', migrationName),
       'utf8'
@@ -78,9 +78,10 @@ after(async () => {
       WHEN 'notification_default_interruption_level' THEN 'active'
       WHEN 'large_expense_threshold' THEN '1000'
       WHEN 'budget_overrun_threshold_pct' THEN '15'
+      WHEN 'price_creep_threshold_pct' THEN '5'
       ELSE value
     END
-    WHERE key IN ('notifications_enabled', 'notification_base_url', 'notification_default_interruption_level', 'large_expense_threshold', 'budget_overrun_threshold_pct')
+    WHERE key IN ('notifications_enabled', 'notification_base_url', 'notification_default_interruption_level', 'large_expense_threshold', 'budget_overrun_threshold_pct', 'price_creep_threshold_pct')
   `);
   server.close();
   await pool.end();
@@ -96,6 +97,7 @@ describe('notification settings API', () => {
     assert.equal(typeof data.notification_default_interruption_level, 'string');
     assert.equal(typeof data.large_expense_threshold, 'string');
     assert.equal(typeof data.budget_overrun_threshold_pct, 'string');
+    assert.equal(typeof data.price_creep_threshold_pct, 'string');
   });
 
   it('updates notification config', async () => {
@@ -116,6 +118,7 @@ describe('notification settings API', () => {
     assert.ok(Array.isArray(data.members));
     assert.ok(data.members.every(member => member.member_role === 'parent'));
     assert.ok(typeof data.members[0].subscriptions.large_expense === 'boolean');
+    assert.ok(typeof data.members[0].subscriptions.recurring_price_creep === 'boolean');
   });
 
   it('saves a brrr channel with masked readback', async () => {

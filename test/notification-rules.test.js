@@ -19,7 +19,8 @@ async function cfg(key) {
     notification_base_url: 'https://pulse.example.test',
     notification_default_interruption_level: 'active',
     large_expense_threshold: '1000',
-    budget_overrun_threshold_pct: '15'
+    budget_overrun_threshold_pct: '15',
+    price_creep_threshold_pct: '5'
   };
   return values[key] ?? null;
 }
@@ -53,6 +54,8 @@ beforeEach(async () => {
   await pool.query('DELETE FROM notification_event_state WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_subscriptions WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM member_notification_channels WHERE member_id = $1', [parentId]);
+  await pool.query("DELETE FROM recurring_alert_events WHERE source_key LIKE $1", [`${PREFIX}:%`]);
+  await pool.query("DELETE FROM recurring_expenses WHERE merchant_key LIKE $1", [`${PREFIX}-%`]);
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE $1", [`${PREFIX}-%`]);
 
   await pool.query(`
@@ -64,6 +67,10 @@ beforeEach(async () => {
 });
 
 after(async () => {
+  await pool.query("DELETE FROM recurring_alert_events WHERE source_key LIKE $1", [`${PREFIX}:%`]);
+  await pool.query("DELETE FROM recurring_expenses WHERE merchant_key LIKE $1", [`${PREFIX}-%`]);
+  await pool.query("DELETE FROM recurring_alert_events WHERE source_key LIKE $1", [`${PREFIX}:%`]);
+  await pool.query("DELETE FROM recurring_expenses WHERE merchant_key LIKE $1", [`${PREFIX}-%`]);
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE $1", [`${PREFIX}-%`]);
   await pool.query('DELETE FROM notification_delivery_log WHERE member_id = $1', [parentId]);
   await pool.query('DELETE FROM notification_event_state WHERE member_id = $1', [parentId]);
@@ -177,4 +184,46 @@ describe('notification phase 2 rules', () => {
     const afterState = await evaluateNotificationCandidates({ pool, cfg, now });
     assert.equal(afterState.some(candidate => candidate.source_key === budgetOverrun.source_key), false);
   });
+
+  it('emits recurring health alert candidates from persisted alert events', async () => {
+    await pool.query(`
+      INSERT INTO member_notification_subscriptions (member_id, event_type, enabled)
+      VALUES ($1, 'recurring_price_creep', true)
+      ON CONFLICT (member_id, event_type) DO UPDATE SET enabled = true, updated_at = now()
+    `, [parentId]);
+
+    const { rows: [stream] } = await pool.query(`
+      INSERT INTO recurring_expenses (
+        merchant_key, merchant_name, cashflow_type, frequency, confidence, status,
+        latest_account_id, latest_amount, prior_amount, price_change_pct, price_change_direction,
+        price_change_date, first_seen_date, last_seen_date, expected_next_date, interval_days,
+        tolerance_days, source_txn_count
+      )
+      VALUES ($1, 'StreamBox', 'expense', 'monthly', 'high', 'active', $2, 21.00, 19.00, 10.53, 'up',
+        '2026-07-01', '2026-03-01', '2026-07-01', '2026-08-01', 30, 3, 5)
+      RETURNING id
+    `, [`${PREFIX}-streambox`, accountId]);
+
+    await pool.query(`
+      INSERT INTO recurring_alert_events (recurring_expense_id, event_type, source_key, title, message, payload_json, occurred_on)
+      VALUES ($1, 'recurring_price_creep', $2, 'Recurring price increase', 'StreamBox increased 11% to $21.00.', '{}'::jsonb, '2026-07-01')
+    `, [stream.id, `${PREFIX}:price:${stream.id}`]);
+
+    const candidates = await evaluateNotificationCandidates({ pool, cfg, now: new Date('2026-07-10T12:00:00Z') });
+    const recurring = candidates.find(candidate => candidate.event_type === 'recurring_price_creep');
+    assert.ok(recurring);
+    assert.equal(recurring.member_id, parentId);
+    assert.equal(recurring.source_key, `${PREFIX}:price:${stream.id}`);
+    assert.equal(recurring.payload.title, 'Family Pulse: Recurring price increase');
+    assert.equal(recurring.payload.open_url, 'https://pulse.example.test/recurring.html');
+
+    await pool.query(`
+      INSERT INTO notification_event_state (member_id, event_type, source_key, last_sent_at, last_result)
+      VALUES ($1, 'recurring_price_creep', $2, now(), 'sent')
+    `, [parentId, recurring.source_key]);
+
+    const afterState = await evaluateNotificationCandidates({ pool, cfg, now: new Date('2026-07-10T12:00:00Z') });
+    assert.equal(afterState.some(candidate => candidate.source_key === recurring.source_key), false);
+  });
+
 });

@@ -1,6 +1,6 @@
 {
   "currentFeature": "Feature #25: Recurring Stream Health Alerts",
-  "status": "ready_to_begin",
+  "status": "in_progress",
   "prdPath": "planning/features/feature-25-prd.json",
   "completedFeatures": [
     "Feature #1: Foundation (Data Layer + Plaid Sync)",

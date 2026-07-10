@@ -24,6 +24,12 @@ before(async () => {
     path.join(__dirname, '..', 'db', 'migrations', '022-recurring-identity-drop-anchor.sql'),
     'utf8'
   ));
+  for (const migrationName of ['019-notification-foundation.sql', '020-notification-phase2-rules.sql', '024-recurring-health-alerts.sql']) {
+    await pool.query(fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', migrationName),
+      'utf8'
+    ));
+  }
 
   const { rows: [item] } = await pool.query(`
     INSERT INTO items (access_token, item_id, institution_id, institution_name, status)

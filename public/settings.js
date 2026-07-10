@@ -243,6 +243,7 @@ async function loadNotificationConfig() {
     document.getElementById('notification-interruption-level').value = config.notification_default_interruption_level || 'active';
     document.getElementById('large-expense-threshold').value = config.large_expense_threshold || '1000';
     document.getElementById('budget-overrun-threshold-pct').value = config.budget_overrun_threshold_pct || '15';
+    document.getElementById('price-creep-threshold-pct').value = config.price_creep_threshold_pct || '5';
   } catch (err) {
     console.error('Notification config load failed:', err);
   }
@@ -278,6 +279,11 @@ async function saveNotificationConfig() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: document.getElementById('budget-overrun-threshold-pct').value.trim() || '15' })
+      }),
+      api('api/notification-config/price_creep_threshold_pct', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: document.getElementById('price-creep-threshold-pct').value.trim() || '5' })
       })
     ]);
     status.textContent = 'Saved.';
