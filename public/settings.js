@@ -789,7 +789,7 @@ function openDeleteOverlay(itemId, name, mode) {
     confirmBtn.textContent = 'Purge';
   } else {
     title.textContent = 'Disconnect Institution';
-    msg.textContent = `Disconnect ${name} from Plaid? Future syncs will stop and local history will be preserved.`;
+    msg.textContent = `Disconnect ${name} from Plaid? Future syncs will stop. Its accounts and transactions will be preserved as historical and excluded from live balance totals.`;
     confirmBtn.textContent = 'Disconnect';
   }
   document.body.classList.add('modal-open');

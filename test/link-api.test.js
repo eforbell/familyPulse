@@ -489,10 +489,12 @@ describe('DELETE /api/items/:id', () => {
     assert.equal(itemRow.access_token, `[DISCONNECTED]:${DELETE_ITEM_ID}`);
 
     const { rows: accts } = await pool.query(
-      'SELECT id FROM accounts WHERE plaid_account_id = $1',
+      'SELECT id, sync_status, sync_disabled_at FROM accounts WHERE plaid_account_id = $1',
       [DELETE_ACCOUNT_ID]
     );
     assert.equal(accts.length, 1);
+    assert.equal(accts[0].sync_status, 'historical');
+    assert.ok(accts[0].sync_disabled_at);
   });
 
   it('purges local history only after an item is disconnected', async () => {
