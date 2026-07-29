@@ -17,6 +17,8 @@ const LINK_ITEM_ID = 'test-item-link';
 const LINK_ACCOUNT_IDS = ['acct-link-1', 'acct-link-2'];
 const DELETE_ITEM_ID = 'test-item-del';
 const DELETE_ACCOUNT_ID = 'acct-del-1';
+const TIMEOUT_ITEM_ID = 'test-item-timeout';
+const TIMEOUT_ACCOUNT_ID = 'acct-timeout-1';
 const SESSION_TOKEN = 'test-lt-link-table';
 const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
 const OAUTH_STATE_ID = 'test-oauth-state-link';
@@ -89,7 +91,7 @@ after(async () => {
   );
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
-  await pool.query('DELETE FROM items WHERE item_id = $1', [DELETE_ITEM_ID]);
+  await pool.query('DELETE FROM items WHERE item_id = ANY($1::text[])', [[DELETE_ITEM_ID, TIMEOUT_ITEM_ID]]);
   server.close();
   await pool.end();
 });
@@ -495,6 +497,42 @@ describe('DELETE /api/items/:id', () => {
     assert.equal(accts.length, 1);
     assert.equal(accts[0].sync_status, 'historical');
     assert.ok(accts[0].sync_disabled_at);
+  });
+
+  it('returns a prompt retry-safe response when Plaid removal times out', async () => {
+    require('../lib/plaid-client').removeItem = async () => {
+      const err = new Error('Plaid request timed out');
+      err.code = 'PLAID_REQUEST_TIMEOUT';
+      throw err;
+    };
+
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-timeout', $1, 'ins_timeout', 'Timeout Bank', 'good')
+      RETURNING id
+    `, [TIMEOUT_ITEM_ID]);
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+      VALUES ($2, $1, 'Timeout Account', 'depository', 'checking', '9999', 0)
+    `, [item.id, TIMEOUT_ACCOUNT_ID]);
+
+    const res = await authFetch(`${baseUrl}/api/items/${item.id}`, { method: 'DELETE' });
+    assert.equal(res.status, 504);
+    const data = await res.json();
+    assert.match(data.error, /refresh Settings before retrying/i);
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT status, disconnected_at FROM items WHERE id = $1',
+      [item.id]
+    );
+    assert.equal(itemRow.status, 'good');
+    assert.equal(itemRow.disconnected_at, null);
+
+    const { rows: [accountRow] } = await pool.query(
+      'SELECT sync_status FROM accounts WHERE plaid_account_id = $1',
+      [TIMEOUT_ACCOUNT_ID]
+    );
+    assert.equal(accountRow.sync_status, 'active');
   });
 
   it('purges local history only after an item is disconnected', async () => {

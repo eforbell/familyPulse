@@ -782,6 +782,7 @@ function openDeleteOverlay(itemId, name, mode) {
   const title = document.getElementById('delete-title');
   const msg = document.getElementById('delete-msg');
   const confirmBtn = document.getElementById('delete-confirm-btn');
+  confirmBtn.disabled = false;
 
   if (deleteMode === 'purge') {
     title.textContent = 'Purge Local History';
@@ -805,15 +806,26 @@ function closeDeleteOverlay() {
 
 async function confirmDelete() {
   if (!deleteTarget) return;
+  const target = deleteTarget;
+  const mode = deleteMode;
+  const confirmBtn = document.getElementById('delete-confirm-btn');
+  const isPurge = mode === 'purge';
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = isPurge ? 'Purging...' : 'Disconnecting...';
   try {
-    const path = deleteMode === 'purge'
-      ? `api/items/${deleteTarget}/purge`
-      : `api/items/${deleteTarget}`;
+    const path = isPurge
+      ? `api/items/${target}/purge`
+      : `api/items/${target}`;
     await api(path, { method: 'DELETE' });
     closeDeleteOverlay();
     await loadItems();
   } catch (err) {
-    alert(`Failed to ${deleteMode === 'purge' ? 'purge local history' : 'disconnect institution'}: ` + err.message);
+    alert(`Failed to ${isPurge ? 'purge local history' : 'disconnect institution'}: ` + err.message);
+  } finally {
+    if (deleteTarget === target) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = isPurge ? 'Purge' : 'Disconnect';
+    }
   }
 }
 
