@@ -296,8 +296,35 @@ describe('sync — item failure classification', () => {
 describe('sync — disconnected items', () => {
   const originalGetAccounts = plaid.getAccounts;
   const originalSyncTransactions = plaid.syncTransactions;
+  const racingItemKey = 'test-item-disconnect-race';
+  const racingAccountKey = 'acct-disconnect-race';
+  const failingRacingItemKey = 'test-item-disconnect-failure-race';
+  const failingRacingAccountKey = 'acct-disconnect-failure-race';
   let activeItemId;
   let disconnectedItemId;
+
+  async function locallyDisconnectItem(itemId, itemKey) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`
+        UPDATE items
+        SET access_token = $1, status = 'disconnected', disconnected_at = now(), updated_at = now()
+        WHERE id = $2
+      `, [`[DISCONNECTED]:${itemKey}`, itemId]);
+      await client.query(`
+        UPDATE accounts
+        SET sync_status = 'historical', sync_disabled_at = now(), updated_at = now()
+        WHERE item_id = $1
+      `, [itemId]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 
   before(async () => {
     const { rows: [active] } = await pool.query(`
@@ -320,6 +347,10 @@ describe('sync — disconnected items', () => {
   after(async () => {
     plaid.getAccounts = originalGetAccounts;
     plaid.syncTransactions = originalSyncTransactions;
+    await pool.query('DELETE FROM accounts WHERE plaid_account_id = $1', [racingAccountKey]);
+    await pool.query('DELETE FROM accounts WHERE plaid_account_id = $1', [failingRacingAccountKey]);
+    await pool.query('DELETE FROM items WHERE item_id = $1', [racingItemKey]);
+    await pool.query('DELETE FROM items WHERE item_id = $1', [failingRacingItemKey]);
     await pool.query("DELETE FROM items WHERE item_id IN ('test-item-active-sync', 'test-item-disconnected-sync')");
   });
 
@@ -346,6 +377,123 @@ describe('sync — disconnected items', () => {
       [disconnectedItemId]
     );
     assert.equal(row.status, 'disconnected');
+  });
+
+  it('does not let an in-flight sync revive an item after disconnect', async () => {
+    const accessToken = 'test-token-disconnect-race';
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ($1, $2, 'ins_disconnect_race', 'Disconnect Race Bank', 'good')
+      RETURNING id
+    `, [accessToken, racingItemKey]);
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+      VALUES ($1, $2, 'Disconnect Race Checking', 'depository', 'checking', '4242', 100)
+    `, [racingAccountKey, item.id]);
+
+    let releaseAccountFetch;
+    let signalAccountFetchStarted;
+    const accountFetchStarted = new Promise((resolve) => { signalAccountFetchStarted = resolve; });
+    const accountFetchReleased = new Promise((resolve) => { releaseAccountFetch = resolve; });
+
+    plaid.getAccounts = async (token) => {
+      if (token !== accessToken) return { accounts: [] };
+      signalAccountFetchStarted();
+      await accountFetchReleased;
+      return {
+        accounts: [{
+          account_id: racingAccountKey,
+          name: 'Disconnect Race Checking',
+          official_name: 'Disconnect Race Checking',
+          type: 'depository',
+          subtype: 'checking',
+          mask: '4242',
+          balances: { current: 125, available: 120, iso_currency_code: 'USD' }
+        }]
+      };
+    };
+    plaid.syncTransactions = async () => ({
+      added: [],
+      modified: [],
+      removed: [],
+      cursor: 'cursor-disconnect-race'
+    });
+
+    const syncPromise = syncAll();
+    await accountFetchStarted;
+    await locallyDisconnectItem(item.id, racingItemKey);
+    releaseAccountFetch();
+    await syncPromise;
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT access_token, status, disconnected_at FROM items WHERE id = $1',
+      [item.id]
+    );
+    assert.equal(itemRow.access_token, `[DISCONNECTED]:${racingItemKey}`);
+    assert.equal(itemRow.status, 'disconnected');
+    assert.ok(itemRow.disconnected_at);
+
+    const { rows: [accountRow] } = await pool.query(
+      'SELECT sync_status, sync_disabled_at FROM accounts WHERE plaid_account_id = $1',
+      [racingAccountKey]
+    );
+    assert.equal(accountRow.sync_status, 'historical');
+    assert.ok(accountRow.sync_disabled_at);
+  });
+
+  it('does not let an in-flight sync failure overwrite a disconnect', async () => {
+    const accessToken = 'test-token-disconnect-failure-race';
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ($1, $2, 'ins_disconnect_failure_race', 'Disconnect Failure Race Bank', 'good')
+      RETURNING id
+    `, [accessToken, failingRacingItemKey]);
+    await pool.query(`
+      INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype, mask, current_balance)
+      VALUES ($1, $2, 'Failure Race Checking', 'depository', 'checking', '4343', 100)
+    `, [failingRacingAccountKey, item.id]);
+
+    plaid.getAccounts = async (token) => {
+      if (token !== accessToken) return { accounts: [] };
+      await locallyDisconnectItem(item.id, failingRacingItemKey);
+      return {
+        accounts: [{
+          account_id: failingRacingAccountKey,
+          name: 'Failure Race Checking',
+          official_name: 'Failure Race Checking',
+          type: 'depository',
+          subtype: 'checking',
+          mask: '4343',
+          balances: { current: 150, available: 145, iso_currency_code: 'USD' }
+        }]
+      };
+    };
+    plaid.syncTransactions = async (token) => {
+      if (token === accessToken) {
+        const err = new Error('Stale sync failed after disconnect');
+        err.code = 'INSTITUTION_NOT_RESPONDING';
+        throw err;
+      }
+      return { added: [], modified: [], removed: [], cursor: 'cursor-other-item' };
+    };
+
+    const result = await syncAll();
+    assert.equal(result.errors.some((entry) => entry.item_id === item.id), false);
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT access_token, status, error_code FROM items WHERE id = $1',
+      [item.id]
+    );
+    assert.equal(itemRow.access_token, `[DISCONNECTED]:${failingRacingItemKey}`);
+    assert.equal(itemRow.status, 'disconnected');
+    assert.equal(itemRow.error_code, null);
+
+    const { rows: [accountRow] } = await pool.query(
+      'SELECT sync_status, sync_disabled_at FROM accounts WHERE plaid_account_id = $1',
+      [failingRacingAccountKey]
+    );
+    assert.equal(accountRow.sync_status, 'historical');
+    assert.ok(accountRow.sync_disabled_at);
   });
 });
 
