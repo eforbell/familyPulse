@@ -17,6 +17,8 @@ const LINK_ITEM_ID = 'test-item-link';
 const LINK_ACCOUNT_IDS = ['acct-link-1', 'acct-link-2'];
 const DELETE_ITEM_ID = 'test-item-del';
 const DELETE_ACCOUNT_ID = 'acct-del-1';
+const DEADLOCK_ITEM_ID = 'test-item-disconnect-lock-order';
+const CHANGED_ITEM_ID = 'test-item-disconnect-changed';
 const TIMEOUT_ITEM_ID = 'test-item-timeout';
 const TIMEOUT_ACCOUNT_ID = 'acct-timeout-1';
 const SESSION_TOKEN = 'test-lt-link-table';
@@ -91,7 +93,7 @@ after(async () => {
   );
   await pool.query('DELETE FROM accounts WHERE plaid_account_id = ANY($1::text[])', [LINK_ACCOUNT_IDS]);
   await pool.query('DELETE FROM items WHERE item_id = $1', [LINK_ITEM_ID]);
-  await pool.query('DELETE FROM items WHERE item_id = ANY($1::text[])', [[DELETE_ITEM_ID, TIMEOUT_ITEM_ID]]);
+  await pool.query('DELETE FROM items WHERE item_id = ANY($1::text[])', [[DELETE_ITEM_ID, DEADLOCK_ITEM_ID, CHANGED_ITEM_ID, TIMEOUT_ITEM_ID]]);
   server.close();
   await pool.end();
 });
@@ -497,6 +499,74 @@ describe('DELETE /api/items/:id', () => {
     assert.equal(accts.length, 1);
     assert.equal(accts[0].sync_status, 'historical');
     assert.ok(accts[0].sync_disabled_at);
+  });
+
+  it('does not hold the item row lock while Plaid removal records token usage', async () => {
+    let tokenTouchCompleted = false;
+    require('../lib/plaid-client').removeItem = async (accessToken) => {
+      const probeClient = await pool.connect();
+      try {
+        await probeClient.query('BEGIN');
+        await probeClient.query("SET LOCAL lock_timeout = '500ms'");
+        await probeClient.query(
+          'UPDATE items SET token_last_used_at = now() WHERE access_token = $1',
+          [accessToken]
+        );
+        await probeClient.query('COMMIT');
+        tokenTouchCompleted = true;
+        return { removed: true };
+      } catch (err) {
+        await probeClient.query('ROLLBACK');
+        throw err;
+      } finally {
+        probeClient.release();
+      }
+    };
+
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-disconnect-lock-order', $1, 'ins_lock_order', 'Lock Order Bank', 'good')
+      RETURNING id
+    `, [DEADLOCK_ITEM_ID]);
+
+    const res = await authFetch(`${baseUrl}/api/items/${item.id}`, { method: 'DELETE' });
+    assert.equal(res.status, 200);
+    assert.equal(tokenTouchCompleted, true);
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT status FROM items WHERE id = $1',
+      [item.id]
+    );
+    assert.equal(itemRow.status, 'disconnected');
+  });
+
+  it('does not finalize a disconnect if the item token changes during remote removal', async () => {
+    require('../lib/plaid-client').removeItem = async (accessToken) => {
+      await pool.query(
+        'UPDATE items SET access_token = $1, updated_at = now() WHERE access_token = $2',
+        ['test-token-disconnect-changed-replacement', accessToken]
+      );
+      return { removed: true };
+    };
+
+    const { rows: [item] } = await pool.query(`
+      INSERT INTO items (access_token, item_id, institution_id, institution_name, status)
+      VALUES ('test-token-disconnect-changed-original', $1, 'ins_changed', 'Changed Bank', 'good')
+      RETURNING id
+    `, [CHANGED_ITEM_ID]);
+
+    const res = await authFetch(`${baseUrl}/api/items/${item.id}`, { method: 'DELETE' });
+    assert.equal(res.status, 409);
+    const data = await res.json();
+    assert.match(data.error, /changed while disconnecting/i);
+
+    const { rows: [itemRow] } = await pool.query(
+      'SELECT access_token, status, disconnected_at FROM items WHERE id = $1',
+      [item.id]
+    );
+    assert.equal(itemRow.access_token, 'test-token-disconnect-changed-replacement');
+    assert.equal(itemRow.status, 'good');
+    assert.equal(itemRow.disconnected_at, null);
   });
 
   it('returns a prompt retry-safe response when Plaid removal times out', async () => {
