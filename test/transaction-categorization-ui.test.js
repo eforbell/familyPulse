@@ -40,4 +40,21 @@ describe('shared transaction categorization UI', () => {
     assert.doesNotMatch(html, /<Dining>/);
     assert.match(html, /<span>Historical<\/span>/);
   });
+
+  it('renders a compact allocation breakdown for split transactions', () => {
+    const tx = {
+      id: 10,
+      is_split: true,
+      category_allocations: [
+        { category_name: 'Groceries', category_color: '#22c55e', amount: '130.00' },
+        { category_name: 'Healthcare', category_color: '#ef4444', amount: '49.10' }
+      ]
+    };
+    const line = ui.renderCategoryLine(tx);
+    const detail = ui.renderDetailCategory(tx);
+    assert.match(line, /Split/);
+    assert.match(line, /Groceries \$130\.00/);
+    assert.match(line, /Healthcare \$49\.10/);
+    assert.match(detail, /status-tag info/);
+  });
 });

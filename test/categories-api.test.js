@@ -49,10 +49,32 @@ before(async () => {
     RETURNING id
   `, [item.id]);
 
-  await pool.query(`
+  const { rows: [protectedTransaction] } = await pool.query(`
     INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
     VALUES ('tx-categories-protected', $1, 42.50, '2026-03-02', 'Protected Merchant', 'Protected Transaction', false, false, 'test', $2)
+    RETURNING id
   `, [account.id, protectedCategoryId]);
+
+  const { rows: [splitPeer] } = await pool.query(`
+    INSERT INTO categories (name, color, icon)
+    VALUES ('Test Cat Split Peer', '#64748b', '🧩')
+    RETURNING id
+  `);
+  const splitClient = await pool.connect();
+  try {
+    await splitClient.query('BEGIN');
+    await splitClient.query('UPDATE transactions SET category_id = NULL WHERE id = $1', [protectedTransaction.id]);
+    await splitClient.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [protectedTransaction.id]);
+    await splitClient.query(
+      `INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+       VALUES ($1, $2, 20.00, 1), ($1, $3, 22.50, 2)`,
+      [protectedTransaction.id, protectedCategoryId, splitPeer.id]
+    );
+    await splitClient.query('COMMIT');
+  } finally {
+    try { await splitClient.query('ROLLBACK'); } catch {}
+    splitClient.release();
+  }
 });
 
 after(async () => {
@@ -126,6 +148,17 @@ describe('PUT /api/categories/:id', () => {
     assert.equal(data.name, 'Test Cat Alpha Updated');
     assert.equal(data.color, '#0000ff');
     assert.equal(data.exclude_from_baseline, false);
+  });
+
+  it('rejects a transfer-class change that would create a mixed split', async () => {
+    const res = await fetch(`${baseUrl}/api/categories/${protectedCategoryId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_transfer_class: true })
+    });
+    assert.equal(res.status, 409);
+    const data = await res.json();
+    assert.match(data.error, /transfer classification conflicts/i);
   });
 });
 

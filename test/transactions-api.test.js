@@ -123,6 +123,30 @@ before(async () => {
   `, [acct.id, assignCategoryId]);
   dedupImportTxId = importDup.id;
 
+  const splitDedupClient = await pool.connect();
+  try {
+    await splitDedupClient.query('BEGIN');
+    await splitDedupClient.query(
+      'UPDATE transactions SET category_id = NULL WHERE id = $1',
+      [dedupImportTxId]
+    );
+    await splitDedupClient.query(
+      'DELETE FROM transaction_allocations WHERE transaction_id = $1',
+      [dedupImportTxId]
+    );
+    await splitDedupClient.query(
+      `INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+       VALUES ($1, $2, 30.00, 1), ($1, $3, 10.00, 2), ($1, NULL, 2.10, 3)`,
+      [dedupImportTxId, assignCategoryId, uncategorizedCategoryId]
+    );
+    await splitDedupClient.query('COMMIT');
+  } catch (err) {
+    await splitDedupClient.query('ROLLBACK');
+    throw err;
+  } finally {
+    splitDedupClient.release();
+  }
+
   const { rows: [importDup2] } = await pool.query(`
     INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source, category_id)
     VALUES ('tx-api-dedup-import-2', $1, 42.10, '2026-02-11', 'Coffee Shop', 'Coffee Shop', false, false, 'monarch', $2)
@@ -296,12 +320,76 @@ describe('Dedup endpoints', () => {
       [dedupPlaidTxId]
     );
     assert.equal(plaidRow.is_hidden, false);
-    assert.equal(plaidRow.category_id, assignCategoryId, 'should copy category from imported row when plaid is uncategorized');
+    assert.equal(plaidRow.category_id, null, 'split allocation state should be canonical');
+    const { rows: plaidAllocations } = await pool.query(
+      `SELECT category_id, amount::text
+       FROM transaction_allocations
+       WHERE transaction_id = $1
+       ORDER BY position`,
+      [dedupPlaidTxId]
+    );
+    assert.deepEqual(plaidAllocations, [
+      { category_id: assignCategoryId, amount: '30.00' },
+      { category_id: uncategorizedCategoryId, amount: '10.00' },
+      { category_id: null, amount: '2.10' }
+    ], 'dedup should preserve every balancing allocation row');
 
     await pool.query(
       `UPDATE dedup_runs SET created_by = 'test-runner' WHERE id = $1`,
       [hiddenRows[0].dedup_run_id]
     );
+  });
+
+  it('keeps a split import visible while its Plaid match is pending', async () => {
+    const { rows: [pendingPlaid] } = await pool.query(`
+      INSERT INTO transactions
+        (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source)
+      VALUES ('tx-api-dedup-pending-plaid', $1, 43.21, '2026-04-10', 'Pending Split Match', 'Pending Split Match', true, false, 'plaid')
+      RETURNING id
+    `, [accountId]);
+    const { rows: [splitImport] } = await pool.query(`
+      INSERT INTO transactions
+        (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source)
+      VALUES ('tx-api-dedup-pending-import', $1, 43.21, '2026-04-10', 'Pending Split Match', 'Pending Split Match', false, false, 'monarch')
+      RETURNING id
+    `, [accountId]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [splitImport.id]);
+      await client.query(
+        `INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+         VALUES ($1, $2, 30.00, 1), ($1, $3, 13.21, 2)`,
+        [splitImport.id, assignCategoryId, uncategorizedCategoryId]
+      );
+      await client.query('COMMIT');
+    } finally {
+      try { await client.query('ROLLBACK'); } catch {}
+      client.release();
+    }
+
+    const res = await fetch(`${baseUrl}/api/transactions/dedup/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_from: '2026-04-01', date_to: '2026-04-30' })
+    });
+    assert.equal(res.status, 200);
+
+    const { rows: [importState] } = await pool.query(
+      'SELECT is_hidden FROM transactions WHERE id = $1',
+      [splitImport.id]
+    );
+    const { rows: [targetState] } = await pool.query(
+      `SELECT t.pending, count(ta.*)::int AS allocation_count
+       FROM transactions t
+       JOIN transaction_allocations ta ON ta.transaction_id = t.id
+       WHERE t.id = $1
+       GROUP BY t.id`,
+      [pendingPlaid.id]
+    );
+    assert.equal(importState.is_hidden, false);
+    assert.equal(targetState.pending, true);
+    assert.equal(targetState.allocation_count, 1);
   });
 
   it('unhide clears dedup metadata', async () => {

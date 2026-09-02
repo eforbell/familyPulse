@@ -16,7 +16,18 @@
       .trim();
   }
 
+  function allocationLabel(allocation) {
+    const amount = Math.abs(Number(allocation.amount) || 0).toLocaleString('en-US', {
+      style: 'currency', currency: 'USD'
+    });
+    return `${plainCategoryName(allocation.category_name) || 'Uncategorized'} ${amount}`;
+  }
+
   function renderCategoryLine(tx, extraBadges = '') {
+    if (tx.is_split && Array.isArray(tx.category_allocations)) {
+      const labels = tx.category_allocations.map(allocation => escapeHtml(allocationLabel(allocation))).join(' · ');
+      return `<div class="tx-cat-line"><span class="cat-dot" style="background:${escapeHtml(tx.category_allocations[0]?.category_color || '#6F6A5E')}"></span><span>Split · ${labels}</span>${extraBadges}</div>`;
+    }
     const provenanceBadge = tx.categorization_source && tx.categorization_source !== 'manual'
       ? `<span class="status-tag info" title="Categorized by ${escapeHtml(tx.categorization_source)}">${escapeHtml(tx.categorization_source)}</span>`
       : '';
@@ -36,6 +47,9 @@
   }
 
   function renderDetailCategory(tx) {
+    if (tx.is_split && Array.isArray(tx.category_allocations)) {
+      return `<span class="status-tag info">split</span> ${tx.category_allocations.map(allocation => escapeHtml(allocationLabel(allocation))).join(' · ')}`;
+    }
     const provenance = tx.categorization_source && tx.categorization_source !== 'manual'
       ? ` <span class="status-tag info">${escapeHtml(tx.categorization_source)}</span>`
       : '';

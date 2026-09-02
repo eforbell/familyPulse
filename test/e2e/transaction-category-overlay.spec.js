@@ -102,3 +102,89 @@ test('category overlay opens above transaction detail modal', async ({ page }) =
 
   expect(Number(z.category)).toBeGreaterThan(Number(z.detail));
 });
+
+test('parent can split a posted transaction with a balanced compact editor', async ({ page }) => {
+  const detail = {
+    id: 148,
+    merchant_name: 'Costco',
+    name: 'Costco',
+    effective_display_name: 'Costco',
+    raw_display_name: 'Costco',
+    raw_display_name_is_check_like: false,
+    display_name_override: null,
+    rename_rule: null,
+    amount: 179.10,
+    date: '2026-07-19',
+    account_name: 'Costco Visa',
+    account_mask: '9690',
+    category_id: 2,
+    category_name: 'Groceries',
+    category_color: '#22c55e',
+    category_icon: null,
+    category_allocations: [{ category_id: 2, category_name: 'Groceries', amount: 179.10, position: 1 }],
+    is_split: false,
+    source: 'plaid',
+    pending: false,
+    source_removed: false,
+    note: null,
+    attachments: []
+  };
+
+  await page.route('**/api/auth/me', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ id: 1, name: 'Eric', role: 'parent', avatar_emoji: '🧑' })
+  }));
+  await page.route('**/api/categories', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([
+      { id: 2, name: 'Groceries', color: '#22c55e', icon: null },
+      { id: 3, name: 'Healthcare', color: '#ef4444', icon: null }
+    ])
+  }));
+  await page.route('**/api/transactions?**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ transactions: [detail], total: 1, sum: 179.10, limit: 50, offset: 0 })
+  }));
+  await page.route('**/api/transactions/148', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ transaction: detail })
+  }));
+
+  let savedPayload;
+  await page.route('**/api/transactions/148/allocations', async route => {
+    savedPayload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, id: 148, allocations: savedPayload.allocations })
+    });
+  });
+
+  await page.goto('/transactions.html');
+  await page.locator('.tx-row').first().click();
+  await page.getByRole('button', { name: 'Reassign category' }).click();
+  await page.getByRole('button', { name: 'Split transaction' }).click();
+
+  const rows = page.locator('.split-allocation-row');
+  await expect(rows).toHaveCount(2);
+  await rows.nth(0).getByLabel('Split category').selectOption('2');
+  await rows.nth(0).getByLabel('Allocation amount').fill('130.00');
+  await rows.nth(1).getByLabel('Split category').selectOption('3');
+  await rows.nth(1).getByLabel('Allocation amount').fill('49.10');
+
+  await expect(page.locator('#split-editor-remaining')).toHaveText('Remaining $0.00');
+  await expect(page.getByRole('button', { name: 'Save split' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save split' }).click();
+  await expect(page.locator('#category-overlay')).toBeHidden();
+
+  expect(savedPayload).toEqual({
+    allocations: [
+      { category_id: 2, amount: '130.00' },
+      { category_id: 3, amount: '49.10' }
+    ]
+  });
+});

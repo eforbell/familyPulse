@@ -20,6 +20,7 @@ async function getTransactions({
   let idx = 1;
   const categoryFilter = typeof category === 'string' ? category.trim() : '';
   const wantsUncategorized = categoryFilter.toLowerCase() === 'uncategorized';
+  let categoryParamIndex = null;
 
   if (!include_transfers && !wantsUncategorized) {
     conditions.push('t.is_transfer = false');
@@ -35,10 +36,21 @@ async function getTransactions({
   }
   if (categoryFilter) {
     params.push(categoryFilter);
+    categoryParamIndex = idx++;
     if (wantsUncategorized) {
-      conditions.push(`COALESCE(c.name, 'Uncategorized') ILIKE $${idx++}`);
+      conditions.push(`EXISTS (
+        SELECT 1 FROM transaction_allocations ta_filter
+        LEFT JOIN categories c_filter ON c_filter.id = ta_filter.category_id
+        WHERE ta_filter.transaction_id = t.id
+          AND COALESCE(c_filter.name, 'Uncategorized') ILIKE $${categoryParamIndex}
+      )`);
     } else {
-      conditions.push(`c.name ILIKE $${idx++}`);
+      conditions.push(`EXISTS (
+        SELECT 1 FROM transaction_allocations ta_filter
+        JOIN categories c_filter ON c_filter.id = ta_filter.category_id
+        WHERE ta_filter.transaction_id = t.id
+          AND c_filter.name ILIKE $${categoryParamIndex}
+      )`);
     }
   }
   if (account_name) {
@@ -57,13 +69,15 @@ async function getTransactions({
     // Aggregated totals by category
     const sql = `
       SELECT COALESCE(c.name, 'Uncategorized') AS category,
-             COUNT(*)::int AS transaction_count,
-             ABS(SUM(t.amount) FILTER (WHERE t.amount > 0))::numeric AS total_spending,
-             ABS(SUM(t.amount) FILTER (WHERE t.amount < 0))::numeric AS total_income
+             COUNT(DISTINCT t.id)::int AS transaction_count,
+             ABS(SUM(ta.amount) FILTER (WHERE ta.amount > 0))::numeric AS total_spending,
+             ABS(SUM(ta.amount) FILTER (WHERE ta.amount < 0))::numeric AS total_income
       FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      JOIN transaction_allocations ta ON ta.transaction_id = t.id
+      LEFT JOIN categories c ON ta.category_id = c.id
       LEFT JOIN accounts a ON t.account_id = a.id
       ${whereClause}
+      ${categoryParamIndex ? `AND COALESCE(c.name, 'Uncategorized') ILIKE $${categoryParamIndex}` : ''}
       GROUP BY COALESCE(c.name, 'Uncategorized')
       ORDER BY total_spending DESC NULLS LAST`;
 
@@ -87,11 +101,17 @@ async function getTransactions({
   }
 
   // Detail mode — individual transactions
+  const detailSumExpression = categoryParamIndex
+    ? `(SELECT COALESCE(SUM(ta_total.amount), 0)
+        FROM transaction_allocations ta_total
+        LEFT JOIN categories c_total ON c_total.id = ta_total.category_id
+        WHERE ta_total.transaction_id = t.id
+          AND COALESCE(c_total.name, 'Uncategorized') ILIKE $${categoryParamIndex})`
+    : 't.amount';
   const countSql = `
     SELECT COUNT(*)::int AS total,
-           COALESCE(SUM(t.amount), 0)::numeric AS sum
+           COALESCE(SUM(${detailSumExpression}), 0)::numeric AS sum
     FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
     LEFT JOIN accounts a ON t.account_id = a.id
     ${whereClause}`;
   const { rows: [countRow] } = await pool.query(countSql, params);
@@ -100,10 +120,20 @@ async function getTransactions({
   const sql = `
     SELECT t.date, COALESCE(t.merchant_name, t.name) AS merchant,
            t.amount, t.pending,
-           COALESCE(c.name, 'Uncategorized') AS category,
+           allocation_summary.category,
+           allocation_summary.allocations,
            COALESCE(a.custom_name, a.name) AS account_name
     FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN LATERAL (
+      SELECT string_agg(COALESCE(c.name, 'Uncategorized'), ' + ' ORDER BY ta.position) AS category,
+             json_agg(json_build_object(
+               'category', COALESCE(c.name, 'Uncategorized'),
+               'amount', ta.amount::text
+             ) ORDER BY ta.position) AS allocations
+      FROM transaction_allocations ta
+      LEFT JOIN categories c ON c.id = ta.category_id
+      WHERE ta.transaction_id = t.id
+    ) allocation_summary ON true
     LEFT JOIN accounts a ON t.account_id = a.id
     ${whereClause}
     ORDER BY t.date DESC, t.id DESC
@@ -119,6 +149,7 @@ async function getTransactions({
       amount: parseFloat(r.amount),
       pending: r.pending,
       category: r.category,
+      allocations: r.allocations || [],
       account: r.account_name
     })),
     total: countRow.total,

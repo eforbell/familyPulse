@@ -59,6 +59,7 @@ async function getCashFlowSummary({ start_period, end_period } = {}) {
   const months = [];
   let totalIncome = 0;
   let totalSpending = 0;
+  let totalNetCashFlow = 0;
 
   for (const p of periods) {
     const s = await getMonthlyBudgetSummary(p);
@@ -70,6 +71,7 @@ async function getCashFlowSummary({ start_period, end_period } = {}) {
     });
     totalIncome += s.income.current;
     totalSpending += s.spending.actual;
+    totalNetCashFlow += s.net_cash_flow.current;
   }
 
   return {
@@ -79,12 +81,12 @@ async function getCashFlowSummary({ start_period, end_period } = {}) {
     totals: {
       income: Math.round(totalIncome * 100) / 100,
       spending: Math.round(totalSpending * 100) / 100,
-      net_cash_flow: Math.round((totalIncome - totalSpending) * 100) / 100
+      net_cash_flow: Math.round(totalNetCashFlow * 100) / 100
     },
     averages: {
       income: Math.round((totalIncome / months.length) * 100) / 100,
       spending: Math.round((totalSpending / months.length) * 100) / 100,
-      net_cash_flow: Math.round(((totalIncome - totalSpending) / months.length) * 100) / 100
+      net_cash_flow: Math.round((totalNetCashFlow / months.length) * 100) / 100
     }
   };
 }

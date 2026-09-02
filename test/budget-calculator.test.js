@@ -211,6 +211,62 @@ describe('budget-calculator', () => {
     // Restore
     await pool.query('UPDATE categories SET budget_amount = 500 WHERE id = $1', [testCatId]);
   });
+
+  it('forecasts only the category allocation of a split recurring transaction', async () => {
+    const merchantKey = 'test-budget-split-recurring';
+    let transactionId;
+    let recurringId;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [otherCategory] } = await client.query(`
+        INSERT INTO categories (name, color, budget_amount, is_income, is_transfer_class, icon)
+        VALUES ('TestBudgetSplitOther', '#0ea5e9', 0, false, false, '🛠️')
+        ON CONFLICT (name) DO UPDATE SET is_income = false, is_transfer_class = false
+        RETURNING id
+      `);
+      const { rows: [transaction] } = await client.query(`
+        INSERT INTO transactions
+          (plaid_transaction_id, account_id, amount, date, name, merchant_name, category_id, is_transfer)
+        VALUES ('test-budget-split-recurring', $1, 100.00, $2::date, 'Split Monthly Bill', 'Split Monthly Bill', NULL, false)
+        RETURNING id
+      `, [accountId, `${TEST_PERIOD}-25`]);
+      transactionId = transaction.id;
+      await client.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [transactionId]);
+      await client.query(`
+        INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+        VALUES ($1, $2, 40.00, 1), ($1, $3, 60.00, 2)
+      `, [transactionId, testCatId, otherCategory.id]);
+      const { rows: [recurring] } = await client.query(`
+        INSERT INTO recurring_expenses (
+          merchant_key, merchant_name, cashflow_type, frequency, confidence, status,
+          latest_account_id, latest_amount, first_seen_date, last_seen_date, source_txn_count
+        ) VALUES ($1, 'Split Monthly Bill', 'expense', 'monthly', 'high', 'active',
+                  $2, 100.00, $3::date, $3::date, 1)
+        RETURNING id
+      `, [merchantKey, accountId, `${TEST_PERIOD}-25`]);
+      recurringId = recurring.id;
+      await client.query(`
+        INSERT INTO recurring_expense_history
+          (recurring_expense_id, transaction_id, amount, transaction_date)
+        VALUES ($1, $2, 100.00, $3::date)
+      `, [recurringId, transactionId, `${TEST_PERIOD}-25`]);
+      await client.query('COMMIT');
+
+      const { getCategoryDetail } = require('../lib/budget-calculator');
+      const detail = await getCategoryDetail(testCatId, TEST_PERIOD);
+      assert.equal(detail.forecast.recurring_count, 1);
+      assert.equal(detail.forecast.recurring_monthly_total, 40);
+    } finally {
+      if (client) {
+        try { await client.query('ROLLBACK'); } catch {}
+        client.release();
+      }
+      if (recurringId) await pool.query('DELETE FROM recurring_expenses WHERE id = $1', [recurringId]);
+      if (transactionId) await pool.query('DELETE FROM transactions WHERE id = $1', [transactionId]);
+      await pool.query(`DELETE FROM categories WHERE name = 'TestBudgetSplitOther'`);
+    }
+  });
 });
 
 describe('snapshot-generator', () => {

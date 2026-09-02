@@ -72,6 +72,7 @@ describe('database schema', () => {
     'recurring_expenses', 'recurring_expense_history',
     'planned_expenses', 'cash_flow_snapshots',
     'transaction_notes', 'transaction_attachments',
+    'transaction_allocations',
     'merchant_rename_rules',
     'schema_migrations'
   ];
@@ -104,6 +105,28 @@ describe('database schema', () => {
       WHERE table_name = 'transactions' AND constraint_type = 'UNIQUE'
     `);
     assert.ok(rows.length > 0, 'Should have unique constraint on plaid_transaction_id');
+  });
+
+  it('every transaction has signed allocations that reconcile to its amount', async () => {
+    const { rows: [result] } = await pool.query(`
+      SELECT count(*)::int AS invalid_count
+      FROM transactions t
+      LEFT JOIN transaction_allocations ta ON ta.transaction_id = t.id
+      GROUP BY t.id, t.amount
+      HAVING count(ta.id) = 0 OR COALESCE(SUM(ta.amount), 0) <> t.amount
+      LIMIT 1
+    `);
+    assert.equal(result?.invalid_count, undefined);
+  });
+
+  it('migration 025 is idempotent', async () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '025-normalized-transaction-allocations.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+    });
   });
 
   it('app_config has primary key on key column', async () => {

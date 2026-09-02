@@ -440,9 +440,10 @@ function onTxClick(event, id) {
   openTransactionDetail(id);
 }
 
-function openCategoryOverlay(txId, merchant) {
-  assignTarget = { id: txId, merchant };
+function openCategoryOverlay(txId, merchant, transaction = null) {
+  assignTarget = { id: txId, merchant, transaction };
   $('cat-overlay-title').textContent = 'Assign Category';
+  showCategoryPickerPanel();
 
   if (merchant) {
     $('create-rule-row').classList.remove('hidden');
@@ -453,6 +454,9 @@ function openCategoryOverlay(txId, merchant) {
   }
 
   renderCategoryOptions();
+  const canSplit = !!transaction && !transaction.pending && !transaction.is_transfer
+    && !transaction.is_compound && Math.abs(Number(transaction.amount)) > 0;
+  $('split-transaction-btn').classList.toggle('hidden', !canSplit);
   $('category-overlay').classList.remove('hidden');
   syncModalOpenState();
 }
@@ -461,10 +465,14 @@ function openBulkCategoryOverlay() {
   assignTarget = null;
   $('cat-overlay-title').textContent = `Assign to ${selectedIds.size} transactions`;
   $('create-rule-row').classList.add('hidden');
+  $('split-transaction-btn').classList.add('hidden');
+  showCategoryPickerPanel();
   renderCategoryOptions();
   $('category-overlay').classList.remove('hidden');
   syncModalOpenState();
 }
+
+// Split editor behavior is shared with the dashboard.
 
 function renderCategoryOptions() {
   const list = $('category-list');
@@ -539,6 +547,7 @@ async function rejectCategorySuggestion(event, transactionId) {
 
 function closeCategoryOverlay() {
   $('category-overlay').classList.add('hidden');
+  showCategoryPickerPanel();
   assignTarget = null;
   syncModalOpenState();
 }
@@ -716,6 +725,7 @@ function renderTransactionDetail() {
   $('tx-detail-amount').innerHTML = fmtTxAmount(tx.amount);
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
   $('tx-detail-category').innerHTML = window.TransactionCategorizationUI.renderDetailCategory(tx);
+  $('tx-detail-category-btn').textContent = tx.is_split && !tx.is_compound ? 'Edit split' : 'Reassign category';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';
@@ -865,7 +875,7 @@ function renderAttachmentList(attachments) {
 
 function openCurrentCategoryEditor() {
   if (!currentDetail) return;
-  openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name);
+  openCategoryOverlay(currentDetail.id, currentDetail.merchant_name || currentDetail.name, currentDetail);
 }
 
 function openTransactionNoteEditor() {

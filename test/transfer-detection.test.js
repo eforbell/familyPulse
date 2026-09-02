@@ -222,5 +222,36 @@ describe('transfer detection', () => {
       );
       assert.equal(rows[0].is_transfer, true, 'Should match within $1 tolerance');
     });
+
+    it('does not mark an already-split transaction as a transfer', async () => {
+      await insertTx('tx-xfer-split-btc', acctId1, -100.00, today, 'Coinbase Purchase', 'Coinbase');
+      const { rows: [transaction] } = await pool.query(
+        "SELECT id FROM transactions WHERE plaid_transaction_id = 'tx-xfer-split-btc'"
+      );
+      const { rows: categories } = await pool.query(
+        "SELECT id FROM categories WHERE is_transfer_class = false AND is_income = false AND name <> 'Uncategorized' ORDER BY id LIMIT 2"
+      );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [transaction.id]);
+        await client.query(
+          `INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+           VALUES ($1, $2, -60.00, 1), ($1, $3, -40.00, 2)`,
+          [transaction.id, categories[0].id, categories[1].id]
+        );
+        await client.query('COMMIT');
+      } finally {
+        try { await client.query('ROLLBACK'); } catch {}
+        client.release();
+      }
+
+      const { detectTransfers } = require('../lib/transfer-detection');
+      await detectTransfers(7);
+      const { rows: [result] } = await pool.query(
+        "SELECT is_transfer FROM transactions WHERE plaid_transaction_id = 'tx-xfer-split-btc'"
+      );
+      assert.equal(result.is_transfer, false);
+    });
   });
 });

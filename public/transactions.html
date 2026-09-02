@@ -18,7 +18,7 @@
 
   <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
   <link rel="stylesheet" href="tokens.css?v=20260516c">
-  <link rel="stylesheet" href="pulse-skin.css?v=20260516c">
+  <link rel="stylesheet" href="pulse-skin.css?v=20260901a">
 </head>
 <body data-nav-page="transactions">
 
@@ -33,11 +33,25 @@
         <button type="button" class="modal-close" aria-label="Close" onclick="closeCategoryOverlay()">×</button>
       </div>
       <div class="modal-body">
-        <div id="category-list" class="cat-list"></div>
-        <label id="create-rule-row" class="create-rule-row hidden">
-          <input type="checkbox" id="create-rule-check">
-          <span>Always categorize <strong id="rule-merchant"></strong> as this</span>
-        </label>
+        <div id="category-picker-panel">
+          <div id="category-list" class="cat-list"></div>
+          <label id="create-rule-row" class="create-rule-row hidden">
+            <input type="checkbox" id="create-rule-check">
+            <span>Always categorize <strong id="rule-merchant"></strong> as this</span>
+          </label>
+          <button id="split-transaction-btn" class="btn-ghost split-transaction-btn hidden" type="button" onclick="openSplitEditor()">Split transaction</button>
+        </div>
+        <div id="split-editor-panel" class="hidden">
+          <div class="split-editor-total"><span>Transaction total</span><strong id="split-editor-total">$0.00</strong></div>
+          <div id="split-allocation-rows" class="split-allocation-rows"></div>
+          <button class="btn-ghost split-add-row" type="button" onclick="addSplitAllocationRow()">+ Add category</button>
+          <div id="split-editor-remaining" class="split-editor-remaining"></div>
+          <div id="split-editor-error" class="tx-detail-feedback error hidden"></div>
+          <div class="form-actions split-editor-actions">
+            <button class="btn-ghost" type="button" onclick="showCategoryPickerPanel()">Cancel</button>
+            <button id="split-editor-save" class="btn-primary" type="button" onclick="saveSplitAllocations()">Save split</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -267,8 +281,9 @@
 
   <script src="nav.js?v=20260516c"></script>
   <script src="display-name-suggestions.js?v=20260516c"></script>
-  <script src="transaction-categorization.js?v=20260708a"></script>
-  <script src="transactions.js?v=20260516c"></script>
+  <script src="transaction-categorization.js?v=20260901a"></script>
+  <script src="transaction-split-editor.js?v=20260901a"></script>
+  <script src="transactions.js?v=20260901a"></script>
 
 
 </body>

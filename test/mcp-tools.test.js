@@ -15,6 +15,9 @@ const { getAnomalies } = require('../mcp/tools/anomalies');
 // Test fixture prefix for isolation
 const PREFIX = 'mcp-test-';
 let testItemId;
+let checkingAccountId;
+let diningCategoryId;
+let healthcareCategoryId;
 
 before(async () => {
   // Ensure balance_basis config exists
@@ -52,6 +55,7 @@ before(async () => {
   const { rows: [checkingAcct] } = await pool.query(
     `SELECT id FROM accounts WHERE plaid_account_id = $1`, [`${PREFIX}checking`]
   );
+  checkingAccountId = checkingAcct.id;
 
   // Ensure a test category exists
   await pool.query(`
@@ -61,6 +65,15 @@ before(async () => {
   `);
 
   const { rows: [cat] } = await pool.query(`SELECT id FROM categories WHERE name = 'MCP Test Dining'`);
+  diningCategoryId = cat.id;
+
+  const { rows: [healthcareCat] } = await pool.query(`
+    INSERT INTO categories (name, icon, color, budget_amount, is_transfer_class, is_income)
+    VALUES ('MCP Test Healthcare', '🩺', '#00aaff', 200.00, false, false)
+    ON CONFLICT (name) DO UPDATE SET budget_amount = 200.00, is_transfer_class = false, is_income = false
+    RETURNING id
+  `);
+  healthcareCategoryId = healthcareCat.id;
 
   // Create test transactions
   const txDate = new Date();
@@ -88,13 +101,49 @@ before(async () => {
     `${PREFIX}uncat-transfer`, checkingAcct.id, 88.25, dateStr,
     'MCP Uncategorized Transfer', 'MCP Uncategorized Transfer'
   ]);
+
+  const splitFixtures = await pool.connect();
+  try {
+    await splitFixtures.query('BEGIN');
+    const { rows: [splitTx] } = await splitFixtures.query(`
+      INSERT INTO transactions
+        (plaid_transaction_id, account_id, amount, date, name, merchant_name, category_id, is_transfer, is_hidden, pending)
+      VALUES ($1, $2, 100.00, $3, 'MCP Split Merchant', 'MCP Split Merchant', NULL, false, false, false)
+      ON CONFLICT (plaid_transaction_id) DO UPDATE SET amount = 100.00, date = EXCLUDED.date
+      RETURNING id
+    `, [`${PREFIX}split`, checkingAccountId, dateStr]);
+    await splitFixtures.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [splitTx.id]);
+    await splitFixtures.query(`
+      INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+      VALUES ($1, $2, 60.00, 1), ($1, $3, 40.00, 2)
+    `, [splitTx.id, diningCategoryId, healthcareCategoryId]);
+
+    const { rows: [uncategorizedSplitTx] } = await splitFixtures.query(`
+      INSERT INTO transactions
+        (plaid_transaction_id, account_id, amount, date, name, merchant_name, category_id, is_transfer, is_hidden, pending)
+      VALUES ($1, $2, 80.00, $3, 'MCP Uncategorized Split', 'MCP Uncategorized Split', NULL, false, false, false)
+      ON CONFLICT (plaid_transaction_id) DO UPDATE SET amount = 80.00, date = EXCLUDED.date
+      RETURNING id
+    `, [`${PREFIX}uncat-split`, checkingAccountId, dateStr]);
+    await splitFixtures.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [uncategorizedSplitTx.id]);
+    await splitFixtures.query(`
+      INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+      VALUES ($1, NULL, 30.00, 1), ($1, $2, 50.00, 2)
+    `, [uncategorizedSplitTx.id, diningCategoryId]);
+    await splitFixtures.query('COMMIT');
+  } catch (err) {
+    await splitFixtures.query('ROLLBACK');
+    throw err;
+  } finally {
+    splitFixtures.release();
+  }
 });
 
 after(async () => {
   await pool.query(`DELETE FROM transactions WHERE plaid_transaction_id LIKE '${PREFIX}%'`);
   await pool.query(`DELETE FROM accounts WHERE plaid_account_id LIKE '${PREFIX}%'`);
   await pool.query(`DELETE FROM items WHERE item_id = 'test-item-mcp'`);
-  await pool.query(`DELETE FROM categories WHERE name = 'MCP Test Dining'`);
+  await pool.query(`DELETE FROM categories WHERE name IN ('MCP Test Dining', 'MCP Test Healthcare')`);
   await pool.end();
 });
 
@@ -168,6 +217,30 @@ describe('MCP: get_transactions', () => {
     const result = await getTransactions({ category: 'Uncategorized' });
     assert.ok(result.transactions.some(t => t.merchant === 'MCP Uncategorized Transfer'));
   });
+
+  it('uses matching allocation amounts for category-filtered detail totals', async () => {
+    const filtered = await getTransactions({
+      category: 'MCP Test Dining',
+      search: 'MCP Split Merchant'
+    });
+    assert.equal(filtered.total, 1, 'a split transaction should count as one parent transaction');
+    assert.equal(filtered.sum, 60, 'the filtered total should use only the Dining allocation');
+    assert.equal(filtered.transactions[0].amount, 100, 'detail rows retain the parent transaction amount');
+
+    const unfiltered = await getTransactions({ search: 'MCP Split Merchant' });
+    assert.equal(unfiltered.total, 1);
+    assert.equal(unfiltered.sum, 100, 'unfiltered totals should retain the parent transaction amount');
+  });
+
+  it('uses only the uncategorized allocation in Uncategorized detail totals', async () => {
+    const result = await getTransactions({
+      category: 'Uncategorized',
+      search: 'MCP Uncategorized Split'
+    });
+    assert.equal(result.total, 1);
+    assert.equal(result.sum, 30);
+    assert.equal(result.transactions[0].amount, 80);
+  });
 });
 
 // ── get_budget_status ─────────────────────────────────────────
@@ -212,6 +285,16 @@ describe('MCP: get_cash_flow_summary', () => {
     assert.equal(result.start_period, '2026-01');
     assert.equal(result.end_period, '2026-03');
     assert.equal(result.months.length, 3);
+  });
+
+  it('aggregates net cash flow from the authoritative monthly values', async () => {
+    const result = await getCashFlowSummary({ start_period: '2026-01', end_period: '2026-03' });
+    const monthlyNet = result.months.reduce((sum, month) => sum + month.net_cash_flow, 0);
+    assert.equal(result.totals.net_cash_flow, Math.round(monthlyNet * 100) / 100);
+    assert.equal(
+      result.averages.net_cash_flow,
+      Math.round((monthlyNet / result.months.length) * 100) / 100
+    );
   });
 
   it('preserves an explicit start_period when end_period is omitted', async () => {

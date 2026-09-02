@@ -392,6 +392,75 @@ describe('planned expenses API', () => {
     });
   });
 
+  describe('GET /api/cash-flow/discretionary-breakdown', () => {
+    it('counts a split transaction once and returns every category allocation', async () => {
+      const suffix = crypto.randomUUID();
+      const merchantName = `Review Split Merchant ${suffix}`;
+      const transactionId = `review-split-${suffix}`;
+      const itemId = `review-split-item-${suffix}`;
+      const accountId = `review-split-account-${suffix}`;
+      const categoryNames = [`Review Split Groceries ${suffix}`, `Review Split Health ${suffix}`];
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+        const { rows: [item] } = await client.query(
+          `INSERT INTO items (access_token, item_id, institution_name, status)
+           VALUES ('review-split-token', $1, 'Review Split Bank', 'good')
+           RETURNING id`,
+          [itemId]
+        );
+        const { rows: [account] } = await client.query(
+          `INSERT INTO accounts (plaid_account_id, item_id, name, type, subtype)
+           VALUES ($1, $2, 'Review Split Account', 'depository', 'checking')
+           RETURNING id`,
+          [accountId, item.id]
+        );
+        const { rows: categories } = await client.query(
+          `INSERT INTO categories (name, color)
+           VALUES ($1, '#22c55e'), ($2, '#ef4444')
+           RETURNING id, name`,
+          categoryNames
+        );
+        const { rows: [transaction] } = await client.query(
+          `INSERT INTO transactions
+             (plaid_transaction_id, account_id, amount, date, merchant_name, name, pending, is_transfer, source)
+           VALUES ($1, $2, 100.00, CURRENT_DATE, $3, $3, false, false, 'test')
+           RETURNING id`,
+          [transactionId, account.id, merchantName]
+        );
+        await client.query('DELETE FROM transaction_allocations WHERE transaction_id = $1', [transaction.id]);
+        await client.query(
+          `INSERT INTO transaction_allocations (transaction_id, category_id, amount, position)
+           VALUES ($1, $2, 60.00, 1), ($1, $3, 40.00, 2)`,
+          [transaction.id, categories[0].id, categories[1].id]
+        );
+        await client.query('COMMIT');
+
+        const month = new Date().getUTCMonth() + 1;
+        const res = await req(`api/cash-flow/discretionary-breakdown?month=${month}`);
+        assert.equal(res.status, 200);
+        const data = await res.json();
+        const merchant = data.merchants.find(row => row.merchant === merchantName);
+
+        assert.ok(merchant, 'split merchant should appear in the breakdown');
+        assert.equal(merchant.transaction_count, 1);
+        assert.equal(merchant.total, 100);
+        assert.deepEqual(merchant.categories, categoryNames);
+        assert.equal(merchant.category, categoryNames.join(', '));
+        assert.deepEqual(merchant.category_allocations, [
+          { category_name: categoryNames[0], amount: 60 },
+          { category_name: categoryNames[1], amount: 40 }
+        ]);
+      } finally {
+        await client.query('ROLLBACK').catch(() => {});
+        await pool.query('DELETE FROM items WHERE item_id = $1', [itemId]);
+        await pool.query('DELETE FROM categories WHERE name = ANY($1::text[])', [categoryNames]);
+        client.release();
+      }
+    });
+  });
+
   describe('planned income (type=income)', () => {
     it('creates a planned income item', async () => {
       const res = await req('api/cash-flow/planned-expenses', {
