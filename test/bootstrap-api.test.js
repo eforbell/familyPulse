@@ -27,6 +27,7 @@ after(async () => {
   // operation. This test replaces the entire household/category seed, so reset
   // the mappings first and restore migration-owned payroll data afterward.
   await pool.query('DELETE FROM paycheck_category_mappings');
+  await pool.query('DELETE FROM paycheck_events');
   await pool.query('DELETE FROM categories');
   await pool.query('DELETE FROM family_members');
   // Restore seed data for subsequent test files (bootstrap wipes family_members/categories)
@@ -39,6 +40,11 @@ after(async () => {
     'utf8'
   );
   await pool.query(paycheckMigration);
+  const multiDepositMigration = fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '027-multi-deposit-paychecks.sql'),
+    'utf8'
+  );
+  await pool.query(multiDepositMigration);
   server.close();
   await pool.end();
 });

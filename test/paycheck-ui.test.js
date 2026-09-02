@@ -15,12 +15,16 @@ describe('paycheck setup UI', () => {
       'Medicare tax', '401(k) deduction', 'Health insurance premium', 'Other deductions'
     ]) assert.match(html, new RegExp(label.replace(/[()]/g, '\\$&')));
     assert.match(html, /Use latest paycheck/);
+    assert.match(html, /Deposit accounts/);
+    assert.match(html, /Apply deductions to/);
   });
 
   it('keeps money inputs at iOS-safe sizing and requires net reconciliation', () => {
     assert.match(js, /difference !== 0/);
     assert.match(js, /paycheck-save/);
     assert.match(js, /other_deductions/);
+    assert.match(js, /deposit_transaction_ids/);
+    assert.match(js, /deduction_transaction_id/);
   });
 
   it('closes the topmost paycheck modal on Escape without orphaning it', () => {

@@ -73,7 +73,7 @@ describe('database schema', () => {
     'planned_expenses', 'cash_flow_snapshots',
     'transaction_notes', 'transaction_attachments',
     'transaction_allocations',
-    'paychecks', 'paycheck_category_mappings',
+    'paycheck_events', 'paycheck_deposits', 'paycheck_category_mappings',
     'merchant_rename_rules',
     'schema_migrations'
   ];
@@ -138,6 +138,48 @@ describe('database schema', () => {
     await assert.doesNotReject(async () => {
       await pool.query(sql);
     });
+  });
+
+  it('migration 027 is idempotent and removes the legacy paycheck table', async () => {
+    const { rows: [member] } = await pool.query("SELECT id FROM family_members WHERE role = 'parent' ORDER BY id LIMIT 1");
+    const { rows: [item] } = await pool.query(
+      "INSERT INTO items (access_token, item_id, institution_name, status) VALUES ('schema-pay-token','schema-pay-item','Schema Bank','good') RETURNING id"
+    );
+    const { rows: [account] } = await pool.query(
+      "INSERT INTO accounts (plaid_account_id,item_id,name,type,subtype) VALUES ('schema-pay-account',$1,'Checking','depository','checking') RETURNING id",
+      [item.id]
+    );
+    const { rows: [transaction] } = await pool.query(
+      "INSERT INTO transactions (plaid_transaction_id,account_id,amount,date,name,pending,is_transfer,source) VALUES ('schema-pay-tx',$1,-90,'2098-01-01','Employer',false,false,'plaid') RETURNING id",
+      [account.id]
+    );
+    const { rows: [legacyPaycheck] } = await pool.query(
+      `INSERT INTO paychecks (transaction_id,member_id,employer,gross_earnings,federal_tax,source_net_amount,created_by)
+       VALUES ($1,$2,'Employer',100,10,90,$2) RETURNING id`, [transaction.id, member.id]
+    );
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '027-multi-deposit-paychecks.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+      await pool.query(sql);
+    });
+    const { rows: [migrated] } = await pool.query(
+      `SELECT pe.id, pe.gross_earnings::text, pd.transaction_id, pd.deductions_applied,
+              pd.source_net_amount::text, pd.reconciliation_status
+       FROM paycheck_events pe JOIN paycheck_deposits pd ON pd.paycheck_event_id = pe.id
+       WHERE pd.transaction_id = $1`, [transaction.id]
+    );
+    assert.equal(migrated.id, legacyPaycheck.id);
+    assert.deepEqual(migrated, {
+      id: legacyPaycheck.id, gross_earnings: '100.00', transaction_id: transaction.id,
+      deductions_applied: true, source_net_amount: '90.00', reconciliation_status: 'matched'
+    });
+    const { rows: [legacy] } = await pool.query("SELECT to_regclass('public.paychecks') AS name");
+    assert.equal(legacy.name, null);
+    await pool.query('DELETE FROM paycheck_events WHERE id = $1', [migrated.id]);
+    await pool.query('DELETE FROM items WHERE id = $1', [item.id]);
   });
 
   it('payroll categories have immutable system identities and stay out of discretionary baselines', async () => {

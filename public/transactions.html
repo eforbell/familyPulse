@@ -107,8 +107,20 @@
       <div class="modal-body">
         <div id="paycheck-setup-feedback" class="tx-detail-feedback hidden"></div>
         <div class="paycheck-context">
-          <span>Imported net deposit</span>
+          <span>Selected net deposits</span>
           <strong id="paycheck-imported-net">$0.00</strong>
+        </div>
+        <div class="paycheck-deposits-section">
+          <div>
+            <h3>Deposit accounts</h3>
+            <p class="tx-detail-subtle">Select every ACH deposit from this paycheck.</p>
+          </div>
+          <div id="paycheck-deposit-options" class="paycheck-deposit-options"></div>
+          <div class="form-group">
+            <label for="paycheck-deduction-transaction">Apply deductions to</label>
+            <select id="paycheck-deduction-transaction" onchange="updatePaycheckBalance()"></select>
+            <p class="tx-detail-subtle">The other deposits are modeled as gross-pay allocations only.</p>
+          </div>
         </div>
         <div class="paycheck-form-grid">
           <div class="form-group">
@@ -352,7 +364,7 @@
   <script src="display-name-suggestions.js?v=20260516c"></script>
   <script src="transaction-categorization.js?v=20260901a"></script>
   <script src="transaction-split-editor.js?v=20260901a"></script>
-  <script src="paycheck-setup.js?v=20260902a"></script>
+  <script src="paycheck-setup.js?v=20260902b"></script>
   <script src="transactions.js?v=20260902a"></script>
 
 
