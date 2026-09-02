@@ -23,11 +23,22 @@ before(async () => {
 
 after(async () => {
   await pool.query('DELETE FROM category_rules WHERE created_by = $1', ['setup']);
+  // Payroll category mappings intentionally protect their categories in normal
+  // operation. This test replaces the entire household/category seed, so reset
+  // the mappings first and restore migration-owned payroll data afterward.
+  await pool.query('DELETE FROM paycheck_category_mappings');
   await pool.query('DELETE FROM categories');
   await pool.query('DELETE FROM family_members');
   // Restore seed data for subsequent test files (bootstrap wipes family_members/categories)
-  const seedSql = require('fs').readFileSync(require('path').join(__dirname, '..', 'db', 'seed.sql'), 'utf8');
+  const fs = require('fs');
+  const path = require('path');
+  const seedSql = fs.readFileSync(path.join(__dirname, '..', 'db', 'seed.sql'), 'utf8');
   await pool.query(seedSql);
+  const paycheckMigration = fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '026-paycheck-breakdowns.sql'),
+    'utf8'
+  );
+  await pool.query(paycheckMigration);
   server.close();
   await pool.end();
 });

@@ -566,7 +566,8 @@
 
 #category-overlay { z-index: 140; }
 #tx-note-editor-overlay,
-#tx-attachment-editor-overlay { z-index: 130; }
+#tx-attachment-editor-overlay,
+#paycheck-setup-overlay { z-index: 130; }
 #tx-detail-overlay,
 #kid-tx-detail-overlay { z-index: 120; }
 
@@ -652,8 +653,35 @@
 .split-editor-remaining.unbalanced { color: var(--warn); border-color: var(--warn-border); background: var(--warn-bg); }
 .split-editor-actions { justify-content: flex-end; margin-top: var(--s-3); }
 
+.paycheck-context {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 12px 14px;
+  margin-bottom: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  font-variant-numeric: tabular-nums;
+}
+.paycheck-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--s-4); }
+.paycheck-gross-field { grid-column: 1 / -1; }
+.paycheck-other-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); margin: var(--s-2) 0; }
+.paycheck-other-head h3 { font-size: var(--text-base); }
+.paycheck-other-deductions { display: flex; flex-direction: column; gap: 8px; }
+.paycheck-other-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(112px, .4fr) 38px; gap: 8px; }
+.paycheck-other-row input { width: 100%; min-width: 0; font-size: 1rem; }
+.paycheck-other-remove { min-height: 38px; padding: 6px; }
+#paycheck-balance { display: grid; grid-template-columns: 1fr auto; margin-top: var(--s-4); }
+#paycheck-balance span:last-child { grid-column: 1 / -1; font-size: var(--text-sm); }
+.paycheck-modal-foot { flex-wrap: wrap; }
+.paycheck-foot-spacer { flex: 1; }
+
 @media (max-width: 480px) {
   .split-allocation-row { grid-template-columns: minmax(0, 1fr) 116px 36px; }
+  .paycheck-form-grid { grid-template-columns: 1fr; }
+  .paycheck-gross-field { grid-column: auto; }
+  .paycheck-other-row { grid-template-columns: minmax(0, 1fr) 112px 36px; }
 }
 
 .tx-inline-action { min-height: 32px; padding: 6px 10px; }

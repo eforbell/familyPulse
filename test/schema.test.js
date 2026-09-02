@@ -73,6 +73,7 @@ describe('database schema', () => {
     'planned_expenses', 'cash_flow_snapshots',
     'transaction_notes', 'transaction_attachments',
     'transaction_allocations',
+    'paychecks', 'paycheck_category_mappings',
     'merchant_rename_rules',
     'schema_migrations'
   ];
@@ -127,6 +128,29 @@ describe('database schema', () => {
     await assert.doesNotReject(async () => {
       await pool.query(sql);
     });
+  });
+
+  it('migration 026 is idempotent', async () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, '..', 'db', 'migrations', '026-paycheck-breakdowns.sql'),
+      'utf8'
+    );
+    await assert.doesNotReject(async () => {
+      await pool.query(sql);
+    });
+  });
+
+  it('payroll categories have immutable system identities and stay out of discretionary baselines', async () => {
+    const { rows } = await pool.query(
+      `SELECT c.system_key, c.exclude_from_baseline, c.exclude_from_learning
+       FROM paycheck_category_mappings pcm
+       JOIN categories c ON c.id = pcm.category_id
+       ORDER BY pcm.field_key`
+    );
+    assert.equal(rows.length, 7);
+    assert.ok(rows.every(row => row.system_key?.startsWith('paycheck.')));
+    assert.ok(rows.every(row => row.exclude_from_baseline === true));
+    assert.ok(rows.every(row => row.exclude_from_learning === true));
   });
 
   it('app_config has primary key on key column', async () => {

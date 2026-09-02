@@ -22,7 +22,7 @@
   <!-- Load order matters: chassis → tokens → skin -->
   <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
   <link rel="stylesheet" href="tokens.css?v=20260516c">
-  <link rel="stylesheet" href="pulse-skin.css?v=20260901a">
+  <link rel="stylesheet" href="pulse-skin.css?v=20260902a">
 </head>
 <body data-nav-page="dashboard">
 
@@ -105,6 +105,75 @@
     </div>
   </div>
 
+  <div id="paycheck-setup-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="paycheck-setup-title">
+    <div class="overlay-box wide">
+      <div class="modal-head">
+        <div>
+          <h2 id="paycheck-setup-title">Paycheck setup</h2>
+          <p class="modal-sub">Turn a net deposit into gross income and payroll deductions.</p>
+        </div>
+        <button type="button" class="modal-close" aria-label="Close" onclick="closePaycheckSetup()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="paycheck-setup-feedback" class="tx-detail-feedback hidden"></div>
+        <div class="paycheck-context">
+          <span>Imported net deposit</span>
+          <strong id="paycheck-imported-net">$0.00</strong>
+        </div>
+        <div class="paycheck-form-grid">
+          <div class="form-group">
+            <label for="paycheck-member">Employee</label>
+            <select id="paycheck-member" onchange="updatePaycheckBalance()"></select>
+          </div>
+          <div class="form-group">
+            <label for="paycheck-employer">Employer</label>
+            <input id="paycheck-employer" type="text" maxlength="160" autocomplete="organization" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group paycheck-gross-field">
+            <label for="paycheck-gross">Gross earnings</label>
+            <input id="paycheck-gross" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group">
+            <label for="paycheck-federal-tax">Federal tax withheld</label>
+            <input id="paycheck-federal-tax" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group">
+            <label for="paycheck-social-security-tax">Social Security payroll tax</label>
+            <input id="paycheck-social-security-tax" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group">
+            <label for="paycheck-medicare-tax">Medicare tax</label>
+            <input id="paycheck-medicare-tax" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group">
+            <label for="paycheck-retirement-401k">401(k) deduction</label>
+            <input id="paycheck-retirement-401k" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+          <div class="form-group">
+            <label for="paycheck-health-insurance">Health insurance premium</label>
+            <input id="paycheck-health-insurance" type="number" inputmode="decimal" min="0" step="0.01" oninput="updatePaycheckBalance()">
+          </div>
+        </div>
+        <div class="paycheck-other-head">
+          <div>
+            <h3>Other deductions</h3>
+            <p class="tx-detail-subtle">Optional items are saved individually and categorized together.</p>
+          </div>
+          <button class="btn-ghost btn-xs" type="button" onclick="addPaycheckOtherDeduction()">+ Add deduction</button>
+        </div>
+        <div id="paycheck-other-deductions" class="paycheck-other-deductions"></div>
+        <div id="paycheck-balance" class="split-editor-remaining"></div>
+      </div>
+      <div class="modal-foot paycheck-modal-foot">
+        <button id="paycheck-use-latest" class="btn-ghost" type="button" onclick="useLatestPaycheck()">Use latest paycheck</button>
+        <span class="paycheck-foot-spacer"></span>
+        <button class="btn-ghost" type="button" onclick="closePaycheckSetup()">Cancel</button>
+        <button id="paycheck-save" class="btn-primary" type="button" onclick="savePaycheckSetup()">Save paycheck</button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Transaction detail overlay -->
   <div id="tx-detail-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tx-detail-title">
     <div class="overlay-box wide">
@@ -173,6 +242,7 @@
       <div class="modal-foot">
         <button class="btn-ghost" type="button" onclick="openTransactionNoteEditor()">Add note</button>
         <button class="btn-ghost" type="button" onclick="openTransactionAttachmentEditor()">Add receipt</button>
+        <button id="tx-detail-paycheck-btn" class="btn-ghost hidden" type="button" onclick="openPaycheckSetup()">Set up paycheck</button>
         <button id="tx-detail-category-btn" class="btn-primary" type="button" onclick="openCurrentCategoryEditor()">Reassign category</button>
       </div>
     </div>
@@ -290,7 +360,8 @@
   <script src="display-name-suggestions.js?v=20260516c"></script>
   <script src="transaction-categorization.js?v=20260901a"></script>
   <script src="transaction-split-editor.js?v=20260901a"></script>
-  <script src="app.js?v=20260901a"></script>
+  <script src="paycheck-setup.js?v=20260902a"></script>
+  <script src="app.js?v=20260902a"></script>
 
 
 </body>

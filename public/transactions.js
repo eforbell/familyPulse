@@ -428,7 +428,7 @@ function isOverlayOpen(id) {
 }
 
 function syncModalOpenState() {
-  const open = ['tx-detail-overlay','category-overlay','tx-note-editor-overlay','tx-attachment-editor-overlay'].some(isOverlayOpen);
+  const open = ['tx-detail-overlay','category-overlay','tx-note-editor-overlay','tx-attachment-editor-overlay','paycheck-setup-overlay'].some(isOverlayOpen);
   document.body.classList.toggle('modal-open', open);
 }
 
@@ -690,6 +690,7 @@ async function openTransactionDetail(id) {
 }
 
 function closeTransactionDetail() {
+  closePaycheckSetup();
   currentDetailId = null;
   currentDetail = null;
   hideDisplayNameSuggestions();
@@ -726,6 +727,11 @@ function renderTransactionDetail() {
   $('tx-detail-amount').className = `tx-detail-amount-value ${parseFloat(tx.amount) < 0 ? 'credit' : 'debit'}`;
   $('tx-detail-category').innerHTML = window.TransactionCategorizationUI.renderDetailCategory(tx);
   $('tx-detail-category-btn').textContent = tx.is_split && !tx.is_compound ? 'Edit split' : 'Reassign category';
+  const canSetUpPaycheck = currentMember?.role === 'parent' && Number(tx.amount) < 0 && !tx.pending && !tx.is_transfer;
+  $('tx-detail-paycheck-btn').classList.toggle('hidden', !canSetUpPaycheck);
+  $('tx-detail-paycheck-btn').textContent = tx.paycheck?.reconciliation_status === 'source_changed'
+    ? 'Review paycheck'
+    : tx.paycheck ? 'Edit paycheck' : 'Set up paycheck';
   $('tx-detail-raw').textContent = rawParts.length ? rawParts.join(' / ') : '—';
 
   const canEditDisplayName = currentMember?.role === 'parent';
