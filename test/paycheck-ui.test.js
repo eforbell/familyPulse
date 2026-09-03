@@ -27,6 +27,11 @@ describe('paycheck setup UI', () => {
     assert.match(js, /deduction_transaction_id/);
   });
 
+  it('renders the shared amount formatter as markup instead of escaped text', () => {
+    assert.match(js, /\$\('paycheck-imported-net'\)\.innerHTML = fmtTxAmount/);
+    assert.doesNotMatch(js, /\$\('paycheck-imported-net'\)\.textContent = fmtTxAmount/);
+  });
+
   it('closes the topmost paycheck modal on Escape without orphaning it', () => {
     assert.match(js, /event\.stopImmediatePropagation\(\)/);
     assert.match(js, /event\.key !== 'Escape'/);

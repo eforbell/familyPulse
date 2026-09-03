@@ -136,7 +136,7 @@
     const calculatedNet = gross - fixed - other;
     const importedNet = selectedNetCents();
     const difference = calculatedNet - importedNet;
-    $('paycheck-imported-net').textContent = fmtTxAmount(importedNet / 100);
+    $('paycheck-imported-net').innerHTML = fmtTxAmount(importedNet / 100);
     const balance = $('paycheck-balance');
     balance.innerHTML = `<span>Calculated net</span><strong>${fmtTxAmount(calculatedNet / 100)}</strong><span>${difference === 0 ? 'Matches deposits' : `${fmtTxAmount(Math.abs(difference) / 100)} ${difference > 0 ? 'over' : 'under'}`}</span>`;
     balance.classList.toggle('balanced', difference === 0);
