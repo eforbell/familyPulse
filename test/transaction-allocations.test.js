@@ -232,10 +232,14 @@ describe('normalized transaction allocations', () => {
 
     const { getMonthlyBudgetSummary } = require('../lib/budget-calculator');
     const summary = await getMonthlyBudgetSummary('2098-07');
-    assert.equal(summary.income.current, 7000);
+    // Cashflow totals reflect the $5,000 deposited at the bank, while the
+    // allocation categories preserve the $7,000 gross-pay breakdown.
+    assert.equal(summary.income.current, 5000);
+    assert.equal(summary.spending.actual, 179.1);
     assert.equal(summary.categories.find(category => category.id === taxesId).spent, 1200);
     assert.equal(summary.categories.find(category => category.id === healthcareId).spent, 849.1);
     assert.equal(summary.net_cash_flow.current, 4820.9);
+    assert.equal(summary.net_cash_flow.current, summary.income.current - summary.spending.actual);
   });
 
   it('preserves compound facts and uses an explicit adjustment for source revisions', async () => {
@@ -274,7 +278,13 @@ describe('normalized transaction allocations', () => {
     global.Date = FakeDate;
     try {
       const trends = await getBudgetTrends(1);
+      assert.equal(trends.monthly[0].income, 5100);
+      assert.equal(trends.monthly[0].spending, 179.1);
       assert.equal(trends.monthly[0].net_cash_flow, 4920.9);
+      assert.equal(
+        trends.monthly[0].net_cash_flow,
+        trends.monthly[0].income - trends.monthly[0].spending
+      );
     } finally {
       global.Date = RealDate;
     }
@@ -298,6 +308,27 @@ describe('normalized transaction allocations', () => {
       [paycheckTransactionId]
     );
     assert.deepEqual(restored, revised.slice(0, 3));
+  });
+
+  it('uses deposited cash, not gross payroll allocations, in financial-snapshot averages', async () => {
+    const { assembleFinancialSnapshot } = require('../lib/magic-actions/context-assembler');
+    const RealDate = global.Date;
+    class FakeDate extends RealDate {
+      constructor(...args) {
+        if (args.length === 0) return new RealDate(2098, 7, 15);
+        return new RealDate(...args);
+      }
+      static now() { return new RealDate(2098, 7, 15).getTime(); }
+    }
+    global.Date = FakeDate;
+    try {
+      const snapshot = await assembleFinancialSnapshot();
+      assert.equal(snapshot.avg_monthly_income, 1666.67);
+      assert.equal(snapshot.avg_monthly_spending, 59.7);
+      assert.equal(snapshot.avg_monthly_savings, 1606.97);
+    } finally {
+      global.Date = RealDate;
+    }
   });
 
   it('ratio-rebalances an ordinary split across a source sign change', async () => {
