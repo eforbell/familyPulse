@@ -17,8 +17,21 @@ const { getCoverageData } = require('./tools/coverage');
 const { getFinancialSnapshot } = require('./tools/snapshot');
 
 const PORT = parseInt(process.env.MCP_PORT || '3004', 10);
-const HOST = process.env.MCP_HOST || '0.0.0.0';
+const HOST = process.env.MCP_HOST || '127.0.0.1';
 const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || '';
+
+const MCP_SERVER_INSTRUCTIONS = [
+  'FamilyPulse exposes read-only household finance planning context.',
+  'Treat balances, transactions, budgets, coverage, and investment snapshots as sensitive operator data.',
+  'Data can be stale relative to bank, brokerage, Plaid, or pending-card reality; state date ranges and freshness assumptions.',
+  'Avoid double-counting transfers, credit-card payments, and balance snapshots as cash flow or investable assets.',
+  'Do not present output as financial, tax, legal, or investment advice; use it as planning context for the operator.'
+].join(' ');
+
+const READ_ONLY_TOOL_ANNOTATIONS = Object.freeze({
+  readOnlyHint: true,
+  destructiveHint: false
+});
 
 // ── MCP Server ────────────────────────────────────────────────
 
@@ -27,7 +40,8 @@ function createMcpServer() {
     name: 'familypulse',
     version: '1.0.0'
   }, {
-    capabilities: { tools: {} }
+    capabilities: { tools: {} },
+    instructions: MCP_SERVER_INSTRUCTIONS
   });
 
   // ── Tool Registration ─────────────────────────────────────────
@@ -36,6 +50,7 @@ function createMcpServer() {
     'get_account_balances',
     'Get all household accounts with current balances, grouped by family member. Returns depository, credit, and investment accounts with balance policy applied.',
     { member_name: z.string().optional().describe('Filter to a specific family member name (e.g. "Eric", "Alex", "Jordan", "Casey")') },
+    READ_ONLY_TOOL_ANNOTATIONS,
     async (args) => {
       const result = await getAccountBalances(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -56,6 +71,7 @@ function createMcpServer() {
       offset: z.number().optional().default(0).describe('Pagination offset'),
       summary_mode: z.boolean().optional().default(false).describe('Return aggregated totals by category instead of individual transactions')
     },
+    READ_ONLY_TOOL_ANNOTATIONS,
     async (args) => {
       const result = await getTransactions(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -66,6 +82,7 @@ function createMcpServer() {
     'get_budget_status',
     'Get monthly budget vs. actual spending by category. Shows income, spending, net cash flow, and per-category status (green/yellow/red).',
     { period: z.string().optional().describe('Month in YYYY-MM format (defaults to current month)') },
+    READ_ONLY_TOOL_ANNOTATIONS,
     async (args) => {
       const result = await getBudgetStatus(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -79,6 +96,7 @@ function createMcpServer() {
       start_period: z.string().optional().describe('Start month (YYYY-MM, defaults to 3 months ago)'),
       end_period: z.string().optional().describe('End month (YYYY-MM, defaults to current month)')
     },
+    READ_ONLY_TOOL_ANNOTATIONS,
     async (args) => {
       const result = await getCashFlowSummary(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -92,6 +110,7 @@ function createMcpServer() {
       period: z.string().optional().describe('Month in YYYY-MM format (defaults to current month)'),
       include_acknowledged: z.boolean().optional().default(false).describe('Include previously acknowledged anomalies')
     },
+    READ_ONLY_TOOL_ANNOTATIONS,
     async (args) => {
       const result = await getAnomalies(args);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -102,6 +121,7 @@ function createMcpServer() {
     'get_coverage',
     'Get liability coverage ratio — how well depository balances cover upcoming credit card and loan obligations. Includes per-card details with due dates.',
     {},
+    READ_ONLY_TOOL_ANNOTATIONS,
     async () => {
       const result = await getCoverageData();
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -112,6 +132,7 @@ function createMcpServer() {
     'get_financial_snapshot',
     'Get comprehensive household financial position: liquid balance, credit balance, investments, net position, 3-month average income/spending, savings rate, and coverage ratio.',
     {},
+    READ_ONLY_TOOL_ANNOTATIONS,
     async () => {
       const result = await getFinancialSnapshot();
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
@@ -127,20 +148,43 @@ const app = express();
 app.use(express.json());
 
 // ── Bearer Token Auth ─────────────────────────────────────────
-// When MCP_AUTH_TOKEN is set, all /mcp requests require a matching
+// All HTTP /mcp requests require a configured matching token, even on loopback.
+// A local reverse proxy is not proof that the original caller is local. A matching
 // Authorization: Bearer header. Prevents kids and rogue processes
 // on the Tailscale LAN from accessing parent financial data.
 
-app.use('/mcp', (req, res, next) => {
-  if (!AUTH_TOKEN) return next(); // no token configured = open access
+function normalizeAddress(value) {
+  if (!value) return '';
+  return String(value).replace(/^\[|\]$/g, '').replace(/^::ffff:/i, '');
+}
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+function isLoopbackHost(value) {
+  const host = normalizeAddress(value).toLowerCase();
+  return host === 'localhost' || host === '::1' || host.startsWith('127.');
+}
+
+function hasValidBearerToken(authHeader, expectedToken = AUTH_TOKEN) {
+  if (!expectedToken) return false;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return false;
+
+  const token = authHeader.slice(7);
+  const tokenDigest = crypto.createHash('sha256').update(token).digest();
+  const expectedDigest = crypto.createHash('sha256').update(expectedToken).digest();
+  return crypto.timingSafeEqual(tokenDigest, expectedDigest);
+}
+
+app.use('/mcp', (req, res, next) => {
+  if (!AUTH_TOKEN) {
+    return res.status(503).json({
+      error: 'MCP_AUTH_TOKEN required for HTTP MCP access'
+    });
+  }
+
+  if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authorization required' });
   }
 
-  const token = authHeader.slice(7);
-  if (token !== AUTH_TOKEN) {
+  if (!hasValidBearerToken(req.headers.authorization)) {
     return res.status(403).json({ error: 'Invalid token' });
   }
 
@@ -217,7 +261,7 @@ app.get('/health', (_req, res) => {
 
 if (require.main === module) {
   if (!AUTH_TOKEN) {
-    console.warn('WARNING: MCP_AUTH_TOKEN not set — MCP server is unauthenticated');
+    console.warn('WARNING: MCP_AUTH_TOKEN not set — HTTP MCP requests are denied until a token is configured');
   }
   app.listen(PORT, HOST, () => {
     console.log(`Family Pulse MCP server listening on http://${HOST}:${PORT}/mcp`);
@@ -225,4 +269,11 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, createMcpServer };
+module.exports = {
+  app,
+  createMcpServer,
+  hasValidBearerToken,
+  isLoopbackHost,
+  MCP_SERVER_INSTRUCTIONS,
+  READ_ONLY_TOOL_ANNOTATIONS
+};
