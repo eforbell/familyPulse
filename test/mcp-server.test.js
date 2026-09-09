@@ -3,6 +3,7 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { LATEST_PROTOCOL_VERSION } = require('@modelcontextprotocol/sdk/types.js');
+process.env.MCP_AUTH_TOKEN = 'transport-test-only';
 const { app } = require('../mcp/server');
 
 let server;
@@ -26,7 +27,8 @@ function initializeRequest(id) {
 
 const MCP_HEADERS = {
   'Content-Type': 'application/json',
-  Accept: 'application/json, text/event-stream'
+  Accept: 'application/json, text/event-stream',
+  Authorization: 'Bearer transport-test-only'
 };
 
 describe('MCP HTTP transport', () => {
@@ -70,11 +72,11 @@ describe('MCP HTTP transport', () => {
 
     await fetch(`${baseUrl}/mcp`, {
       method: 'DELETE',
-      headers: { 'mcp-session-id': firstSessionId }
+      headers: { 'mcp-session-id': firstSessionId, Authorization: 'Bearer transport-test-only' }
     });
     await fetch(`${baseUrl}/mcp`, {
       method: 'DELETE',
-      headers: { 'mcp-session-id': secondSessionId }
+      headers: { 'mcp-session-id': secondSessionId, Authorization: 'Bearer transport-test-only' }
     });
   });
 

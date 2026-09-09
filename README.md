@@ -231,3 +231,10 @@ Expected output includes:
 ### If `familypulse_test` is missing
 
 The most likely cause is that the Postgres volume was reused and initialization was skipped. Run the clean rebuild steps above if you are comfortable discarding the local Docker database state.
+
+## Operator AI planning access
+
+Use the local read-only `family-planning` MCP/JSON CLI to combine production
+FamilyPulse cashflow with Helm investment foundations over private SSH. It does not
+expose either app publicly or give the model sync/trading tools.
+See [setup, usage, coverage caveats, and verification](docs/family-planning-access.md).
