@@ -22,7 +22,7 @@
   <!-- Load order matters: chassis → tokens → skin -->
   <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
   <link rel="stylesheet" href="tokens.css?v=20260516c">
-  <link rel="stylesheet" href="pulse-skin.css?v=20260902a">
+  <link rel="stylesheet" href="pulse-skin.css?v=20261004a">
 </head>
 <body data-nav-page="dashboard">
 
@@ -294,9 +294,17 @@
     <div id="recurring-indicator" class="indicator-strip hidden"></div>
     <div id="forecast-indicator"  class="indicator-strip hidden"></div>
 
-    <!-- Recent transactions -->
+    <!-- Spending pace — parents only (spending data is parent-scoped) -->
+    <section id="spending-burn-section" class="hidden">
+      <div id="spending-burn"></div>
+    </section>
+
+    <!-- Recent transactions — just the last day or so; the full ledger lives on Transactions -->
     <section id="transactions-section">
-      <h2 class="section-heading">Recent transactions</h2>
+      <h2 class="section-heading section-heading-row">
+        <span>Recent transactions</span>
+        <a href="transactions.html" class="section-link">View all &rsaquo;</a>
+      </h2>
 
       <div id="bulk-bar" class="bulk-bar hidden">
         <span id="bulk-count">0 selected</span>
@@ -368,12 +376,14 @@
 
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="nav.js?v=20260516c"></script>
+  <script src="spending-burn.js?v=20261004c"></script>
   <script src="display-name-suggestions.js?v=20260516c"></script>
   <script src="transaction-categorization.js?v=20260901a"></script>
   <script src="transaction-split-editor.js?v=20260901a"></script>
   <script src="paycheck-setup.js?v=20260902c"></script>
-  <script src="app.js?v=20260902a"></script>
+  <script src="app.js?v=20261004c"></script>
 
 
 </body>

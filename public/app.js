@@ -35,7 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   updateWhoBtn();
-  await Promise.all([loadDashboard(), loadCategories(), loadCoverageIndicator(), loadRecurringIndicator(), loadForecastIndicator()]);
+  if (currentMember.role === 'parent') {
+    $('spending-burn-section').classList.remove('hidden');
+    window.SpendingBurn.mount($('spending-burn'));
+  }
+  await Promise.all([loadHouseholdDate(), loadDashboard(), loadCategories(), loadCoverageIndicator(), loadRecurringIndicator(), loadForecastIndicator()]);
   await loadTransactions();
   loadMagicPanel();
   bindMagicInputShortcuts();
@@ -213,7 +217,7 @@ function renderTransactions() {
   const list = $('tx-list');
 
   if (transactions.length === 0) {
-    list.innerHTML = '<div class="empty-state">No transactions found</div>';
+    list.innerHTML = '<div class="empty-state">No transactions since yesterday. <a href="transactions.html">See all transactions</a></div>';
     return;
   }
 
@@ -272,16 +276,31 @@ function renderPagination() {
 
 // ── Recent transactions query ────────────────────────────────
 
+// The dashboard is a glance, not a ledger: show only yesterday and today in
+// the household's timezone (not the viewer's). Anything older is one tap away
+// on the Transactions page.
+let householdDate = null;
+
+async function loadHouseholdDate() {
+  try {
+    householdDate = await api('api/household/date');
+  } catch (err) {
+    // Fall back to the browser's calendar rather than hiding transactions.
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    householdDate = { today: fmt(now), yesterday: fmt(yesterday) };
+    console.error('Household date load failed:', err);
+  }
+}
+
 function buildRecentTransactionParams() {
-  const now = new Date();
-  const weekAgo = new Date(now);
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const p = new URLSearchParams();
   p.set('limit', PAGE_SIZE);
   p.set('offset', currentPage * PAGE_SIZE);
-  p.set('date_from', fmt(weekAgo));
-  p.set('date_to', fmt(now));
+  p.set('date_from', householdDate.yesterday);
+  p.set('date_to', householdDate.today);
   p.set('show_transfers', '1');
   return p.toString();
 }
