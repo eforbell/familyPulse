@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const { app } = require('../server');
 const { getMonthlyBudgetSummary, getBudgetTrends } = require('../lib/budget-calculator');
 const { getCashFlowSankey } = require('../lib/reports');
+const { detectAnomalies } = require('../lib/anomaly-detector');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const PERIOD = '2034-05';
@@ -16,6 +17,7 @@ let accountId;
 let groceriesId;
 let federalTaxId;
 let grossPayId;
+let reimbursableId;
 
 async function categoryBySystemKey(key) {
   return (await pool.query('SELECT * FROM categories WHERE system_key = $1', [key])).rows[0];
@@ -92,12 +94,30 @@ before(async () => {
     INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, pending, is_transfer, source, category_id)
     VALUES ('spending-excl-groceries', $1, 200, '2034-05-12', 'Grocer', false, false, 'test', $2)
   `, [accountId, groceriesId]);
+
+  // An ordinary, budgeted category the household excludes: real bank
+  // spending that runs ~$100/month, then spikes to $1,500.
+  const { rows: [reimbursable] } = await pool.query(`
+    INSERT INTO categories (name, color, budget_amount, exclude_from_spending)
+    VALUES ('Test Excl Reimbursable', '#64748b', 1500, true)
+    RETURNING id
+  `);
+  reimbursableId = reimbursable.id;
+  const history = [['2034-02-10', 100], ['2034-03-10', 100], ['2034-04-10', 100], ['2034-05-15', 1500]];
+  for (const [date, amount] of history) {
+    await pool.query(`
+      INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, name, pending, is_transfer, source, category_id)
+      VALUES ($1, $2, $3, $4, 'Work trip', false, false, 'test', $5)
+    `, [`spending-excl-reimb-${date}`, accountId, amount, date, reimbursableId]);
+  }
 });
 
 after(async () => {
   await pool.query('UPDATE categories SET exclude_from_spending = true WHERE id = $1', [federalTaxId]);
   await pool.query('UPDATE categories SET exclude_from_spending = false WHERE id = $1', [groceriesId]);
   await pool.query("DELETE FROM transactions WHERE plaid_transaction_id LIKE 'spending-excl-%'");
+  await pool.query('DELETE FROM anomalies WHERE category_id = $1', [reimbursableId]);
+  await pool.query('DELETE FROM categories WHERE id = $1', [reimbursableId]);
   await pool.query('DELETE FROM budget_snapshots WHERE period = $1', [PERIOD]);
   await pool.query("DELETE FROM accounts WHERE plaid_account_id = 'acct-spending-excl'");
   await pool.query("DELETE FROM items WHERE item_id = 'test-item-spending-excl'");
@@ -123,9 +143,38 @@ describe('exclude_from_spending — spending views', () => {
   it('drops excluded categories from Budget cards but leaves bank-basis totals alone', async () => {
     const summary = await getMonthlyBudgetSummary(PERIOD);
     assert.ok(!summary.categories.some(c => c.id === federalTaxId), 'federal tax hidden from Budget cards');
+    assert.ok(!summary.categories.some(c => c.id === reimbursableId), 'excluded budget card hidden');
     assert.equal(summary.categories.find(c => c.id === groceriesId).spent, 200);
-    assert.equal(summary.spending.actual, 200);
+    assert.equal(summary.spending.actual, 1700);
     assert.equal(summary.income.current, 4000);
+  });
+
+  it('compares the budget against spending in the same categories', async () => {
+    const summary = await getMonthlyBudgetSummary(PERIOD);
+    // The excluded $1,500 budget is gone from budgeted, so the matching $1,500
+    // of bank spending must leave the comparison too. Payroll deductions never
+    // reached bank spending, so they are not subtracted.
+    assert.equal(summary.spending.excluded, 1500);
+    assert.equal(summary.spending.in_budgeted_categories, 200);
+    assert.ok(!summary.categories.some(c => c.budgeted === 1500));
+  });
+
+  it('raises no anomalies for excluded categories and hides ones detected earlier', async () => {
+    await pool.query('DELETE FROM anomalies WHERE category_id = $1', [reimbursableId]);
+    await detectAnomalies(PERIOD);
+    let { rows } = await pool.query('SELECT 1 FROM anomalies WHERE category_id = $1', [reimbursableId]);
+    assert.equal(rows.length, 0, 'excluded category produced an anomaly');
+
+    // Sanity check: the same spike is flagged while the category is included.
+    await pool.query('UPDATE categories SET exclude_from_spending = false WHERE id = $1', [reimbursableId]);
+    await detectAnomalies(PERIOD);
+    ({ rows } = await pool.query('SELECT 1 FROM anomalies WHERE category_id = $1', [reimbursableId]));
+    assert.ok(rows.length > 0, 'spike should be detected while included');
+
+    // Excluding it afterwards hides the already-detected anomaly.
+    await pool.query('UPDATE categories SET exclude_from_spending = true WHERE id = $1', [reimbursableId]);
+    const body = await (await fetch(`${baseUrl}/api/anomalies?period=${PERIOD}`)).json();
+    assert.ok(!body.anomalies.some(a => a.category_id === reimbursableId));
   });
 
   it('drops excluded categories from the doughnut and Category Trends data', async () => {
@@ -140,7 +189,7 @@ describe('exclude_from_spending — spending views', () => {
     const sankey = await getCashFlowSankey('last_month', { today: '2034-06-02' });
     assert.equal(sankey.nodes.find(n => n.id === `out:${federalTaxId}`).value, 1000);
     assert.equal(sankey.nodes.find(n => n.id === `src:${grossPayId}`).value, 5000);
-    assert.equal(sankey.totals.net, 3800);
+    assert.equal(sankey.totals.net, 4000 - 200 - 1500);
   });
 
   it('applies a toggle immediately in both directions', async () => {

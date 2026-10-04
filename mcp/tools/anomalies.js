@@ -13,7 +13,7 @@ async function getAnomalies({ period, include_acknowledged = false } = {}) {
     period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  const conditions = ['a.period = $1'];
+  const conditions = ['a.period = $1', 'c.exclude_from_spending = false'];
   const params = [period];
 
   if (!include_acknowledged) {
