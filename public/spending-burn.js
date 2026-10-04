@@ -50,6 +50,7 @@
     let chart = null;
     let data = null;
     let mode = readMode();
+    let latestRequest = 0; // only the newest request may touch the card
 
     root.classList.add('burn-card');
     root.innerHTML = `
@@ -77,17 +78,17 @@
     window.addEventListener('pulse:theme-change', () => { if (data) render(); });
 
     async function load() {
-      const requested = mode;
+      const requestId = ++latestRequest;
       try {
-        const res = await fetch(`api/reports/spending-burn?mode=${encodeURIComponent(requested)}`);
+        const res = await fetch(`api/reports/spending-burn?mode=${encodeURIComponent(mode)}`);
         if (res.status === 401) { window.location.replace('login.html'); return; }
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
         const next = await res.json();
-        if (requested !== mode) return; // a newer selection superseded this one
+        if (requestId !== latestRequest) return; // a newer request superseded this one
         data = next;
         render();
       } catch (err) {
-        if (requested !== mode) return;
+        if (requestId !== latestRequest) return;
         root.querySelector('[data-burn-delta]').textContent = 'Spending comparison unavailable';
         console.error('Spending burn load failed:', err);
       }

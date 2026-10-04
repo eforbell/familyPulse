@@ -86,6 +86,7 @@
     let data = null;
     let loadedRange = null;
     let resizeTimer = null;
+    let latestRequest = 0; // only the newest request may touch the chart
 
     root.innerHTML = `
       <div class="sankey-head">
@@ -122,6 +123,7 @@
     }
 
     async function load() {
+      const requestId = ++latestRequest;
       const requested = range;
       canvas.innerHTML = '<div class="empty-state loading-pulse">Loading cash flow…</div>';
       try {
@@ -129,12 +131,12 @@
         if (res.status === 401) { window.location.replace('login.html'); return; }
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
         const next = await res.json();
-        if (requested !== range) return;
+        if (requestId !== latestRequest) return;
         data = next;
         loadedRange = requested;
         render();
       } catch (err) {
-        if (requested !== range) return;
+        if (requestId !== latestRequest) return;
         canvas.innerHTML = '<div class="empty-state">Cash flow unavailable</div>';
         console.error('Sankey load failed:', err);
       }

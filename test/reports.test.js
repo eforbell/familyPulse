@@ -167,6 +167,10 @@ describe('reports — database', () => {
     await insertTx('cur-pending', 500, '2031-03-04', { pending: true, categoryId: groceriesId });
     await insertTx('cur-transfer', 700, '2031-03-04', { isTransfer: true });
     await insertTx('cur-income', -2000, '2031-03-02', { categoryId: incomeId });
+    // Leap-year alignment fixtures: 2032 is a leap year, 2033 is not.
+    await insertTx('leap-day', 30, '2032-02-29', { categoryId: groceriesId });
+    await insertTx('leap-mar', 1000, '2032-03-01', { categoryId: groceriesId });
+    await insertTx('post-leap-mar', 1000, '2033-03-01', { categoryId: groceriesId });
   });
 
   after(async () => {
@@ -193,6 +197,28 @@ describe('reports — database', () => {
     assert.equal(burn.delta_to_date, 0);
   });
 
+  it('aligns year-over-year burn by calendar date across a reference leap year', async () => {
+    const burn = await getSpendingBurn('year_vs_last_year', { today: '2033-03-01' });
+    assert.equal(burn.labels.length, 365);
+    assert.equal(burn.labels[burn.labels.length - 1], 'Dec 31');
+    assert.equal(burn.today_index, 59);
+    // Feb 28 compares against Feb 28; 2032's leap day joins on Mar 1.
+    assert.equal(burn.reference.series[58], 0);
+    assert.equal(burn.reference.series[59], 1030);
+    assert.equal(burn.current.total, 1000);
+    assert.equal(burn.delta_to_date, -30);
+  });
+
+  it('compares a current leap day against Feb 28 of the prior year', async () => {
+    const burn = await getSpendingBurn('year_vs_last_year', { today: '2032-02-29' });
+    assert.equal(burn.labels.length, 366);
+    assert.equal(burn.today_index, 59);
+    assert.equal(burn.reference.series[58], 350); // Feb 28, 2031
+    assert.equal(burn.reference.series[59], 350); // Feb 29 → Feb 28, 2031
+    assert.equal(burn.reference.series[60], 350 + 40); // Mar 1, 2031
+    assert.equal(burn.current.total, 30);
+  });
+
   it('builds a balanced sankey from allocations for the window', async () => {
     const sankey = await getCashFlowSankey('last_month', { today: '2031-04-02' });
     assert.equal(sankey.start, '2031-03-01');
@@ -217,5 +243,16 @@ describe('reports — database', () => {
     assert.equal((await fetch(`${baseUrl}/api/reports/spending-burn?mode=nope`, { headers })).status, 400);
     assert.equal((await fetch(`${baseUrl}/api/reports/cash-flow-sankey?range=nope`, { headers })).status, 400);
     assert.equal((await fetch(`${baseUrl}/api/reports/spending-burn`)).status, 401);
+    assert.equal((await fetch(`${baseUrl}/api/reports/spending-burn?mode=constructor`, { headers })).status, 400);
+  });
+
+  it('serves the household calendar date to any signed-in member', async () => {
+    const res = await fetch(`${baseUrl}/api/household/date`, { headers: { Cookie: `fp_session=${sessionToken}` } });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.today, householdToday());
+    assert.match(body.yesterday, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(new Date(body.today) - new Date(body.yesterday), 86400000);
+    assert.equal((await fetch(`${baseUrl}/api/household/date`)).status, 401);
   });
 });
