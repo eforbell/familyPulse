@@ -85,7 +85,7 @@ test.describe('Reports page', () => {
 
 
   test('uses sovereign categorical palette for doughnut chart', async ({ page }) => {
-    await page.route('**/api/budget/trends?months=6', async route => {
+    await page.route('**/api/budget/trends?months=*', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -118,6 +118,28 @@ test.describe('Reports page', () => {
     const allowed = ['rgb(196, 87, 42)','rgb(139, 105, 20)','rgb(107, 175, 61)','rgb(59, 110, 143)','rgb(91, 164, 201)','rgb(111, 138, 85)','rgb(212, 168, 58)','rgb(201, 144, 100)','rgb(111, 106, 94)', '#C4572A', '#8B6914', '#6BAF3D', '#3B6E8F', '#5BA4C9', '#6F8A55', '#D4A83A', '#C99064', '#6F6A5E'];
     expect(colors.length).toBeGreaterThan(0);
     for (const color of colors) expect(allowed).toContain(color);
+  });
+
+  test('spending burn renders and switches comparison mode', async ({ page }) => {
+    await page.goto('/reports.html');
+    const select = page.locator('#spending-burn .burn-mode');
+    await expect(select).toBeVisible();
+    await expect(page.locator('#spending-burn [data-burn-total]')).not.toHaveText('—');
+
+    const response = page.waitForResponse(r => r.url().includes('spending-burn?mode=year_vs_last_year'));
+    await select.selectOption('year_vs_last_year');
+    expect((await response).status()).toBe(200);
+    await expect(page.locator('#spending-burn [data-burn-total]')).toContainText('this year');
+  });
+
+  test('cash flow sankey renders on desktop only', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto('/reports.html');
+    await expect(page.locator('#cash-flow-section')).toBeVisible();
+    await expect(page.locator('#cash-flow-sankey [data-sankey-summary]')).toContainText('Income');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('#cash-flow-section')).toBeHidden();
   });
 
   test('history section loads', async ({ page }) => {

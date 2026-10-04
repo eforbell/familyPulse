@@ -8,6 +8,10 @@ let incomeSpendingChart = null;
 let categoryDoughnutChart = null;
 let categoryTrendsChart = null;
 
+// Stacked income/spending bars take one column per month, so the cash flow
+// chart can show well over a year without crowding.
+const TREND_MONTHS = 16;
+
 // ── Boot ─────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -50,6 +54,8 @@ async function loadReports() {
   loadQueryHistory();
 
   // Load charts
+  window.SpendingBurn.mount($('spending-burn'));
+  window.CashFlowSankey.mount($('cash-flow-sankey'));
   loadCharts();
 
   // Re-render charts on theme toggle
@@ -72,7 +78,7 @@ async function loadQueryHistory() {
 
 async function loadCharts() {
   try {
-    trendsData = await api('api/budget/trends?months=6');
+    trendsData = await api(`api/budget/trends?months=${TREND_MONTHS}`);
     renderIncomeSpendingChart();
     populateMonthSelector();
     renderCategoryDoughnut(trendsData.periods[trendsData.periods.length - 1]);
@@ -125,8 +131,16 @@ function renderIncomeSpendingChart() {
 
   const labels = trendsData.periods.map(formatMonthLabel);
   const income = trendsData.monthly.map(m => m.income);
-  const spending = trendsData.monthly.map(m => m.spending);
+  // Spending hangs below the axis so each month is one diverging column;
+  // the net line carries the month-over-month comparison.
+  const spending = trendsData.monthly.map(m => -m.spending);
   const netCashFlow = trendsData.monthly.map(m => m.net_cash_flow);
+  const lastIndex = labels.length - 1;
+  const partialAlpha = i => (i === lastIndex ? '55' : 'aa');
+
+  const green = cssVar('--ok') || '#10b981';
+  const red = cssVar('--bad') || '#f87171';
+  const lineColor = cssVar('--text') || '#EAE6DA';
 
   if (incomeSpendingChart) incomeSpendingChart.destroy();
   incomeSpendingChart = new Chart(canvas, {
@@ -137,33 +151,36 @@ function renderIncomeSpendingChart() {
         {
           label: 'Income',
           data: income,
-          backgroundColor: '#10b98188',
-          borderColor: '#10b981',
-          borderWidth: 1,
-          borderRadius: 4,
+          backgroundColor: income.map((_, i) => green + partialAlpha(i)),
+          borderWidth: 0,
+          borderRadius: 3,
+          stack: 'flow',
           order: 2
         },
         {
           label: 'Spending',
           data: spending,
-          backgroundColor: '#f8717188',
-          borderColor: '#f87171',
-          borderWidth: 1,
-          borderRadius: 4,
+          backgroundColor: spending.map((_, i) => red + partialAlpha(i)),
+          borderWidth: 0,
+          borderRadius: 3,
+          stack: 'flow',
           order: 2
         },
         {
           label: 'Net Cash Flow',
           data: netCashFlow,
           type: 'line',
-          borderColor: '#60a5fa',
-          backgroundColor: '#60a5fa33',
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: '#60a5fa',
-          tension: 0.3,
+          stack: 'net',
+          borderColor: lineColor,
+          backgroundColor: lineColor,
+          borderWidth: 2.5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0,
           fill: false,
-          order: 1
+          order: 1,
+          // The current month is still in progress — dash its segment.
+          segment: { borderDash: ctx => (ctx.p1DataIndex === lastIndex ? [4, 4] : undefined) }
         }
       ]
     },
@@ -172,15 +189,19 @@ function renderIncomeSpendingChart() {
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: {
+          stacked: true,
           ticks: { color: cssVar('--muted') },
-          grid: { color: cssVar('--border') + '44' }
+          grid: { display: false }
         },
         y: {
+          stacked: true,
           ticks: {
             color: cssVar('--muted'),
-            callback: v => '$' + Number(v).toLocaleString()
+            maxTicksLimit: 7,
+            callback: v => compactCurrency(v)
           },
-          grid: { color: cssVar('--border') + '44' }
+          grid: { color: ctx => (ctx.tick.value === 0 ? cssVar('--muted') + '88' : cssVar('--border') + '44') },
+          border: { display: false }
         }
       },
       plugins: {
@@ -188,12 +209,62 @@ function renderIncomeSpendingChart() {
           labels: { color: cssVar('--muted'), font: { size: 12 }, padding: 16 }
         },
         tooltip: {
-          callbacks: { label: currencyTooltip }
+          callbacks: {
+            title: items => {
+              const period = trendsData.periods[items[0].dataIndex];
+              const [y, m] = period.split('-').map(Number);
+              const title = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+              return items[0].dataIndex === lastIndex ? `${title} (so far)` : title;
+            },
+            label: ctx => {
+              const v = ctx.parsed.y;
+              const sign = ctx.dataset.label === 'Net Cash Flow' && v < 0 ? '-' : '';
+              return `${ctx.dataset.label}: ${sign}$${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+            }
+          }
         }
       }
-    }
+    },
+    plugins: [yearDividerPlugin]
   });
 }
+
+function compactCurrency(v) {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000) return `${sign}$${(abs / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}K`;
+  return `${sign}$${abs.toLocaleString('en-US')}`;
+}
+
+// Draws a divider before each January with "← 2025 | 2026 →" markers so a
+// 16-month window reads unambiguously.
+const yearDividerPlugin = {
+  id: 'yearDivider',
+  afterDatasetsDraw(chart) {
+    if (!trendsData) return;
+    const { ctx, chartArea, scales: { x } } = chart;
+    trendsData.periods.forEach((period, i) => {
+      if (i === 0 || !period.endsWith('-01')) return;
+      const xPos = (x.getPixelForValue(i - 1) + x.getPixelForValue(i)) / 2;
+      const year = Number(period.slice(0, 4));
+      ctx.save();
+      ctx.strokeStyle = cssVar('--border') || '#3A382F';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xPos, chartArea.top);
+      ctx.lineTo(xPos, chartArea.bottom);
+      ctx.stroke();
+      ctx.fillStyle = cssVar('--muted') || '#A8A399';
+      ctx.font = '11px ' + (cssVar('--font-sans') || 'sans-serif');
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'right';
+      ctx.fillText(`← ${year - 1}`, xPos - 6, chartArea.top + 4);
+      ctx.textAlign = 'left';
+      ctx.fillText(`${year} →`, xPos + 6, chartArea.top + 4);
+      ctx.restore();
+    });
+  }
+};
 
 function populateMonthSelector() {
   const select = $('doughnut-month-select');
@@ -255,7 +326,10 @@ function renderCategoryDoughnut(period) {
 
   const labels = cats.map(c => plainCategoryName(c.name));
   const data = cats.map(c => c.spent);
-  const colors = cats.map((c, idx) => c.name === 'Other' ? (cssVar('--cat-09') || '#6F6A5E') : paletteColorForCategory(c.id, idx));
+  // Color by rank, not category id: ids collide modulo the palette size, which
+  // painted two slices of the same doughnut identical colors.
+  const palette = categoricalPalette();
+  const colors = cats.map((c, idx) => c.name === 'Other' ? (cssVar('--cat-09') || '#6F6A5E') : palette[idx % (palette.length - 1)]);
 
   categoryDoughnutChart = new Chart(canvas, {
     type: 'doughnut',

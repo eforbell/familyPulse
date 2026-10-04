@@ -803,3 +803,148 @@
     align-self: flex-start;
   }
 }
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   Spending burn (dashboard + reports)
+   ────────────────────────────────────────────────────────────────────── */
+
+.burn-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.burn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.burn-title { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.burn-label { font-size: var(--text-lg); font-weight: 700; color: var(--accent); }
+.burn-total { font-size: var(--text-base); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.burn-mode {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  width: auto;
+  max-width: 100%;
+}
+.burn-mode:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.burn-delta {
+  margin-top: var(--s-1);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  min-height: 1.2em;
+}
+.burn-delta.is-over strong { color: var(--bad); }
+.burn-delta.is-under strong { color: var(--ok); }
+
+.burn-canvas-wrap { position: relative; height: 220px; margin-top: var(--s-3); }
+
+.burn-legend {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.burn-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.burn-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+
+/* Section heading with a trailing link (Recent transactions › View all) */
+.section-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.section-link { font-size: var(--text-sm); font-weight: 500; color: var(--accent); text-decoration: none; }
+.section-link:hover { text-decoration: underline; }
+
+/* ──────────────────────────────────────────────────────────────────────
+   Cash flow Sankey (reports, desktop only)
+   ────────────────────────────────────────────────────────────────────── */
+
+.desktop-only { display: none; }
+@media (min-width: 1100px) {
+  .desktop-only { display: block; }
+  /* Let the Sankey use the full window width rather than the reading-width
+     shell; it is the one view that needs it. */
+  .sankey-section { width: min(1320px, calc(100vw - var(--sidebar-w) - 2 * var(--s-8))); }
+}
+
+.sankey-range, .chart-month-select { width: auto; }
+
+.sankey-card { position: relative; padding: var(--s-4) var(--s-4) var(--s-3); }
+
+.sankey-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.sankey-summary { display: flex; gap: var(--s-8); flex-wrap: wrap; }
+.sankey-summary .k {
+  display: block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sankey-summary .v { display: block; font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; }
+.sankey-summary .v.ok { color: var(--ok); }
+.sankey-summary .v.bad { color: var(--bad); }
+
+.sankey-canvas { width: 100%; min-height: 200px; }
+.sankey-svg { display: block; overflow: visible; }
+
+.sankey-link { stroke-opacity: 0.32; transition: stroke-opacity var(--duration-fast); mix-blend-mode: normal; }
+.sankey-link:hover, .sankey-link.is-hot { stroke-opacity: 0.6; }
+.sankey-link.is-dim { stroke-opacity: 0.08; }
+
+.sankey-node rect { shape-rendering: crispEdges; }
+.sankey-node.is-link { cursor: pointer; }
+
+.sankey-label {
+  font-family: var(--font-sans);
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.sankey-label-name { font-size: 12.5px; font-weight: 600; }
+.sankey-label-value { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+
+.sankey-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  min-width: 180px;
+  max-width: 320px;
+}
+.sankey-tip-title { font-weight: 600; }
+.sankey-tip-value { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sankey-tip-list { margin-top: 6px; border-top: 1px solid var(--border-subtle); padding-top: 6px; display: grid; gap: 2px; }
+.sankey-tip-list div { display: flex; justify-content: space-between; gap: var(--s-3); font-variant-numeric: tabular-nums; }
+
+.sankey-footnote { margin-top: var(--s-2); font-size: var(--text-xs); color: var(--dim); }

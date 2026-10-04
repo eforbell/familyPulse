@@ -160,11 +160,11 @@ describe('budget API', () => {
     assert.equal(data.monthly.length, 3);
   });
 
-  it('GET /api/budget/trends caps months at 12', async () => {
+  it('GET /api/budget/trends caps months at 24', async () => {
     const res = await req('api/budget/trends?months=99');
     assert.equal(res.status, 200);
     const data = await res.json();
-    assert.equal(data.periods.length, 12);
+    assert.equal(data.periods.length, 24);
   });
 
   it('GET /api/budget/trends category entries have required fields', async () => {
