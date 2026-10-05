@@ -323,9 +323,8 @@ button, .tappable, .nav-item, .pill, .chip, .filter-chip {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  /* Transparent: a translucent --bg tint reads as a dark band over the body gradient */
+  background: transparent;
 }
 .app-header h1 {
   font-family: var(--font-display);

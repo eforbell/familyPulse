@@ -159,10 +159,8 @@ header {
   padding: 1rem 0;
   position: sticky;
   top: 0;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  background: transparent;
   z-index: 50;
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
 }
 
 header h1 {
