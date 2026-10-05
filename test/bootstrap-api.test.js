@@ -45,6 +45,11 @@ after(async () => {
     'utf8'
   );
   await pool.query(multiDepositMigration);
+  const spendingExclusionMigration = fs.readFileSync(
+    path.join(__dirname, '..', 'db', 'migrations', '028-category-spending-exclusion.sql'),
+    'utf8'
+  );
+  await pool.query(spendingExclusionMigration);
   server.close();
   await pool.end();
 });

@@ -14,6 +14,7 @@ async function getBudgetStatus({ period } = {}) {
     prior_income: summary.income.prior,
     spending: summary.spending.actual,
     budgeted: summary.spending.budgeted,
+    spending_excluded_from_budget: summary.spending.excluded,
     net_cash_flow: summary.net_cash_flow.current,
     prior_net_cash_flow: summary.net_cash_flow.prior,
     categories: summary.categories.map(c => ({

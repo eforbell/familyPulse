@@ -45,7 +45,7 @@ function renderCategories() {
         <div class="admin-row-copy">
           <span class="name">${esc(plainCategoryName(c.name))}</span>
           <span class="meta">
-            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}${c.exclude_from_learning ? ' · excluded from learning' : ''}
+            <a href="transactions.html?category_id=${c.id}" class="admin-inline-link">${c.transaction_count} txns</a>${c.budget_amount ? ' · $' + parseFloat(c.budget_amount).toFixed(0) + '/mo' : ''}${c.is_income ? ' · income' : ''}${c.is_transfer_class ? ' · transfer' : ''}${c.exclude_from_baseline ? ' · excluded from day-to-day forecast' : ''}${c.exclude_from_learning ? ' · excluded from learning' : ''}${c.exclude_from_spending ? ' · excluded from spending' : ''}
           </span>
         </div>
       </div>
@@ -58,6 +58,14 @@ function renderCategories() {
               onchange="toggleBaselineExclusion(${c.id}, this.checked)"
             >
             Exclude from forecast
+          </label>
+          <label class="checkbox-row admin-inline-toggle" title="Hide this category from spending reports; cash flow views still include it">
+            <input
+              type="checkbox"
+              ${c.exclude_from_spending ? 'checked' : ''}
+              onchange="toggleSpendingExclusion(${c.id}, this.checked)"
+            >
+            Exclude from spending
           </label>
         ` : ''}
         <button class="btn-ghost" onclick="openCategoryForm(${c.id})">Edit</button>
@@ -78,6 +86,7 @@ function openCategoryForm(id) {
   $('cat-transfer').checked = cat?.is_transfer_class || false;
   $('cat-exclude-from-baseline').checked = cat?.exclude_from_baseline || false;
   $('cat-exclude-from-learning').checked = cat?.exclude_from_learning || false;
+  $('cat-exclude-from-spending').checked = cat?.exclude_from_spending || false;
   selectedColor = cat?.color || '#6b7280';
 
   // Render color palette
@@ -95,6 +104,7 @@ function syncCategoryFlags() {
   const isTransfer = $('cat-transfer').checked;
   const excludeToggle = $('cat-exclude-from-baseline');
   const learningToggle = $('cat-exclude-from-learning');
+  const spendingToggle = $('cat-exclude-from-spending');
 
   if (isIncome && isTransfer) {
     $('cat-transfer').checked = false;
@@ -102,11 +112,15 @@ function syncCategoryFlags() {
 
   excludeToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
   learningToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
+  spendingToggle.disabled = $('cat-income').checked || $('cat-transfer').checked;
   if (excludeToggle.disabled) {
     excludeToggle.checked = false;
   }
   if (learningToggle.disabled) {
     learningToggle.checked = false;
+  }
+  if (spendingToggle.disabled) {
+    spendingToggle.checked = false;
   }
 }
 
@@ -132,7 +146,8 @@ async function saveCategory() {
     is_income: $('cat-income').checked,
     is_transfer_class: $('cat-transfer').checked,
     exclude_from_baseline: $('cat-exclude-from-baseline').checked,
-    exclude_from_learning: $('cat-exclude-from-learning').checked
+    exclude_from_learning: $('cat-exclude-from-learning').checked,
+    exclude_from_spending: $('cat-exclude-from-spending').checked
   };
 
   if (!body.name) return alert('Name is required');
@@ -184,6 +199,19 @@ async function toggleBaselineExclusion(id, checked) {
     alert(err.message);
     await loadCategories();
   }
+}
+
+async function toggleSpendingExclusion(id, checked) {
+  try {
+    await api(`api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exclude_from_spending: checked })
+    });
+  } catch (err) {
+    alert(err.message);
+  }
+  await loadCategories();
 }
 
 // ── Rules ────────────────────────────────────────────────────

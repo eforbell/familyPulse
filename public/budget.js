@@ -46,8 +46,12 @@ function renderSummary() {
   $('summary-income-prior').innerHTML = `Prior: ${fmtMoney(d.income.prior)}`;
 
   $('summary-spending').innerHTML = fmtMoney(d.spending.actual);
-  $('summary-spending').style.color = d.spending.actual > d.spending.budgeted ? 'var(--red)' : 'var(--text)';
-  $('summary-spending-budget').innerHTML = `Budget: ${fmtMoney(d.spending.budgeted)}`;
+  // Budgets cover only categories included in spending reports, so compare
+  // against spending in those same categories, not the full bank total.
+  const excluded = d.spending.excluded || 0;
+  const inBudget = d.spending.in_budgeted_categories ?? d.spending.actual;
+  $('summary-spending').style.color = inBudget > d.spending.budgeted ? 'var(--red)' : 'var(--text)';
+  $('summary-spending-budget').innerHTML = `Budget: ${fmtMoney(d.spending.budgeted)}${excluded > 0 ? ` · ${fmtMoney(excluded)} excluded` : ''}`;
 
   const net = d.net_cash_flow.current;
   $('summary-net').innerHTML = fmtMoney(net);
