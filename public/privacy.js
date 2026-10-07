@@ -21,7 +21,7 @@
   }
 
   function syncNodes(enabled) {
-    const amountSelectors = ['.fp-amount', '#net-amount', '#balance-amount', '#tx-stats .value', '.tx-amount', '.strip-meta', '.summary-value', '.summary-prior'];
+    const amountSelectors = ['.fp-amount', '#net-amount', '#balance-amount', '#tx-stats .value', '.tx-amount', '.strip-meta', '.summary-value', '.summary-prior', '.history-net-delta', '.hc-ylabels span'];
     document.querySelectorAll(amountSelectors.join(', ')).forEach((el) => {
       el.classList.toggle('private-blur', enabled);
       bindRevealHandlers(el);
@@ -29,7 +29,7 @@
       el.style.userSelect = enabled ? 'none' : '';
     });
 
-    document.querySelectorAll('canvas').forEach((el) => {
+    document.querySelectorAll('canvas, .hc-plot svg').forEach((el) => {
       el.classList.toggle('private-blur-canvas', enabled);
       el.style.filter = enabled ? 'blur(7px)' : '';
     });

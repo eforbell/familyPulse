@@ -2,7 +2,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildBalanceHistory, buildSampleDates, rangeStart } = require('../lib/balance-history');
+const { buildBalanceHistory, buildSampleDates, rangeStart, isValidRange } = require('../lib/balance-history');
 
 const TODAY = '2026-10-07';
 
@@ -88,6 +88,41 @@ describe('balance history reconstruction', () => {
     const dates = buildSampleDates('2026-07-07', TODAY, 7);
     assert.equal(dates[0], '2026-07-07');
     assert.equal(dates[dates.length - 1], TODAY);
+  });
+
+  it('treats a null balance as unknown, not zero', () => {
+    const h = buildBalanceHistory({
+      range: '3m', today: TODAY,
+      accounts: [
+        { id: 1, display_name: 'Live', type: 'depository', current_balance: 10, first_txn_date: '2026-07-01' },
+        { id: 2, display_name: 'Imported', type: 'depository', current_balance: null, first_txn_date: '2026-07-01' }
+      ],
+      deltas: [{ account_id: 2, date: '2026-10-01', total: 100 }]
+    });
+    const imported = h.accounts.find(a => a.id === 2);
+    assert.ok(imported.values.every(v => v === null));
+    assert.equal(h.net[h.net.length - 1], 10);              // imported account not folded in as $0
+    assert.deepEqual(h.partial_accounts.map(p => [p.id, p.reason]), [[2, 'unknown_balance']]);
+  });
+
+  it('labels why an account is partial', () => {
+    const h = buildBalanceHistory({
+      range: '3m', today: TODAY,
+      accounts: [
+        { id: 1, display_name: 'Late', type: 'depository', current_balance: 1, first_txn_date: '2026-09-15' },
+        { id: 2, display_name: 'Empty', type: 'depository', current_balance: 1, first_txn_date: null }
+      ],
+      deltas: []
+    });
+    assert.deepEqual(h.partial_accounts.map(p => p.reason), ['starts_late', 'no_transactions']);
+  });
+
+  it('only accepts own-property string ranges', () => {
+    for (const ok of ['3m', '6m', '1y', 'ytd']) assert.equal(isValidRange(ok), true);
+    for (const bad of ['toString', 'constructor', '__proto__', 'hasOwnProperty', ['3m'], undefined, '']) {
+      assert.equal(isValidRange(bad), false, String(bad));
+    }
+    assert.throws(() => buildBalanceHistory({ range: 'toString', today: TODAY, accounts: [], deltas: [] }));
   });
 
   it('rejects unknown ranges', () => {

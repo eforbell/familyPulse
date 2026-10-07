@@ -108,13 +108,15 @@ function renderHistory(data) {
   drawHistoryLegend(data);
   drawHistoryChart();
 
+  // Keep this to one short line; the per-account reasons live in the operator guide.
   const partial = data.partial_accounts || [];
   if (partial.length) {
-    note.innerHTML = 'History is limited by synced transactions: '
-      + partial.map(p => `${esc(p.name)}${p.data_from ? ` (from ${esc(fmtHistDate(p.data_from))})` : ' (none)'}`).join(', ')
-      + '. Net position covers only the span where every account with history has data.';
+    const n = partial.length;
+    note.innerHTML = `${n} account${n === 1 ? ' has' : 's have'} limited history. See the operator guide (Balance history) for details.`;
+    note.title = partial.map(p => p.name).join(', ');
     note.classList.remove('hidden');
   } else {
+    note.removeAttribute('title');
     note.classList.add('hidden');
   }
 }
@@ -178,7 +180,7 @@ function drawHistoryChart() {
   const grid = ticks.map(t => `<line class="${t === 0 ? 'hc-zero' : 'hc-grid'}" x1="0" x2="${W}" y1="${y(t)}" y2="${y(t)}"/>`).join('');
   const yLabels = ticks.map(t => `<span style="top:${(y(t) / H) * 100}%">${esc(fmtAxisMoney(t))}</span>`).join('');
 
-  const paths = lines.map(l => {
+  const drawn = lines.map(l => {
     let d = '';
     let run = [];
     const flush = () => {
@@ -187,8 +189,19 @@ function drawHistoryChart() {
     };
     l.values.forEach((v, i) => { if (v === null) flush(); else run.push([x(i), y(v)]); });
     flush();
-    return `<path class="hc-line ${l.cls}" ${l.color ? `style="stroke:${l.color}"` : ''} d="${d}"/>`;
-  }).reverse().join(''); // net drawn last (on top)
+    return { l, d };
+  });
+
+  // A lone point per line (e.g. history that begins today) has no segment to draw.
+  if (!drawn.some(r => r.d)) {
+    container.innerHTML = '<div class="history-empty">Not enough synced history to chart for this range.</div>';
+    return;
+  }
+
+  const paths = drawn
+    .filter(r => r.d)
+    .map(({ l, d }) => `<path class="hc-line ${l.cls}" ${l.color ? `style="stroke:${l.color}"` : ''} d="${d}"/>`)
+    .reverse().join(''); // net drawn last (on top)
 
   container.innerHTML = `
     <div class="hc-ylabels">${yLabels}</div>
