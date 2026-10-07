@@ -1036,6 +1036,12 @@
   background: transparent; border: 1px solid var(--border-subtle); border-radius: 999px; padding: 4px 10px; min-height: 32px;
 }
 button.history-legend-item { cursor: pointer; }
+.history-legend-toggle {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; padding: 4px 12px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--accent-border-soft); border-radius: 999px;
+}
+.history-legend-toggle .chev { font-size: 10px; }
 .history-legend-item.off { opacity: 0.45; text-decoration: line-through; }
 .sw { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--c, var(--text)); flex: none; }
 .sw-net { border-top-width: 3px; }

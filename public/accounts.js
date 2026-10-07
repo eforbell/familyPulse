@@ -144,16 +144,46 @@ function renderHistory(data) {
 
 function historyColor(index) { return HISTORY_PALETTE[index % HISTORY_PALETTE.length]; }
 
+// Open/closed legend preference. With no saved choice, phones start collapsed
+// (a long account list otherwise pushes the chart a full screen away).
+let historyLegendOpen = readHistoryLegendOpen();
+
+function readHistoryLegendOpen() {
+  try {
+    const saved = localStorage.getItem('pulse-history-legend');
+    if (saved === 'open') return true;
+    if (saved === 'closed') return false;
+  } catch { /* fall through to the default */ }
+  return window.innerWidth >= 520;
+}
+function saveHistoryLegendOpen(open) {
+  try { localStorage.setItem('pulse-history-legend', open ? 'open' : 'closed'); } catch { /* per-viewer convenience only */ }
+}
+
 function drawHistoryLegend(data) {
   const legend = $('history-legend');
-  const items = [`<span class="history-legend-item history-legend-net"><i class="sw sw-net"></i>Net position</span>`];
-  data.accounts.forEach((a, i) => {
-    const off = historyHidden.has(a.id);
-    items.push(`<button type="button" class="history-legend-item${off ? ' off' : ''}" data-acct="${a.id}" aria-pressed="${!off}">
-      <i class="sw${a.type === 'credit' ? ' sw-credit' : ''}" style="--c:${historyColor(i)}"></i>${esc(a.name)}${a.mask ? ` ···${esc(a.mask)}` : ''}</button>`);
-  });
+  const total = data.accounts.length;
+  const shown = data.accounts.filter(a => !historyHidden.has(a.id)).length;
+  const items = [
+    `<span class="history-legend-item history-legend-net"><i class="sw sw-net"></i>Net position</span>`,
+    `<button type="button" class="history-legend-toggle" data-legend-toggle aria-expanded="${historyLegendOpen}" aria-controls="history-legend">
+      Accounts · ${shown === total ? total : `${shown} of ${total}`} <span class="chev" aria-hidden="true">${historyLegendOpen ? '▴' : '▾'}</span></button>`
+  ];
+  if (historyLegendOpen) {
+    data.accounts.forEach((a, i) => {
+      const off = historyHidden.has(a.id);
+      items.push(`<button type="button" class="history-legend-item${off ? ' off' : ''}" data-acct="${a.id}" aria-pressed="${!off}">
+        <i class="sw${a.type === 'credit' ? ' sw-credit' : ''}" style="--c:${historyColor(i)}"></i>${esc(a.name)}${a.mask ? ` ···${esc(a.mask)}` : ''}</button>`);
+    });
+  }
   legend.innerHTML = items.join('');
   legend.onclick = event => {
+    if (event.target.closest('[data-legend-toggle]')) {
+      historyLegendOpen = !historyLegendOpen;
+      saveHistoryLegendOpen(historyLegendOpen);
+      drawHistoryLegend(historyData);
+      return;
+    }
     const btn = event.target.closest('button[data-acct]');
     if (!btn) return;
     const id = Number(btn.dataset.acct);

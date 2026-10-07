@@ -117,3 +117,36 @@ test('stacked view builds layers toward the net line and remembers the choice', 
   await expect(page.locator('#history-view button[data-view="stacked"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#history-chart .hc-layer')).toHaveCount(3);
 });
+
+test('accounts legend collapses and remembers the choice', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockHistory(page, multi());
+  await page.goto('/accounts.html');
+  const toggle = page.locator('[data-legend-toggle]');
+  // No saved choice on a phone: starts collapsed, chart still shown, net chip still visible.
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#history-legend [data-acct]')).toHaveCount(0);
+  await expect(page.locator('.history-legend-net')).toBeVisible();
+  await expect(page.locator('#history-chart svg')).toBeVisible();
+
+  await toggle.click();
+  await expect(page.locator('#history-legend [data-acct]')).toHaveCount(3);
+  await page.reload();
+  await expect(page.locator('[data-legend-toggle]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#history-legend [data-acct]')).toHaveCount(3);
+
+  // Hiding an account while expanded is reflected in the collapsed label.
+  await page.click('#history-legend [data-acct="3"]');
+  await page.click('[data-legend-toggle]');
+  await expect(page.locator('[data-legend-toggle]')).toContainText('2 of 3');
+  await page.reload();
+  await expect(page.locator('[data-legend-toggle]')).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('accounts legend starts open on desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await mockHistory(page, multi());
+  await page.goto('/accounts.html');
+  await expect(page.locator('[data-legend-toggle]')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#history-legend [data-acct]')).toHaveCount(3);
+});
