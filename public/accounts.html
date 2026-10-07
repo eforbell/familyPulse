@@ -12,12 +12,12 @@
   <link rel="icon" type="image/png" href="icon-32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="sovereign-fonts.css">
-  <script src="theme.js?v=20260516c"></script>
-  <script src="privacy.js?v=20260516c"></script>
-  <link rel="stylesheet" href="style.css?v=20260516c">
-  <link rel="stylesheet" href="sovereign-chassis.css?v=20260516c">
-  <link rel="stylesheet" href="tokens.css?v=20260516c">
-  <link rel="stylesheet" href="pulse-skin.css?v=20260516c">
+  <script src="theme.js?v=20261007h"></script>
+  <script src="privacy.js?v=20261007h"></script>
+  <link rel="stylesheet" href="style.css?v=20261007h">
+  <link rel="stylesheet" href="sovereign-chassis.css?v=20261007h">
+  <link rel="stylesheet" href="tokens.css?v=20261007h">
+  <link rel="stylesheet" href="pulse-skin.css?v=20261007h">
 </head>
 <body data-nav-page="accounts">
 
@@ -57,6 +57,24 @@
       <div id="balance-breakdown" class="balance-breakdown-grid"></div>
     </div>
 
+    <!-- Retroactive balance history -->
+    <section id="history-card" class="history-card" aria-labelledby="history-title">
+      <div class="history-head">
+        <div>
+          <div id="history-title" class="net-label">Balance history</div>
+          <div class="history-sub">Deposits positive · credit negative</div>
+        </div>
+        <div id="history-ranges" class="history-ranges" role="tablist" aria-label="History range">
+          <button type="button" role="tab" data-range="3m" aria-selected="true">3M</button>
+          <button type="button" role="tab" data-range="6m" aria-selected="false">6M</button>
+          <button type="button" role="tab" data-range="1y" aria-selected="false">1Y</button>
+          <button type="button" role="tab" data-range="ytd" aria-selected="false">YTD</button>
+        </div>
+      </div>
+      <div id="history-net" class="history-net"></div>
+      <div id="history-note" class="history-note hidden"></div>
+    </section>
+
     <!-- Coverage banner -->
     <div id="coverage-banner" class="coverage-banner hidden"></div>
 
@@ -65,7 +83,7 @@
 
   </div>
 
-  <script src="nav.js?v=20260516c"></script>
-  <script src="accounts.js?v=20260516c"></script>
+  <script src="nav.js?v=20261007h"></script>
+  <script src="accounts.js?v=20261007h"></script>
 </body>
 </html>
