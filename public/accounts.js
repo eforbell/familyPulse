@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch { window.location.replace('login.html'); return; }
 
   updateWhoBtn();
-  await Promise.all([loadAccounts(), loadCoverage()]);
+  initHistoryRanges();
+  await Promise.all([loadAccounts(), loadCoverage(), loadHistory()]);
 });
 
 // ── Data ─────────────────────────────────────────────────────
@@ -38,6 +39,212 @@ async function loadCoverage() {
   } catch (err) {
     console.error('Coverage load failed:', err);
   }
+}
+
+// ── Balance history ──────────────────────────────────────────
+
+let historyRange = '3m';
+let historyReq = 0;
+
+function initHistoryRanges() {
+  const tabs = $('history-ranges');
+  tabs.addEventListener('click', event => {
+    const btn = event.target.closest('button[data-range]');
+    if (!btn || btn.dataset.range === historyRange) return;
+    historyRange = btn.dataset.range;
+    for (const b of tabs.querySelectorAll('button')) {
+      b.setAttribute('aria-selected', String(b === btn));
+    }
+    loadHistory();
+  });
+}
+
+async function loadHistory() {
+  const token = ++historyReq;
+  try {
+    const data = await api(`api/accounts/history?range=${encodeURIComponent(historyRange)}`);
+    if (token !== historyReq) return; // a newer range was requested
+    renderHistory(data);
+  } catch (err) {
+    if (token !== historyReq) return;
+    $('history-net').innerHTML = '<div class="history-empty">Could not load balance history.</div>';
+    console.error('History load failed:', err);
+  }
+}
+
+// Distinct, colour-blind-safe hues for account lines. Net is always the bold text-colour line.
+const HISTORY_PALETTE = ['#2a9d8f', '#e07a1f', '#4c78c9', '#b5499a', '#8a9a1b', '#c2453d', '#7a5cc4', '#1b8ab5', '#a8742a', '#4d8f3a'];
+let historyHidden = new Set(); // account ids toggled off in the legend
+let historyData = null;
+
+function renderHistory(data) {
+  historyData = data;
+  const net = $('history-net');
+  const note = $('history-note');
+
+  if (!data.accounts.length) {
+    net.innerHTML = '<div class="history-empty">No deposit or credit accounts to chart.</div>';
+    note.classList.add('hidden');
+    return;
+  }
+
+  const netPoints = data.net.filter(v => v !== null);
+  const startIdx = data.net.findIndex(v => v !== null);
+  let summary = '';
+  if (netPoints.length >= 2) {
+    const delta = netPoints[netPoints.length - 1] - netPoints[0];
+    const cls = Math.abs(delta) < 0.005 ? 'flat' : (delta > 0 ? 'up' : 'down');
+    summary = `<div class="history-net-delta ${cls}">${fmtSignedMoney(delta)} <span>net since ${esc(fmtHistDate(data.dates[startIdx]))}</span></div>`;
+  }
+
+  net.innerHTML = `
+    <div class="history-net-top">
+      <div class="history-net-label">Net position &amp; accounts</div>
+      ${summary}
+    </div>
+    <div id="history-legend" class="history-legend"></div>
+    <div id="history-chart" class="history-chart-wrap"></div>`;
+
+  drawHistoryLegend(data);
+  drawHistoryChart();
+
+  const partial = data.partial_accounts || [];
+  if (partial.length) {
+    note.innerHTML = 'History is limited by synced transactions: '
+      + partial.map(p => `${esc(p.name)}${p.data_from ? ` (from ${esc(fmtHistDate(p.data_from))})` : ' (none)'}`).join(', ')
+      + '. Net position covers only the span where every account with history has data.';
+    note.classList.remove('hidden');
+  } else {
+    note.classList.add('hidden');
+  }
+}
+
+function historyColor(index) { return HISTORY_PALETTE[index % HISTORY_PALETTE.length]; }
+
+function drawHistoryLegend(data) {
+  const legend = $('history-legend');
+  const items = [`<span class="history-legend-item history-legend-net"><i class="sw sw-net"></i>Net position</span>`];
+  data.accounts.forEach((a, i) => {
+    const off = historyHidden.has(a.id);
+    items.push(`<button type="button" class="history-legend-item${off ? ' off' : ''}" data-acct="${a.id}" aria-pressed="${!off}">
+      <i class="sw${a.type === 'credit' ? ' sw-credit' : ''}" style="--c:${historyColor(i)}"></i>${esc(a.name)}${a.mask ? ` ···${esc(a.mask)}` : ''}</button>`);
+  });
+  legend.innerHTML = items.join('');
+  legend.onclick = event => {
+    const btn = event.target.closest('button[data-acct]');
+    if (!btn) return;
+    const id = Number(btn.dataset.acct);
+    if (historyHidden.has(id)) historyHidden.delete(id); else historyHidden.add(id);
+    drawHistoryLegend(historyData);
+    drawHistoryChart();
+  };
+}
+
+// One SVG, one shared scale: net line + a line per visible account. Gaps (null) break a line.
+function drawHistoryChart() {
+  const data = historyData;
+  const container = $('history-chart');
+  const dates = data.dates;
+  const W = 600, H = 260;
+  const pad = { t: 10, b: 8 };
+
+  const lines = [{ key: 'net', name: 'Net position', values: data.net, color: null, cls: 'hc-net' }];
+  data.accounts.forEach((a, i) => {
+    if (historyHidden.has(a.id)) return;
+    lines.push({ key: a.id, name: a.name, values: a.values, color: historyColor(i), cls: a.type === 'credit' ? 'hc-acct hc-credit' : 'hc-acct' });
+  });
+
+  const all = lines.flatMap(l => l.values).filter(v => v !== null);
+  if (all.length < 2) {
+    container.innerHTML = '<div class="history-empty">Not enough synced history to chart for this range.</div>';
+    return;
+  }
+  let min = Math.min(...all, 0);
+  let max = Math.max(...all, 0);
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min;
+  min -= span * 0.05; max += span * 0.05;
+
+  const x = i => (dates.length === 1 ? 0 : (i / (dates.length - 1)) * W);
+  const y = v => pad.t + (1 - (v - min) / (max - min)) * (H - pad.t - pad.b);
+
+  // Axis ticks: nice round steps, ~4-5 of them.
+  const rawStep = (max - min) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= rawStep) || rawStep;
+  const ticks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) ticks.push(Math.round(t * 100) / 100);
+
+  const grid = ticks.map(t => `<line class="${t === 0 ? 'hc-zero' : 'hc-grid'}" x1="0" x2="${W}" y1="${y(t)}" y2="${y(t)}"/>`).join('');
+  const yLabels = ticks.map(t => `<span style="top:${(y(t) / H) * 100}%">${esc(fmtAxisMoney(t))}</span>`).join('');
+
+  const paths = lines.map(l => {
+    let d = '';
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) d += run.map((p, k) => `${k ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+      run = [];
+    };
+    l.values.forEach((v, i) => { if (v === null) flush(); else run.push([x(i), y(v)]); });
+    flush();
+    return `<path class="hc-line ${l.cls}" ${l.color ? `style="stroke:${l.color}"` : ''} d="${d}"/>`;
+  }).reverse().join(''); // net drawn last (on top)
+
+  container.innerHTML = `
+    <div class="hc-ylabels">${yLabels}</div>
+    <div class="hc-plot">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Net position and account balance history" style="height:${H}px">
+        ${grid}${paths}
+        <line class="hc-cursor" y1="${pad.t}" y2="${H - pad.b}" x1="0" x2="0" hidden/>
+      </svg>
+      <div class="hc-axis"><span>${esc(fmtHistDate(dates[0]))}</span><span>${esc(fmtHistDate(dates[dates.length - 1]))}</span></div>
+      <div class="hc-tip" hidden></div>
+    </div>`;
+
+  const plot = container.querySelector('.hc-plot');
+  const svg = plot.querySelector('svg');
+  const cursor = svg.querySelector('.hc-cursor');
+  const tip = plot.querySelector('.hc-tip');
+
+  function show(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const i = Math.round(ratio * (dates.length - 1));
+    cursor.setAttribute('x1', x(i)); cursor.setAttribute('x2', x(i));
+    cursor.removeAttribute('hidden');
+    const rows = lines
+      .filter(l => l.values[i] !== null)
+      .map(l => `<div class="hc-tip-row${l.key === 'net' ? ' hc-tip-net' : ''}"><i class="sw${l.cls.includes('hc-credit') ? ' sw-credit' : ''}" style="--c:${l.color || 'var(--text)'}"></i><span>${esc(l.name)}</span><b>${fmtMoney(l.values[i])}</b></div>`)
+      .join('');
+    tip.innerHTML = `<div class="hc-tip-date">${esc(fmtHistDate(dates[i]))}</div>${rows}`;
+    tip.removeAttribute('hidden');
+    const pct = (x(i) / W) * 100;
+    tip.classList.toggle('flip', pct > 55);
+    tip.style.left = `${pct}%`;
+  }
+  function hide() { cursor.setAttribute('hidden', ''); tip.setAttribute('hidden', ''); }
+  svg.addEventListener('pointermove', e => show(e.clientX));
+  svg.addEventListener('pointerdown', e => show(e.clientX));
+  svg.addEventListener('pointerleave', hide);
+}
+
+function fmtAxisMoney(n) {
+  const abs = Math.abs(n);
+  const body = abs >= 1000 ? `${(abs / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}k` : String(abs);
+  return `${n < 0 ? '−' : ''}$${body}`;
+}
+
+// 1Y spans the same month/day twice, so show the year there.
+function fmtHistDate(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (isNaN(d)) return '';
+  const opts = historyRange === '1y' ? { month: 'short', day: 'numeric', year: '2-digit' } : { month: 'short', day: 'numeric' };
+  return d.toLocaleDateString('en-US', opts);
+}
+
+function fmtSignedMoney(n) {
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? '−' : '+'}$${abs}`;
 }
 
 // ── Render ───────────────────────────────────────────────────
