@@ -75,6 +75,14 @@ async function loadHistory() {
 // Distinct, colour-blind-safe hues for account lines. Net is always the bold text-colour line.
 const HISTORY_PALETTE = ['#2a9d8f', '#e07a1f', '#4c78c9', '#b5499a', '#8a9a1b', '#c2453d', '#7a5cc4', '#1b8ab5', '#a8742a', '#4d8f3a'];
 let historyHidden = new Set(); // account ids toggled off in the legend
+let historyView = readHistoryView(); // 'lines' | 'stacked'
+
+function readHistoryView() {
+  try { return localStorage.getItem('pulse-history-view') === 'stacked' ? 'stacked' : 'lines'; } catch { return 'lines'; }
+}
+function saveHistoryView(view) {
+  try { localStorage.setItem('pulse-history-view', view); } catch { /* per-viewer convenience only */ }
+}
 let historyData = null;
 
 function renderHistory(data) {
@@ -102,8 +110,21 @@ function renderHistory(data) {
       <div class="history-net-label">Net position &amp; accounts</div>
       ${summary}
     </div>
+    <div class="history-view" id="history-view" role="group" aria-label="Chart style">
+      <button type="button" data-view="lines" aria-pressed="${historyView === 'lines'}">Lines</button>
+      <button type="button" data-view="stacked" aria-pressed="${historyView === 'stacked'}">Stacked</button>
+    </div>
     <div id="history-legend" class="history-legend"></div>
     <div id="history-chart" class="history-chart-wrap"></div>`;
+
+  $('history-view').onclick = event => {
+    const btn = event.target.closest('button[data-view]');
+    if (!btn || btn.dataset.view === historyView) return;
+    historyView = btn.dataset.view;
+    saveHistoryView(historyView);
+    for (const b of $('history-view').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b === btn));
+    drawHistoryChart();
+  };
 
   drawHistoryLegend(data);
   drawHistoryChart();
@@ -142,21 +163,75 @@ function drawHistoryLegend(data) {
   };
 }
 
-// One SVG, one shared scale: net line + a line per visible account. Gaps (null) break a line.
+// Calendar-aware x ticks: 1st & 15th for short ranges, month starts otherwise,
+// thinned so labels never collide.
+function historyXTicks(startStr, endStr, range, maxTicks) {
+  const t0 = Date.parse(`${startStr}T00:00:00Z`);
+  const t1 = Date.parse(`${endStr}T00:00:00Z`);
+  const days = range === '3m' ? [1, 15] : [1];
+  const out = [];
+  const d = new Date(t0);
+  d.setUTCDate(1);
+  while (d.getTime() <= t1) {
+    for (const day of days) {
+      const t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), day);
+      if (t >= t0 && t <= t1) out.push(t);
+    }
+    d.setUTCMonth(d.getUTCMonth() + 1);
+  }
+  const stride = Math.max(1, Math.ceil(out.length / maxTicks));
+  return out.filter((_, i) => i % stride === 0);
+}
+
+function fmtHistTick(t, range) {
+  const d = new Date(t);
+  const month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  if (range === '3m') return `${month} ${d.getUTCDate()}`;
+  return d.getUTCMonth() === 0 ? `${month} '${String(d.getUTCFullYear()).slice(2)}` : month;
+}
+
+// One SVG, one shared scale. 'lines': net + a line per account. 'stacked': accounts
+// build up from zero (positives) and down (credit), so the layers sum to the net line.
 function drawHistoryChart() {
   const data = historyData;
   const container = $('history-chart');
   const dates = data.dates;
-  const W = 600, H = 260;
-  const pad = { t: 10, b: 8 };
+  const n = dates.length;
+  const W = 600, H = 280;
+  const pad = { t: 10, b: 6 };
+  const stacked = historyView === 'stacked';
 
-  const lines = [{ key: 'net', name: 'Net position', values: data.net, color: null, cls: 'hc-net' }];
-  data.accounts.forEach((a, i) => {
-    if (historyHidden.has(a.id)) return;
-    lines.push({ key: a.id, name: a.name, values: a.values, color: historyColor(i), cls: a.type === 'credit' ? 'hc-acct hc-credit' : 'hc-acct' });
-  });
+  const tOf = d => Date.parse(`${d}T00:00:00Z`);
+  const t0 = tOf(dates[0]);
+  const t1 = tOf(dates[n - 1]);
+  const x = i => (t1 === t0 ? 0 : ((tOf(dates[i]) - t0) / (t1 - t0)) * W);
 
-  const all = lines.flatMap(l => l.values).filter(v => v !== null);
+  const accts = data.accounts
+    .map((a, i) => ({ a, color: historyColor(i) }))
+    .filter(r => !historyHidden.has(r.a.id));
+  const netLine = { key: 'net', name: 'Net position', values: data.net, color: null, credit: false };
+  const acctLines = accts.map(r => ({ key: r.a.id, name: r.a.name, values: r.a.values, color: r.color, credit: r.a.type === 'credit' }));
+
+  // Stacked layers (null counts as 0 thickness).
+  const cumPos = new Array(n).fill(0);
+  const cumNeg = new Array(n).fill(0);
+  const layers = [];
+  if (stacked) {
+    for (const r of accts) {
+      const pos = { lo: [], hi: [] };
+      const neg = { lo: [], hi: [] };
+      for (let i = 0; i < n; i++) {
+        const v = r.a.values[i] === null ? 0 : r.a.values[i];
+        pos.lo.push(cumPos[i]); cumPos[i] += Math.max(v, 0); pos.hi.push(cumPos[i]);
+        neg.lo.push(cumNeg[i]); cumNeg[i] += Math.min(v, 0); neg.hi.push(cumNeg[i]);
+      }
+      layers.push({ color: r.color, pos, neg });
+    }
+  }
+
+  const all = stacked
+    ? [...cumPos, ...cumNeg, ...data.net.filter(v => v !== null)]
+    : [netLine, ...acctLines].flatMap(l => l.values).filter(v => v !== null);
   if (all.length < 2) {
     container.innerHTML = '<div class="history-empty">Not enough synced history to chart for this range.</div>';
     return;
@@ -167,50 +242,77 @@ function drawHistoryChart() {
   const span = max - min;
   min -= span * 0.05; max += span * 0.05;
 
-  const x = i => (dates.length === 1 ? 0 : (i / (dates.length - 1)) * W);
   const y = v => pad.t + (1 - (v - min) / (max - min)) * (H - pad.t - pad.b);
 
-  // Axis ticks: nice round steps, ~4-5 of them.
-  const rawStep = (max - min) / 4;
+  // Y ticks: nice round steps, ~7-9 of them.
+  const rawStep = (max - min) / 9;
   const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
   const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= rawStep) || rawStep;
-  const ticks = [];
-  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) ticks.push(Math.round(t * 100) / 100);
+  const yTicks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) yTicks.push(Math.round(t * 100) / 100);
 
-  const grid = ticks.map(t => `<line class="${t === 0 ? 'hc-zero' : 'hc-grid'}" x1="0" x2="${W}" y1="${y(t)}" y2="${y(t)}"/>`).join('');
-  const yLabels = ticks.map(t => `<span style="top:${(y(t) / H) * 100}%">${esc(fmtAxisMoney(t))}</span>`).join('');
+  // X ticks (time-positioned).
+  const narrow = container.clientWidth > 0 && container.clientWidth < 460;
+  const xTicks = historyXTicks(dates[0], dates[n - 1], data.range, narrow ? 4 : 8)
+    .map(t => ({ pct: t1 === t0 ? 0 : ((t - t0) / (t1 - t0)) * 100, label: fmtHistTick(t, data.range) }));
 
-  const drawn = lines.map(l => {
+  const gridY = yTicks.map(t => `<line class="${t === 0 ? 'hc-zero' : 'hc-grid'}" x1="0" x2="${W}" y1="${y(t)}" y2="${y(t)}"/>`).join('');
+  const gridX = xTicks.map(t => `<line class="hc-grid hc-grid-x" x1="${(t.pct / 100) * W}" x2="${(t.pct / 100) * W}" y1="${pad.t}" y2="${H - pad.b}"/>`).join('');
+  const yLabels = yTicks.map(t => `<span style="top:${(y(t) / H) * 100}%">${esc(fmtAxisMoney(t))}</span>`).join('');
+  const xLabels = xTicks.map(t => {
+    const edge = t.pct < 4 ? ' edge-l' : (t.pct > 96 ? ' edge-r' : '');
+    return `<span class="${edge.trim()}" style="left:${t.pct}%">${esc(t.label)}</span>`;
+  }).join('');
+
+  const lineD = values => {
     let d = '';
     let run = [];
     const flush = () => {
       if (run.length > 1) d += run.map((p, k) => `${k ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
       run = [];
     };
-    l.values.forEach((v, i) => { if (v === null) flush(); else run.push([x(i), y(v)]); });
+    values.forEach((v, i) => { if (v === null) flush(); else run.push([x(i), y(v)]); });
     flush();
-    return { l, d };
-  });
+    return d;
+  };
 
-  // A lone point per line (e.g. history that begins today) has no segment to draw.
-  if (!drawn.some(r => r.d)) {
+  let body = '';
+  let drawable = false;
+  if (stacked) {
+    const poly = (color, band) => {
+      let thick = false;
+      for (let i = 0; i < n; i++) if (Math.abs(band.hi[i] - band.lo[i]) > 1e-9) { thick = true; break; }
+      if (!thick) return '';
+      const top = band.hi.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+      const bottom = band.lo.map((v, i) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).reverse().join('');
+      return `<path class="hc-layer" style="fill:${color}" d="${top}${bottom}Z"/>`;
+    };
+    body = layers.map(l => poly(l.color, l.pos) + poly(l.color, l.neg)).join('');
+    drawable = body !== '';
+    const nd = lineD(data.net);
+    if (nd) { body += `<path class="hc-line hc-net" d="${nd}"/>`; drawable = true; }
+  } else {
+    const drawn = [netLine, ...acctLines].map(l => ({ l, d: lineD(l.values) })).filter(r => r.d);
+    drawable = drawn.length > 0;
+    body = drawn
+      .map(({ l, d }) => `<path class="hc-line ${l.key === 'net' ? 'hc-net' : `hc-acct${l.credit ? ' hc-credit' : ''}`}" ${l.color ? `style="stroke:${l.color}"` : ''} d="${d}"/>`)
+      .reverse().join(''); // net drawn last (on top)
+  }
+
+  // A lone point per line (e.g. history that begins today) has no segment/area to draw.
+  if (!drawable) {
     container.innerHTML = '<div class="history-empty">Not enough synced history to chart for this range.</div>';
     return;
   }
-
-  const paths = drawn
-    .filter(r => r.d)
-    .map(({ l, d }) => `<path class="hc-line ${l.cls}" ${l.color ? `style="stroke:${l.color}"` : ''} d="${d}"/>`)
-    .reverse().join(''); // net drawn last (on top)
 
   container.innerHTML = `
     <div class="hc-ylabels">${yLabels}</div>
     <div class="hc-plot">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Net position and account balance history" style="height:${H}px">
-        ${grid}${paths}
+        ${gridY}${gridX}${body}
         <line class="hc-cursor" y1="${pad.t}" y2="${H - pad.b}" x1="0" x2="0" hidden/>
       </svg>
-      <div class="hc-axis"><span>${esc(fmtHistDate(dates[0]))}</span><span>${esc(fmtHistDate(dates[dates.length - 1]))}</span></div>
+      <div class="hc-xlabels">${xLabels}</div>
       <div class="hc-tip" hidden></div>
     </div>`;
 
@@ -219,26 +321,48 @@ function drawHistoryChart() {
   const cursor = svg.querySelector('.hc-cursor');
   const tip = plot.querySelector('.hc-tip');
 
+  function nearest(ratio) {
+    const target = ratio * W;
+    let best = 0;
+    for (let i = 1; i < n; i++) if (Math.abs(x(i) - target) < Math.abs(x(best) - target)) best = i;
+    return best;
+  }
+
   function show(clientX) {
     const rect = svg.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    const i = Math.round(ratio * (dates.length - 1));
+    const i = nearest(ratio);
     cursor.setAttribute('x1', x(i)); cursor.setAttribute('x2', x(i));
     cursor.removeAttribute('hidden');
-    const rows = lines
+    // Net first, then accounts from highest to lowest balance.
+    const row = l => `<div class="hc-tip-row${l.key === 'net' ? ' hc-tip-net' : ''}"><i class="sw${l.credit ? ' sw-credit' : ''}" style="--c:${l.color || 'var(--text)'}"></i><span>${esc(l.name)}</span><b>${fmtMoney(l.values[i])}</b></div>`;
+    const rows = acctLines
       .filter(l => l.values[i] !== null)
-      .map(l => `<div class="hc-tip-row${l.key === 'net' ? ' hc-tip-net' : ''}"><i class="sw${l.cls.includes('hc-credit') ? ' sw-credit' : ''}" style="--c:${l.color || 'var(--text)'}"></i><span>${esc(l.name)}</span><b>${fmtMoney(l.values[i])}</b></div>`)
-      .join('');
-    tip.innerHTML = `<div class="hc-tip-date">${esc(fmtHistDate(dates[i]))}</div>${rows}`;
+      .sort((p, q) => q.values[i] - p.values[i])
+      .map(row);
+    const netRow = netLine.values[i] !== null ? row(netLine) : '';
+    tip.innerHTML = `<div class="hc-tip-date">${esc(fmtHistDate(dates[i]))}</div>${netRow}${rows.join('')}`;
     tip.removeAttribute('hidden');
-    const pct = (x(i) / W) * 100;
-    tip.classList.toggle('flip', pct > 55);
-    tip.style.left = `${pct}%`;
+    // Place beside the cursor, flipping/clamping so it never leaves the plot (phones are narrow).
+    const plotW = plot.clientWidth;
+    const px = (x(i) / W) * plotW;
+    const tipW = tip.offsetWidth;
+    let left = px + 10;
+    if (left + tipW > plotW) left = px - 10 - tipW;
+    tip.style.left = `${Math.max(0, Math.min(left, plotW - tipW))}px`;
   }
   function hide() { cursor.setAttribute('hidden', ''); tip.setAttribute('hidden', ''); }
   svg.addEventListener('pointermove', e => show(e.clientX));
   svg.addEventListener('pointerdown', e => show(e.clientX));
   svg.addEventListener('pointerleave', hide);
+  // Touch has no hover-out: let the readout linger briefly, then clear it.
+  let touchTimer = null;
+  svg.addEventListener('pointerup', e => {
+    if (e.pointerType !== 'touch') return;
+    clearTimeout(touchTimer);
+    touchTimer = setTimeout(hide, 2500);
+  });
+  svg.addEventListener('pointerdown', () => clearTimeout(touchTimer));
 }
 
 function fmtAxisMoney(n) {

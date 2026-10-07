@@ -70,3 +70,50 @@ test('privacy mode blurs history amounts and the chart', async ({ page }) => {
   expect(await filter('.hc-ylabels span')).not.toBe('none');
   expect(await filter('.hc-plot svg')).not.toBe('none');
 });
+
+const multi = () => history({
+  net: [900, 1000, 1100],
+  accounts: [
+    { id: 1, name: 'Checking', type: 'depository', mask: null, data_from: dates[0], values: [500, 600, 700] },
+    { id: 2, name: 'Savings', type: 'depository', mask: null, data_from: dates[0], values: [1000, 1000, 1000] },
+    { id: 3, name: 'Visa', type: 'credit', mask: null, data_from: dates[0], values: [-600, -600, -600] }
+  ]
+});
+
+test('hover lists net first, then accounts sorted by balance high to low', async ({ page }) => {
+  await mockHistory(page, multi());
+  await page.goto('/accounts.html');
+  const svg = page.locator('#history-chart svg');
+  await expect(svg).toBeVisible();
+  const box = await svg.boundingBox();
+  await page.mouse.move(box.x + box.width - 2, box.y + 40);
+  const names = await page.locator('.hc-tip-row > span').allInnerTexts();
+  expect(names).toEqual(['Net position', 'Savings', 'Checking', 'Visa']);
+});
+
+test('axes carry multiple tick marks', async ({ page }) => {
+  // A realistic 3-month weekly series (the 2-week fixture only spans one calendar tick).
+  const wk = Array.from({ length: 14 }, (_, i) => new Date(Date.UTC(2026, 6, 7 + i * 7)).toISOString().slice(0, 10));
+  const ramp = base => wk.map((_, i) => base + i * 100);
+  await mockHistory(page, history({
+    dates: wk, start: wk[0], end: wk[13], net: ramp(1000),
+    accounts: [{ id: 1, name: 'Checking', type: 'depository', mask: null, data_from: wk[0], values: ramp(1000) }]
+  }));
+  await page.goto('/accounts.html');
+  await expect(page.locator('#history-chart svg')).toBeVisible();
+  expect(await page.locator('.hc-ylabels span').count()).toBeGreaterThanOrEqual(5);
+  expect(await page.locator('.hc-xlabels span').count()).toBeGreaterThanOrEqual(4);
+});
+
+test('stacked view builds layers toward the net line and remembers the choice', async ({ page }) => {
+  await mockHistory(page, multi());
+  await page.goto('/accounts.html');
+  await expect(page.locator('#history-chart .hc-layer')).toHaveCount(0);
+  await page.click('#history-view button[data-view="stacked"]');
+  // Checking + Savings above zero, Visa below zero.
+  await expect(page.locator('#history-chart .hc-layer')).toHaveCount(3);
+  await expect(page.locator('#history-chart .hc-line.hc-net')).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('#history-view button[data-view="stacked"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#history-chart .hc-layer')).toHaveCount(3);
+});

@@ -986,7 +986,7 @@
 .history-net-delta.flat { color: var(--muted); }
 
 .history-chart-wrap { position: relative; margin-top: var(--s-2); display: flex; gap: 6px; touch-action: pan-y; }
-.hc-ylabels { position: relative; width: 44px; flex: none; height: 260px; }
+.hc-ylabels { position: relative; width: 48px; flex: none; height: 280px; }
 .hc-ylabels span {
   position: absolute; right: 0; transform: translateY(-50%);
   font-family: var(--font-mono); font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums;
@@ -999,15 +999,31 @@
 .hc-line.hc-net { stroke: var(--text); stroke-width: 3; }
 .hc-grid { stroke: var(--border-subtle); vector-effect: non-scaling-stroke; }
 .hc-zero { stroke: var(--dim); stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
-.hc-axis { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--dim); margin-top: 4px; }
+.hc-xlabels { position: relative; height: 18px; margin-top: 2px; }
+.hc-xlabels span {
+  position: absolute; top: 0; transform: translateX(-50%); padding-top: 5px; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 10px; color: var(--dim);
+}
+.hc-xlabels span::before { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 4px; background: var(--dim); }
+.hc-xlabels span.edge-l { transform: none; }
+.hc-xlabels span.edge-l::before { left: 0; }
+.hc-xlabels span.edge-r { transform: translateX(-100%); }
+.hc-xlabels span.edge-r::before { left: 100%; }
+.hc-grid-x { opacity: 0.6; }
+.hc-layer { fill-opacity: 0.62; stroke: var(--surface); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+.history-view { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: var(--s-2); }
+.history-view button {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+  background: transparent; color: var(--muted); border: 0; padding: 6px 12px; min-height: 32px; cursor: pointer;
+}
+.history-view button[aria-pressed="true"] { background: var(--accent-soft-strong); color: var(--accent); }
 .hc-cursor { stroke: var(--dim); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .hc-cursor[hidden], .hc-tip[hidden] { display: none; }
 .hc-tip {
-  position: absolute; top: 0; transform: translateX(10px); pointer-events: none; z-index: 2;
+  position: absolute; top: 0; pointer-events: none; z-index: 2;
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-card);
-  padding: 6px 10px; font-size: var(--text-sm); min-width: 170px; max-width: 260px; font-variant-numeric: tabular-nums;
+  padding: 6px 10px; font-size: var(--text-sm); min-width: 170px; max-width: min(260px, 100%); font-variant-numeric: tabular-nums;
 }
-.hc-tip.flip { transform: translateX(calc(-100% - 10px)); }
 .hc-tip-date { font-family: var(--font-mono); font-size: 10px; color: var(--dim); margin-bottom: 2px; }
 .hc-tip-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
 .hc-tip-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1029,6 +1045,8 @@ button.history-legend-item { cursor: pointer; }
 .history-empty { padding: var(--s-4) 0; color: var(--muted); font-size: var(--text-sm); }
 
 @media (max-width: 520px) {
+  .hc-tip { padding: 4px 8px; font-size: 12px; }
+  .hc-tip-row { padding: 0; }
   .history-card { padding: var(--s-3); }
   .history-ranges { width: 100%; }
   .history-ranges button { flex: 1; }
