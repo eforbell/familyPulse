@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('filter-category').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-from').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-to').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
+  $('filter-amount-min').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 400));
+  $('filter-amount-max').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 400));
   $('filter-search').addEventListener('input', debounce(() => { resetAndLoad(); updatePageTitle(); }, 300));
   $('filter-transfers').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
   $('filter-hidden').addEventListener('change', () => { resetAndLoad(); updatePageTitle(); });
@@ -74,6 +76,11 @@ function applyUrlParams() {
 
   const accountId = params.get('account_id');
   if (accountId) $('filter-account').value = accountId;
+
+  const amountMin = params.get('amount_min');
+  if (amountMin) $('filter-amount-min').value = amountMin;
+  const amountMax = params.get('amount_max');
+  if (amountMax) $('filter-amount-max').value = amountMax;
 
   const search = params.get('search');
   if (search) $('filter-search').value = search;
@@ -328,6 +335,11 @@ function buildFilterParams() {
   const to = $('filter-to').value;
   if (to) p.set('date_to', to);
 
+  const amountMin = $('filter-amount-min').value;
+  if (amountMin !== '') p.set('amount_min', amountMin);
+  const amountMax = $('filter-amount-max').value;
+  if (amountMax !== '') p.set('amount_max', amountMax);
+
   const search = $('filter-search').value.trim();
   if (search) p.set('search', search);
 
@@ -369,6 +381,8 @@ function renderFilterChips() {
   const search = $('filter-search').value.trim();
   const from = $('filter-from').value;
   const to = $('filter-to').value;
+  const amountMin = $('filter-amount-min').value;
+  const amountMax = $('filter-amount-max').value;
   const sort = $('filter-sort').value || 'date_desc';
   const showTransfers = $('filter-transfers').checked;
   const showHidden = $('filter-hidden').checked;
@@ -381,6 +395,14 @@ function renderFilterChips() {
   if (category) chips.push({ key: 'category', label: plainCategoryName(category.name) || 'Category' });
   if (search) chips.push({ key: 'search', label: `Search: ${search}` });
   if (from || to) chips.push({ key: 'date', label: `${from ? formatDate(from) : 'Start'} → ${to ? formatDate(to) : 'Now'}` });
+  if (amountMin !== '' || amountMax !== '') {
+    const fmt = v => '$' + Number(v).toLocaleString();
+    let label;
+    if (amountMin !== '' && amountMax !== '') label = `${fmt(amountMin)} – ${fmt(amountMax)}`;
+    else if (amountMin !== '') label = `≥ ${fmt(amountMin)}`;
+    else label = `≤ ${fmt(amountMax)}`;
+    chips.push({ key: 'amount', label: `Amount ${label}` });
+  }
   if (sort !== 'date_desc') {
     const sortLabels = { date_asc: 'Oldest first', amount_desc: 'Largest amount', amount_asc: 'Smallest amount' };
     chips.push({ key: 'sort', label: sortLabels[sort] || sort });
@@ -410,6 +432,10 @@ function clearFilterChip(key) {
   if (key === 'date') {
     $('filter-from').value = '';
     $('filter-to').value = '';
+  }
+  if (key === 'amount') {
+    $('filter-amount-min').value = '';
+    $('filter-amount-max').value = '';
   }
   if (key === 'sort') $('filter-sort').value = 'date_desc';
   if (key === 'transfers') $('filter-transfers').checked = true;
