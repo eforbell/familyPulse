@@ -139,7 +139,7 @@ test.describe('Transaction identity overrides', () => {
     await expect(page.locator('#tx-detail-title')).toHaveText('Crateandbar');
     await expect(page.locator('#tx-display-name-rule-check')).toBeChecked();
     await page.locator('#tx-display-name-input').fill('Crate & Barrel');
-    await page.getByRole('button', { name: 'Save Name' }).click();
+    await page.locator('#tx-display-name-actions').getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('#tx-detail-feedback')).toContainText('Display name saved.');
     await expect(page.locator('#tx-detail-title')).toHaveText('Crate & Barrel');
     await expect(page.locator('#tx-detail-raw')).toContainText('Crateandbar');
@@ -233,7 +233,7 @@ test.describe('Transaction identity overrides', () => {
     await page.goto('/transactions.html');
     await page.locator('.tx-row').first().click();
     await expect(page.locator('#tx-display-name-rule-check')).not.toBeChecked();
-    await expect(page.locator('#tx-display-name-rule-hint')).toContainText('Check-style text defaults to one-off rename only.');
+    await expect(page.locator('#tx-display-name-rule-hint')).toContainText('Apply name change to future matches');
   });
 
   test('merchant suggestions fill the rename input without auto-saving', async ({ page }) => {
