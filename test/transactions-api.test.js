@@ -229,6 +229,41 @@ describe('GET /api/transactions', () => {
     }
   });
 
+  it('filters by minimum amount using absolute value', async () => {
+    const res = await fetch(`${baseUrl}/api/transactions?account_id=${accountId}&amount_min=50&limit=100`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    const ids = data.transactions.map(t => t.plaid_transaction_id);
+    assert.ok(data.transactions.every(t => Math.abs(Number(t.amount)) >= 50));
+    assert.ok(ids.includes('tx-api-3'), 'negative -100 should match on magnitude');
+    assert.ok(ids.includes('tx-api-5'));
+    assert.ok(!ids.includes('tx-api-1'));
+  });
+
+  it('filters by maximum amount and supports a range', async () => {
+    const maxRes = await fetch(`${baseUrl}/api/transactions?account_id=${accountId}&amount_max=20&limit=100`);
+    const maxData = await maxRes.json();
+    assert.ok(maxData.transactions.every(t => Math.abs(Number(t.amount)) <= 20));
+    assert.ok(maxData.transactions.some(t => t.plaid_transaction_id === 'tx-api-1'));
+    assert.ok(!maxData.transactions.some(t => t.plaid_transaction_id === 'tx-api-3'));
+
+    const rangeRes = await fetch(`${baseUrl}/api/transactions?account_id=${accountId}&amount_min=15&amount_max=45&limit=100`);
+    const rangeData = await rangeRes.json();
+    assert.ok(rangeData.transactions.every(t => {
+      const a = Math.abs(Number(t.amount));
+      return a >= 15 && a <= 45;
+    }));
+    assert.ok(rangeData.transactions.some(t => t.plaid_transaction_id === 'tx-api-2'));
+  });
+
+  it('ignores blank or invalid amount filters', async () => {
+    const base = await (await fetch(`${baseUrl}/api/transactions?account_id=${accountId}`)).json();
+    const res = await fetch(`${baseUrl}/api/transactions?account_id=${accountId}&amount_min=&amount_max=abc`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.total, base.total);
+  });
+
   it('filters uncategorized with category_id=0', async () => {
     const res = await fetch(`${baseUrl}/api/transactions?category_id=0&limit=50`);
     const data = await res.json();
