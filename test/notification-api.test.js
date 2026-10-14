@@ -164,8 +164,9 @@ describe('notification settings API', () => {
     assert.equal(res.status, 200);
     assert.ok(lastTestSend);
     assert.equal(lastTestSend.payload.title, 'Family Pulse: test');
-    assert.equal(lastTestSend.payload.message, 'Your Family Pulse notifications are connected.');
+    assert.match(lastTestSend.payload.message, /^Family Pulse notifications are connected for /);
     assert.equal(lastTestSend.payload.open_url, 'https://pulse.example.test/settings.html');
+    assert.equal(lastTestSend.payload.subtitle, undefined);
   });
 
   it('clears a saved channel', async () => {
