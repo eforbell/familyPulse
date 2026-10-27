@@ -8,6 +8,7 @@ const logger = require('./lib/logger');
 const { validateStartupConfig } = require('./lib/startup-validation');
 const { validateSession, authEnabled, parseCookie, cleanExpiredSessions } = require('./lib/auth');
 const { issueBootstrapToken, TOKEN_TTL_MS } = require('./lib/bootstrap-token');
+const { listen, describe: describeListen } = require('./lib/listen');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -644,8 +645,8 @@ if (require.main === module) {
       .catch(err => logger.error('Session cleanup failed', { error: err.message }));
   }, { timezone: TZ });
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`💚 Family Pulse running → http://0.0.0.0:${PORT}`);
+  listen(app, { defaultPort: PORT }, (target) => {
+    console.log(`💚 Family Pulse running → ${describeListen(target)}`);
   });
 }
 
