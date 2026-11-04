@@ -77,4 +77,9 @@ test('a service that echoes the request path does not get the secret into the er
     assert.equal(err.message.includes('hp_secretvalue'), false);
     return true;
   });
+  // A saved URL can carry a suffix, and the error quotes only the path.
+  await assert.rejects(sendBrrrNotification('http://127.0.0.1:3014/v1/hp_secretvalue#webhook', { title: 't', message: 'm' }), (err) => {
+    assert.equal(err.message.includes('hp_secretvalue'), false);
+    return true;
+  });
 });
