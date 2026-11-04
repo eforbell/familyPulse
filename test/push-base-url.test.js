@@ -52,3 +52,29 @@ test('sending posts to the configured service', async () => {
   await sendBrrrNotification('hp_secretvalue', { title: 't', message: 'm' });
   assert.equal(seen, 'http://127.0.0.1:3014/v1/hp_secretvalue');
 });
+
+test('a blank or delimiter-ended PUSH_BASE_URL is malformed too, but an empty one means unset', () => {
+  for (const bad of ['   ', 'https://gateway.example.test/#', 'https://gateway.example.test/?']) {
+    process.env.PUSH_BASE_URL = bad;
+    assert.throws(() => normalizeBrrrTarget('hp_secretvalue'), /PUSH_BASE_URL/, JSON.stringify(bad));
+  }
+  process.env.PUSH_BASE_URL = '';
+  assert.equal(normalizeBrrrTarget('abc123secret'), 'https://api.brrr.now/v1/abc123secret');
+});
+
+test('a value that is neither a secret nor a clean URL is refused without being sent or echoed', () => {
+  delete process.env.PUSH_BASE_URL;
+  for (const target of ['https:\n//old.example.test/v1/oldsecret123', 'old secret123', '../oldsecret123', 'https://api.brrr.now/v1/']) {
+    assert.throws(() => normalizeBrrrTarget(target), (err) => !err.message.includes('oldsecret123'), JSON.stringify(target));
+  }
+});
+
+test('a service that echoes the request path does not get the secret into the error', async () => {
+  process.env.PUSH_BASE_URL = 'http://127.0.0.1:3014';
+  global.fetch = async () => ({ ok: false, status: 404, statusText: 'Not Found', text: async () => 'Cannot POST /v1/hp_secretvalue' });
+  await assert.rejects(sendBrrrNotification('hp_secretvalue', { title: 't', message: 'm' }), (err) => {
+    assert.match(err.message, /404/);
+    assert.equal(err.message.includes('hp_secretvalue'), false);
+    return true;
+  });
+});
