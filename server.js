@@ -9,6 +9,7 @@ const { validateStartupConfig } = require('./lib/startup-validation');
 const { validateSession, authEnabled, parseCookie, cleanExpiredSessions } = require('./lib/auth');
 const { issueBootstrapToken, TOKEN_TTL_MS } = require('./lib/bootstrap-token');
 const { listen, describe: describeListen } = require('./lib/listen');
+const { createSuiteIdentity } = require('./lib/suite-identity');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -36,12 +37,30 @@ function buildSovereignFontsCss() {
   ].join('\n');
 }
 
+// Which sign-in Family Pulse trusts (lib/suite-identity.js); a bad configuration refuses to start. In tailnet mode
+// these run first, so a write is checked before anything reads it, and every request but the probes and assets is
+// a household member's.
+async function findLinkedMember(suiteMemberId) {
+  const { rows } = await pool.query('SELECT id, name, avatar_emoji FROM family_members WHERE suite_member_id = $1', [suiteMemberId]);
+  return rows[0] || null;
+}
+let suite = createSuiteIdentity(process.env, { findLinked: findLinkedMember });
+app.use((req, res, next) => suite.guard(req, res, next));
+app.use((req, res, next) => suite.requireMember(req, res, next));
+
+// Whether a member is required. In tailnet mode always: a tailnet household has no passphrases, and "no passphrases"
+// is what turns the checks below off for a local install that hasn't finished setup.
+async function authIsOn() {
+  return suite.tailnet || authEnabled();
+}
+
 app.use(express.json());
 
 // ── Session middleware ───────────────────────────────────────
-// Attaches req.member if a valid session cookie exists.
+// Attaches req.member if a valid session cookie exists. In tailnet mode sessions mean nothing.
 
 app.use(async (req, res, next) => {
+  if (suite.tailnet) return next();
   try {
     const token = parseCookie(req.headers.cookie, 'fp_session');
     if (token) {
@@ -125,7 +144,7 @@ app.use(async (req, res, next) => {
   if (!HTML_PAGES.has(urlPath)) return next();
 
   try {
-    const isAuthOn = await authEnabled();
+    const isAuthOn = await authIsOn();
     if (!isAuthOn) return next();
 
     if (!req.member) {
@@ -150,7 +169,7 @@ app.use(async (req, res, next) => {
 // /kids/:name → serves kids.html (for both kids and parents)
 app.get('/kids/:name', async (req, res, next) => {
   try {
-    const isAuthOn = await authEnabled();
+    const isAuthOn = await authIsOn();
     if (isAuthOn && !req.member) {
       return res.redirect('login.html');
     }
@@ -216,7 +235,7 @@ app.use(async (req, res, next) => {
   if (apiPath === '/api/auth/passphrase') return next();
 
   try {
-    const isAuthOn = await authEnabled();
+    const isAuthOn = await authIsOn();
     if (!isAuthOn) return next();
   } catch (err) {
     logger.error('Auth check error', { error: err.message });
@@ -393,7 +412,7 @@ async function bootstrapState() {
   ]);
   const plaid = plaidConfigStatus();
   const needsHousehold = familyMembers === 0;
-  const needsAuth = passphrases === 0;
+  const needsAuth = !suite.tailnet && passphrases === 0;
   const needsStarterContent = categories === 0;
 
   return {
@@ -672,4 +691,10 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, pool, cfg, setCfg, bootstrapState, plaidConfigStatus, warnIfPlaidConfigMissing };
+// Tests switch the sign-in the way a restart with Home Base's env would.
+function setSuiteIdentityForTests(env, options = {}) {
+  suite = createSuiteIdentity(env, { findLinked: findLinkedMember, ...options });
+  return suite;
+}
+
+module.exports = { app, pool, cfg, setCfg, setSuiteIdentityForTests, bootstrapState, plaidConfigStatus, warnIfPlaidConfigMissing };
