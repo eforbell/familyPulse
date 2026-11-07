@@ -480,7 +480,9 @@ describe('Suite identity (tailnet mode)', () => {
       // Every page, the kid view and the link page included, and a HEAD as much as a GET.
       for (const path of ['/', '/settings.html', '/kids/anyone', '/link', '/Accounts.html']) {
         assert.equal((await get(path, { ...as(PARENT, null), ...NAV })).status, 401, path);
-        assert.equal((await send('HEAD', path, { ...as(PARENT, null), ...NAV })).status, 401, `HEAD ${path}`);
+        const head = await send('HEAD', path, { ...as(PARENT, null), ...NAV });
+        assert.equal(head.status, 401, `HEAD ${path}`);
+        assert.match(head.headers.get('content-type'), /html/, `HEAD ${path} answers as the page would`);
       }
       // A parent nobody has linked yet needs one too, before the link page shows them the household.
       assert.equal((await get('/link', { ...as(NEW_PARENT, null), ...NAV })).status, 401);
