@@ -874,6 +874,7 @@ function formatSyncSummary(data) {
 async function loadPassphraseManager() {
   const section = document.getElementById('passphrase-section');
   if (!section) return;
+  document.getElementById('link-members-section')?.classList.toggle('hidden', !(currentMember?.tailnet && currentMember.role === 'parent'));
 
   // Show if: no auth enabled yet (so the first passphrase can be set), or current user is parent. Tailnet mode has none.
   const isBootstrap = currentMember == null;

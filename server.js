@@ -10,6 +10,7 @@ const { validateSession, authEnabled, parseCookie, cleanExpiredSessions } = requ
 const { issueBootstrapToken, TOKEN_TTL_MS } = require('./lib/bootstrap-token');
 const { listen, describe: describeListen } = require('./lib/listen');
 const { createSuiteIdentity } = require('./lib/suite-identity');
+const { createSuiteLinks } = require('./lib/routes/suite-links');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -234,6 +235,9 @@ app.use(async (req, res, next) => {
   // Bootstrap passphrase endpoint handled by its own guard
   if (apiPath === '/api/auth/passphrase') return next();
 
+  // A parent nobody has linked yet has no member row. The tailnet gate has already limited them to setup and linking.
+  if (req.suiteMember && !req.member) return next();
+
   try {
     const isAuthOn = await authIsOn();
     if (!isAuthOn) return next();
@@ -457,6 +461,7 @@ app.use(require('./lib/routes/recurring'));
 app.use(require('./lib/routes/anomalies'));
 app.use(require('./lib/routes/magic-actions'));
 app.use(require('./lib/routes/kids'));
+app.use(createSuiteLinks(() => suite));
 app.use(require('./lib/routes/cash-flow'));
 app.use(require('./lib/routes/reports'));
 app.use(require('./lib/routes/notifications'));

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="apple-mobile-web-app-title" content="Family Pulse">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Family Pulse | Household Members</title>
+  <link rel="icon" type="image/png" href="icon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="theme.js?v=20260516c"></script>
+  <script src="privacy.js?v=20260516c"></script>
+  <link rel="stylesheet" href="style.css?v=20260516c">
+  <style>
+    body { display: flex; justify-content: center; min-height: 100dvh; }
+    .link-box { width: 100%; max-width: 560px; padding: 2rem 1rem; box-sizing: border-box; }
+    .link-box h1 { font-size: var(--text-xl); margin-bottom: 0.25rem; letter-spacing: -0.025em; }
+    .link-box .subtitle { color: var(--muted); font-size: var(--text-base); margin-bottom: 1.25rem; }
+    #link-status { color: var(--muted); font-size: var(--text-sm); min-height: 1.2em; margin-bottom: 0.75rem; }
+    #link-status.link-error { color: var(--red); }
+    .link-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 0.75rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+    .link-who { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+    .link-name { font-weight: 600; overflow-wrap: anywhere; }
+    .link-role { color: var(--muted); font-size: var(--text-sm); }
+    .link-row select { flex: 1 1 14rem; min-width: 0; max-width: 100%; width: auto; }
+    .link-note { flex-basis: 100%; margin: 0; color: var(--muted); font-size: var(--text-xs); }
+    @media (max-width: 480px) { .link-row { flex-direction: column; align-items: stretch; } .link-row select { flex: none; width: 100%; } }
+    .link-actions { display: flex; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <main class="link-box">
+    <h1>Household Members</h1>
+    <p class="subtitle">Family Pulse knows people by their household account in Home Base. Match each Family Pulse member to the person they are. Anyone you leave unlinked is asked to find a parent.</p>
+    <div id="link-status">Loading household members…</div>
+    <div id="link-rows"></div>
+    <div class="link-actions">
+      <a href="." class="btn-primary hidden" id="link-done">Open Family Pulse</a>
+    </div>
+  </main>
+  <script src="link.js"></script>
+</body>
+</html>
