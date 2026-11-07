@@ -382,7 +382,7 @@ function colorToRgb(hex) {
 }
 
 async function api(url, opts) {
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || res.statusText);

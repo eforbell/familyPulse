@@ -1113,7 +1113,7 @@ function debounce(fn, ms) {
 }
 
 async function api(url, opts) {
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
   if (res.status === 401) {
     window.location.replace('login.html');
     throw new Error('Session expired');
