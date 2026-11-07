@@ -108,7 +108,7 @@ app.use(async (req, res, next) => {
 
 app.use(async (req, res, next) => {
   if (req.method !== 'GET') return next();
-  const urlPath = req.path;
+  const urlPath = req.path.toLowerCase();
   if (!HTML_PAGES.has(urlPath)) return next();
 
   try {
@@ -185,13 +185,16 @@ const API_PARENT_ONLY_WRITES = [
 ];
 
 app.use(async (req, res, next) => {
-  if (!req.path.startsWith('/api/')) return next();
+  // Lower case, because that's how Express matches routes: /API/accounts reaches /api/accounts, so it has to reach
+  // this gate first. A trailing slash needs nothing here: it isn't in the public list, so it requires a session.
+  const apiPath = req.path.toLowerCase();
+  if (!apiPath.startsWith('/api/')) return next();
 
   // Always public
-  if (API_PUBLIC.has(req.path)) return next();
+  if (API_PUBLIC.has(apiPath)) return next();
 
   // Bootstrap passphrase endpoint handled by its own guard
-  if (req.path === '/api/auth/passphrase') return next();
+  if (apiPath === '/api/auth/passphrase') return next();
 
   try {
     const isAuthOn = await authEnabled();
@@ -207,8 +210,8 @@ app.use(async (req, res, next) => {
   }
 
   // Parent-only: certain prefixes always, certain paths on write methods
-  const isParentPrefix = API_PARENT_ONLY_PREFIXES.some(p => req.path.startsWith(p));
-  const isParentWrite = API_PARENT_ONLY_WRITES.some(p => req.path.startsWith(p)) && req.method !== 'GET';
+  const isParentPrefix = API_PARENT_ONLY_PREFIXES.some(p => apiPath.startsWith(p));
+  const isParentWrite = API_PARENT_ONLY_WRITES.some(p => apiPath.startsWith(p)) && req.method !== 'GET';
 
   if ((isParentPrefix || isParentWrite) && req.member.role !== 'parent') {
     return res.status(403).json({ error: 'Parent access required' });
