@@ -58,7 +58,8 @@ function renderLinks() {
     for (const person of directory) {
       const takenBy = linked.get(person.memberId);
       if (takenBy && takenBy !== member.id) continue;
-      if (member.role === 'parent' && person.role !== 'parent') continue;
+      // A kid's account can't take a parent's row, but one that became a kid's since it was linked still shows here.
+      if (member.role === 'parent' && person.role !== 'parent' && person.memberId !== member.suite_member_id) continue;
       const label = `${person.name} (${person.role}${person.memberId === you ? ', you' : ''})`;
       select.append(new Option(label, person.memberId, false, person.memberId === member.suite_member_id));
     }
@@ -68,6 +69,8 @@ function renderLinks() {
     const account = directory.find((person) => person.memberId === member.suite_member_id);
     if (member.suite_member_id && !account) {
       row.append(note('Linked to a household account that no longer has access to Family Pulse.'));
+    } else if (account && member.role === 'parent' && account.role !== 'parent') {
+      row.append(note(`Home Base now lists ${account.name} as a ${account.role}, so they can't open Family Pulse until they're linked to a kid here.`));
     } else if (account && account.role !== member.role) {
       row.append(note(`Home Base lists ${account.name} as a ${account.role}, so that's what they are here.`));
     }
