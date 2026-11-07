@@ -28,16 +28,17 @@
   }
 
   // One check at a time: requests sent together (Settings saves its alert settings in parallel) share it, since one
-  // check sets the cookie each of them reads. A request sent before a check that has since gone through just retries.
+  // check sets the cookie each of them reads. A request sent before the last check ended takes that check's outcome,
+  // so an answer that arrives late neither asks again after a cancel nor saves half of what the member cancelled.
   let checking = null;
-  let checkedAt = 0;
+  let last = { at: 0, outcome: null };   // outcome: null (went through), false (cancelled), or the error it failed with
   function satisfyOnce(stepUp, sentAt) {
-    if (checkedAt > sentAt) return Promise.resolve(null);
+    if (last.at > sentAt) return last.outcome instanceof Error ? Promise.reject(last.outcome) : Promise.resolve(last.outcome);
     if (!checking) {
-      checking = loadHelper().then((h) => h.satisfy(stepUp)).then((done) => {
-        if (done !== false) checkedAt = Date.now();
-        return done;
-      }).finally(() => { checking = null; });
+      checking = loadHelper().then((h) => h.satisfy(stepUp)).then(
+        (done) => { last = { at: Date.now(), outcome: done === false ? false : null }; return done; },
+        (err) => { last = { at: Date.now(), outcome: err }; throw err; },
+      ).finally(() => { checking = null; });
     }
     return checking;
   }
