@@ -28,16 +28,19 @@
   }
 
   // One check at a time: requests sent together (Settings saves its alert settings in parallel) share it, since one
-  // check sets the cookie each of them reads. A request sent before the last check ended takes that check's outcome,
-  // so an answer that arrives late neither asks again after a cancel nor saves half of what the member cancelled.
+  // check sets the cookie each of them reads. A request whose answer comes back after a check has ended takes the
+  // outcome of the first check that ended after it was sent: the one its batch shared. So a late answer neither asks
+  // again after a cancel nor saves part of what the member cancelled, even once a later save has been checked.
   let checking = null;
-  let last = { at: 0, outcome: null };   // outcome: null (went through), false (cancelled), or the error it failed with
+  const ended = [];   // every check that ended, oldest first: { at, outcome: null (through), false (cancelled), or an error }
+  const settle = (outcome) => { ended.push({ at: performance.now(), outcome }); };
   function satisfyOnce(stepUp, sentAt) {
-    if (last.at > sentAt) return last.outcome instanceof Error ? Promise.reject(last.outcome) : Promise.resolve(last.outcome);
+    const earlier = ended.find((check) => check.at > sentAt);
+    if (earlier) return earlier.outcome instanceof Error ? Promise.reject(earlier.outcome) : Promise.resolve(earlier.outcome);
     if (!checking) {
       checking = loadHelper().then((h) => h.satisfy(stepUp)).then(
-        (done) => { last = { at: Date.now(), outcome: done === false ? false : null }; return done; },
-        (err) => { last = { at: Date.now(), outcome: err }; throw err; },
+        (done) => { settle(done === false ? false : null); return done; },
+        (err) => { settle(err); throw err; },
       ).finally(() => { checking = null; });
     }
     return checking;
@@ -52,7 +55,7 @@
   // fetch, and when the answer asks for a passkey check: the check, then the same request once more. The body must be
   // a string (or absent), so the retry sends exactly what was asked.
   async function passkeyFetch(url, init = {}) {
-    const sentAt = Date.now();
+    const sentAt = performance.now();
     const first = await fetch(url, init);
     const stepUp = await stepUpAsked(first);
     if (!stepUp) return first;
