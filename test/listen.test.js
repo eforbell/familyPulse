@@ -12,7 +12,7 @@ test('loopback by default, HOST to override, and a socket when Home Base says so
   assert.deepEqual(listenTarget({}, 3003), { host: '127.0.0.1', port: 3003 });
   assert.deepEqual(listenTarget({ PORT: '4000', HOST: '0.0.0.0' }, 3003), { host: '0.0.0.0', port: 4000 });
   assert.deepEqual(listenTarget({ SOVEREIGN_LISTEN: 'unix:/run/sovereign-apps/family-pulse/app.sock', PORT: '3003' }), { socket: '/run/sovereign-apps/family-pulse/app.sock' });
-  for (const bad of ['tcp:0.0.0.0:3003', 'unix:relative.sock', 'unix:/run/x/app', '/run/x/app.sock']) assert.throws(() => listenTarget({ SOVEREIGN_LISTEN: bad }), /must look like unix:/, bad);
+  for (const bad of ['', '   ', 'tcp:0.0.0.0:3003', 'unix:relative.sock', 'unix:/run/x/app', '/run/x/app.sock']) assert.throws(() => listenTarget({ SOVEREIGN_LISTEN: bad }), /must look like unix:/, bad);
   assert.equal(describe({ host: '127.0.0.1', port: 3003 }), 'http://127.0.0.1:3003');
 });
 
