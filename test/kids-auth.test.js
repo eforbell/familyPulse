@@ -198,6 +198,15 @@ describe('kids authorization', () => {
     assert.equal(res.status, 403);
   });
 
+  it('a kid\'s category list has no budgets or household counts, and a parent\'s still does', async () => {
+    const kid = await (await kidReq('api/categories')).json();
+    assert.ok(kid.length > 0);
+    for (const category of kid) assert.deepEqual(Object.keys(category).sort(), ['color', 'id', 'name']);
+    const parent = await (await parentReq('api/categories')).json();
+    for (const category of parent) assert.ok('budget_amount' in category && 'transaction_count' in category);
+    assert.equal(parent.length, kid.length);
+  });
+
   it('kid gets 403 when categorizing parent transaction', async () => {
     const catRes = await kidReq('api/categories');
     const cats = await catRes.json();
