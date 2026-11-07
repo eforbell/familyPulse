@@ -198,7 +198,9 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal((await get('/api/accounts', parent)).status, 403);
     assert.equal((await get('/api/auth/me', parent)).status, 403);
     // Setup is theirs while there's no household; bootstrap itself refuses once there is one.
-    assert.equal((await get('/api/bootstrap', parent)).status, 200);
+    const setup = await get('/api/bootstrap', parent);
+    assert.equal(setup.status, 200);
+    assert.deepEqual(Object.keys(await setup.json()).sort(), ['app', 'bootstrap', 'status', 'version'], 'whether setup is needed, and no household counts');
     assert.equal((await send('POST', '/api/bootstrap/household', { ...as(NEW_PARENT), ...JSON_WRITE }, JSON.stringify({ members: [{ name: 'x', role: 'parent' }] }))).status, 409);
   });
 
@@ -217,6 +219,7 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal(login.status, 303);
     assert.equal(login.headers.get('location'), '/pulse/');
     assert.equal((await bootstrapState()).bootstrap.needs_auth, false);
+    assert.ok((await (await get('/api/bootstrap', parent)).json()).counts, 'a linked parent still sees the counts');
   });
 
   it('local sign-in means nothing: a session is ignored, and login and passphrase changes are refused', async () => {

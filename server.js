@@ -503,7 +503,13 @@ app.get('/api/ready', async (req, res) => {
 
 app.get('/api/bootstrap', async (req, res) => {
   try {
-    res.json(await bootstrapState());
+    const state = await bootstrapState();
+    // A parent nobody has linked yet may learn whether setup is needed, not what the household holds.
+    if (suite.tailnet && !req.member) {
+      const { status, app: appName, version, bootstrap } = state;
+      return res.json({ status, app: appName, version, bootstrap });
+    }
+    res.json(state);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
