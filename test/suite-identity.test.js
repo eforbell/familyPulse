@@ -477,10 +477,15 @@ describe('Suite identity (tailnet mode)', () => {
         assert.doesNotMatch(html, /Suite Parent|budget|balance/i, 'and shows no data');
         await stepUp(await get('/api/accounts', { ...as(PARENT, cookie), ...OWN_PAGE }), 'open-documents', String(cookie));
       }
-      // Every page, the kid view and the link page included.
+      // Every page, the kid view and the link page included, and a HEAD as much as a GET.
       for (const path of ['/', '/settings.html', '/kids/anyone', '/link', '/Accounts.html']) {
         assert.equal((await get(path, { ...as(PARENT, null), ...NAV })).status, 401, path);
+        assert.equal((await send('HEAD', path, { ...as(PARENT, null), ...NAV })).status, 401, `HEAD ${path}`);
       }
+      // A parent nobody has linked yet needs one too, before the link page shows them the household.
+      assert.equal((await get('/link', { ...as(NEW_PARENT, null), ...NAV })).status, 401);
+      await stepUp(await get('/api/suite/links', { ...as(NEW_PARENT, null), ...OWN_PAGE }), 'open-documents', 'unlinked parent');
+      await stepUp(await get('/api/bootstrap', { ...as(NEW_PARENT, null), ...OWN_PAGE }), 'open-documents', 'unlinked parent setup');
       await stepUp(await send('POST', '/api/sync', { ...as(PARENT, null), ...JSON_WRITE }, '{}'), 'open-documents', 'a write');
       assert.equal((await get('/accounts.html', { ...as(PARENT), ...NAV })).status, 200, 'and with one, it opens');
     });
@@ -527,7 +532,13 @@ describe('Suite identity (tailnet mode)', () => {
         ['DELETE', '/API/items/0999999/', 'link-account'],
         ['PUT', '/api/auth/account-members', 'export-data'],
         ['PUT', '/Api/Auth/Account-Members/', 'export-data'],
+        ['PUT', '/api/items/999999/owner', 'export-data'],
+        ['PUT', '/Api/Items/999999/Owner/', 'export-data'],
         ['PUT', `/api/notification-channels/${parentRow.id}/brrr`, 'export-data'],
+        ['DELETE', `/api/notification-channels/${parentRow.id}/brrr`, 'export-data'],
+        ['PUT', `/api/notification-subscriptions/${parentRow.id}`, 'export-data'],
+        ['PUT', '/api/notification-config/notification_base_url', 'export-data'],
+        ['PUT', '/API/notification-config/large_expense_threshold/', 'export-data'],
         ['PUT', `/api/suite/links/${kidRow.id}`, 'change-role'],
         ['PUT', `/API/Suite/Links/${kidRow.id}/`, 'change-role'],
       ];
@@ -537,6 +548,7 @@ describe('Suite identity (tailnet mode)', () => {
         assert.notEqual((await write('POST', path)).status, 401, path);
       }
       assert.notEqual((await write('POST', '/api/items/999999/sync')).status, 401, 'syncing changes nothing about access');
+      assert.notEqual((await write('POST', `/api/notification-channels/${parentRow.id}/brrr/test`)).status, 401, 'a test alert goes where alerts already go');
       // With a check just now, the change goes through to its route.
       assert.equal((await send('PUT', `/api/suite/links/${kidRow.id}`, { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ suite_member_id: KID.memberId }))).status, 200);
     });

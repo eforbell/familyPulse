@@ -8,6 +8,8 @@
   const UNAVAILABLE = 'Family Pulse couldn\'t reach Home Base for a passkey check. Try again in a minute.';
   const CANCELLED = 'This needs a check with your passkey first.';
   const NOT_ACCEPTED = 'Your passkey check didn\'t go through. Try again.';
+  const STILL_REFUSED = 'Your passkey check went through, but Family Pulse couldn\'t confirm it yet. Try again in a minute.';
+  const RELOADED = 'pulse-passkey-reloaded';
   let helper = null;
 
   function loadHelper() {
@@ -16,12 +18,28 @@
       helper = new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = HELPER;
-        script.onload = () => (window.SovereignStepUp ? resolve(window.SovereignStepUp) : reject(new Error(UNAVAILABLE)));
-        script.onerror = () => { helper = null; script.remove(); reject(new Error(UNAVAILABLE)); };
+        const failed = () => { helper = null; script.remove(); reject(new Error(UNAVAILABLE)); };
+        script.onload = () => (window.SovereignStepUp ? resolve(window.SovereignStepUp) : failed());
+        script.onerror = failed;
         document.head.append(script);
       });
     }
     return helper;
+  }
+
+  // One check at a time: requests sent together (Settings saves its alert settings in parallel) share it, since one
+  // check sets the cookie each of them reads. A request sent before a check that has since gone through just retries.
+  let checking = null;
+  let checkedAt = 0;
+  function satisfyOnce(stepUp, sentAt) {
+    if (checkedAt > sentAt) return Promise.resolve(null);
+    if (!checking) {
+      checking = loadHelper().then((h) => h.satisfy(stepUp)).then((done) => {
+        if (done !== false) checkedAt = Date.now();
+        return done;
+      }).finally(() => { checking = null; });
+    }
+    return checking;
   }
 
   async function stepUpAsked(res) {
@@ -33,16 +51,19 @@
   // fetch, and when the answer asks for a passkey check: the check, then the same request once more. The body must be
   // a string (or absent), so the retry sends exactly what was asked.
   async function passkeyFetch(url, init = {}) {
+    const sentAt = Date.now();
     const first = await fetch(url, init);
     const stepUp = await stepUpAsked(first);
     if (!stepUp) return first;
-    if ((await (await loadHelper()).satisfy(stepUp)) === false) throw new Error(CANCELLED);
+    if ((await satisfyOnce(stepUp, sentAt)) === false) throw new Error(CANCELLED);
     const retry = await fetch(url, init);
     if (await stepUpAsked(retry)) throw new Error(NOT_ACCEPTED);
     return retry;
   }
 
-  // The page Family Pulse answers with when a parent opens it without a current check: run the check, then reload.
+  // The page Family Pulse answers with when a parent opens it without a current check: run the check, then reload. If
+  // this page comes back straight after a check that went through (Home Base's new key or a changed access hasn't
+  // reached Family Pulse yet), it waits for a tap rather than looping through checks.
   function checkOnOpen(main) {
     const status = document.getElementById('passkey-status');
     const retry = document.getElementById('passkey-retry');
@@ -54,6 +75,7 @@
       try {
         if (!stepUp) throw new Error(NOT_ACCEPTED);
         if ((await (await loadHelper()).satisfy({ ...stepUp, message: 'Check with your passkey to open Family Pulse.' })) !== false) {
+          try { sessionStorage.setItem(RELOADED, String(Date.now())); } catch { /* private mode: no loop guard to keep */ }
           window.location.reload();
           return;
         }
@@ -64,6 +86,13 @@
       retry.hidden = false;
     }
     retry.addEventListener('click', run);
+    let reloadedAt = 0;
+    try { reloadedAt = Number(sessionStorage.getItem(RELOADED)) || 0; sessionStorage.removeItem(RELOADED); } catch { /* as above */ }
+    if (Date.now() - reloadedAt < 60 * 1000) {
+      status.textContent = STILL_REFUSED;
+      retry.hidden = false;
+      return;
+    }
     run();
   }
 
