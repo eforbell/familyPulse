@@ -4,6 +4,8 @@ require('dotenv').config();
 const { describe, it, before, after, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const crypto = require('node:crypto');
+const { signToken } = require('sovereign-auth');
 const express = require('express');
 const { Pool } = require('pg');
 const { createSession } = require('../lib/auth');
@@ -20,10 +22,15 @@ const TAILNET = { SOVEREIGN_AUTH_MODE: 'tailnet', SOVEREIGN_LISTEN: SOCKET, SOVE
 const noSnapshot = { current: () => ({ ok: false, reason: 'missing', message: 'no snapshot' }) };
 const unlinked = { findLinked: async () => null };
 
+// Home Base's signing key, which the snapshot publishes and passkey checks are signed with.
+const SIGNING = crypto.generateKeyPairSync('ed25519');
+const HOUSEHOLD = 'test-household';
+
 // A directory snapshot as the library hands it over: members by stable user ID.
 function snapshotOf(members) {
   const list = members.map((member) => ({ status: 'active', epoch: 1, apps: ['family-pulse'], role: 'parent', ...member }));
-  return { current: () => ({ ok: true, snapshot: { members: list, byUserId: new Map(list.map((member) => [member.userId, member])) } }) };
+  const snapshot = { household: HOUSEHOLD, globalEpoch: 1, keys: new Map([['test-key', SIGNING.publicKey]]), members: list, byUserId: new Map(list.map((member) => [member.userId, member])) };
+  return { current: () => ({ ok: true, snapshot }) };
 }
 const PARENT = { userId: 'u-parent', memberId: 'm_parent', login: 'parent@example.com', name: 'A Parent' };
 const KID = { userId: 'u-kid', memberId: 'm_kid', login: 'kid@example.com', name: 'A Kid', role: 'kid' };
@@ -32,7 +39,15 @@ const NEW_KID = { userId: 'u-new-kid', memberId: 'm_new_kid', login: 'new-kid@ex
 const NO_ACCESS = { userId: 'u-other', memberId: 'm_other', login: 'other@example.com', name: 'No Access', apps: ['family-plan'] };
 const DIRECTORY = [PARENT, KID, NEW_PARENT, NEW_KID, NO_ACCESS];
 
-const as = (member) => ({ 'x-sovereign-user-id': member.userId, 'x-sovereign-login': member.login });
+// The cookie Home Base's passkey check sets on this hostname (wire contract, section 7), from a check `age` seconds ago.
+function passkeyCookie(member, { age = 0, name = '__Host-sv_assurance', ...claims } = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { typ: 'assurance', kid: 'test-key', household: HOUSEHOLD, aud: HOST, sub: member.userId, sid: 's1', cred: 'c1', kind: 'synced', epoch: 1, global_epoch: 1, auth_time: now - age, iat: now - age, exp: now - age + 31 * 86400, ...claims };
+  return `${name}=${signToken(payload, SIGNING.privateKey)}`;
+}
+// Who nginx says is asking. A parent also carries a passkey check from just now, as they would in a browser: what
+// happens without one is tested on its own below. Kids have no passkeys.
+const as = (member, cookie = member.role === 'kid' ? null : passkeyCookie(member)) => ({ 'x-sovereign-user-id': member.userId, 'x-sovereign-login': member.login, ...(cookie ? { cookie } : {}) });
 // What a browser sends for a page's own fetch.
 const OWN_PAGE = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' };
 const NAVIGATION = { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
@@ -152,11 +167,12 @@ describe('Suite identity (tailnet mode)', () => {
   });
 
   it('the directory decides the role, never the row', async () => {
-    // The row says kid, the directory parent.
+    // The row says kid, the directory parent: a parent, who opens Family Pulse with a passkey like any other.
     tailnet([{ ...KID, role: 'parent' }]);
-    const promoted = await get('/api/auth/me', { ...as(KID), ...OWN_PAGE });
+    assert.equal((await get('/api/accounts', { ...as(KID), ...OWN_PAGE })).status, 401, 'no passkey check yet');
+    const promoted = await get('/api/auth/me', { ...as(KID, passkeyCookie(KID)), ...OWN_PAGE });
     assert.equal((await promoted.json()).role, 'parent');
-    assert.equal((await get('/api/accounts', { ...as(KID), ...OWN_PAGE })).status, 200);
+    assert.equal((await get('/api/accounts', { ...as(KID, passkeyCookie(KID)), ...OWN_PAGE })).status, 200);
     // The row says parent, the directory kid: not parent access, and not that parent's data on a kid's pages either.
     tailnet([{ ...PARENT, role: 'kid' }]);
     for (const path of ['/api/auth/me', '/api/kids/dashboard', '/api/kids/report-card', '/api/categories', '/api/accounts']) {
@@ -439,6 +455,96 @@ describe('Suite identity (tailnet mode)', () => {
     const login = await get('/LOGIN.HTML', { ...as(PARENT), ...NAVIGATION });
     assert.equal(login.status, 303);
     assert.equal(login.headers.get('location'), '/pulse/');
+  });
+
+  describe('passkeys', () => {
+    const stepUp = async (answer, policy, label) => {
+      assert.equal(answer.status, 401, label);
+      assert.equal(answer.headers.get('cache-control'), 'no-store', label);
+      assert.deepEqual(await answer.json(), { error: 'step_up_required', policy, level: policy === 'open-documents' ? 'session' : 'recent', kind: 'any' }, label);
+    };
+    const NAV = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+
+    it('a parent opens Family Pulse with a passkey check: a page asks for one, the API answers with the step-up', async () => {
+      tailnet();
+      for (const cookie of [null, 'sv_assurance=x', passkeyCookie(PARENT, { name: 'sv_assurance' }), passkeyCookie(PARENT, { name: '__HOST-sv_assurance' })]) {
+        const page = await get('/accounts.html', { ...as(PARENT, cookie), ...NAV });
+        assert.equal(page.status, 401, String(cookie));
+        assert.equal(page.headers.get('cache-control'), 'no-store');
+        const html = await page.text();
+        assert.match(html, /<script src="\/pulse\/passkey\.js"><\/script>/, 'the check runs from the app\'s own address');
+        assert.match(html, /data-step-up="\{&quot;error&quot;:&quot;step_up_required&quot;,&quot;policy&quot;:&quot;open-documents&quot;/);
+        assert.doesNotMatch(html, /Suite Parent|budget|balance/i, 'and shows no data');
+        await stepUp(await get('/api/accounts', { ...as(PARENT, cookie), ...OWN_PAGE }), 'open-documents', String(cookie));
+      }
+      // Every page, the kid view and the link page included.
+      for (const path of ['/', '/settings.html', '/kids/anyone', '/link', '/Accounts.html']) {
+        assert.equal((await get(path, { ...as(PARENT, null), ...NAV })).status, 401, path);
+      }
+      await stepUp(await send('POST', '/api/sync', { ...as(PARENT, null), ...JSON_WRITE }, '{}'), 'open-documents', 'a write');
+      assert.equal((await get('/accounts.html', { ...as(PARENT), ...NAV })).status, 200, 'and with one, it opens');
+    });
+
+    it('a check counts for 30 days, for this member, on this hostname, until Home Base changes their access', async () => {
+      tailnet();
+      const day = 86400;
+      assert.equal((await get('/api/accounts', { ...as(PARENT, passkeyCookie(PARENT, { age: 29 * day })), ...OWN_PAGE })).status, 200);
+      const refusals = {
+        'older than 30 days': passkeyCookie(PARENT, { age: 30 * day + 60 }),
+        'another member\'s': passkeyCookie(NEW_PARENT),
+        'another hostname\'s': passkeyCookie(PARENT, { aud: 'smith-home.example-tailnet.ts.net' }),
+        'another household\'s': passkeyCookie(PARENT, { household: 'elsewhere' }),
+        'from before Home Base changed their access': passkeyCookie(PARENT, { epoch: 0 }),
+        'from before Home Base revoked everything': passkeyCookie(PARENT, { global_epoch: 0 }),
+        'two of them': `${passkeyCookie(PARENT)}; ${passkeyCookie(PARENT)}`,
+        'not signed by Home Base': passkeyCookie(PARENT).replace(/.$/, (c) => (c === 'A' ? 'B' : 'A')),
+      };
+      for (const [label, cookie] of Object.entries(refusals)) await stepUp(await get('/api/accounts', { ...as(PARENT, cookie), ...OWN_PAGE }), 'open-documents', label);
+    });
+
+    it('kids never meet a passkey check (D7)', async () => {
+      tailnet();
+      const kid = { ...as(KID, null), ...OWN_PAGE };
+      assert.equal((await get('/api/auth/me', kid)).status, 200);
+      assert.equal((await get('/api/kids/dashboard', kid)).status, 200);
+      assert.equal((await get('/kids.html', { ...as(KID, null), ...NAV })).status, 200);
+    });
+
+    it('linking banks, removing them, sharing accounts, alert destinations and member links need a check in the last five minutes', async () => {
+      tailnet();
+      const older = passkeyCookie(PARENT, { age: 6 * 60 });
+      // As the pages send them: a DELETE has no body.
+    const write = (method, path) => send(method, path, { ...as(PARENT, older), ...JSON_WRITE }, method === 'DELETE' ? undefined : '{}');
+      assert.equal((await get('/api/accounts', { ...as(PARENT, older), ...OWN_PAGE })).status, 200, 'it still opens Family Pulse');
+      const recent = [
+        ['POST', '/api/link/create-token', 'link-account'],
+        ['POST', '/api/link/update-token', 'link-account'],
+        ['POST', '/api/link/create-liability-upgrade-token', 'link-account'],
+        ['POST', '/api/link/create-account-selection-token', 'link-account'],
+        ['POST', '/API/Link/Create-Token/', 'link-account'],
+        ['DELETE', '/api/items/999999', 'link-account'],
+        ['DELETE', '/api/items/999999/purge', 'link-account'],
+        ['DELETE', '/API/items/0999999/', 'link-account'],
+        ['PUT', '/api/auth/account-members', 'export-data'],
+        ['PUT', '/Api/Auth/Account-Members/', 'export-data'],
+        ['PUT', `/api/notification-channels/${parentRow.id}/brrr`, 'export-data'],
+        ['PUT', `/api/suite/links/${kidRow.id}`, 'change-role'],
+        ['PUT', `/API/Suite/Links/${kidRow.id}/`, 'change-role'],
+      ];
+      for (const [method, path, policy] of recent) await stepUp(await write(method, path), policy, `${method} ${path}`);
+      // Finishing a link a recent check started needs only the session: a bank's own sign-in can outlast five minutes.
+      for (const path of ['/api/link/exchange', '/api/link/complete-account-selection', '/api/link/complete-liability-upgrade']) {
+        assert.notEqual((await write('POST', path)).status, 401, path);
+      }
+      assert.notEqual((await write('POST', '/api/items/999999/sync')).status, 401, 'syncing changes nothing about access');
+      // With a check just now, the change goes through to its route.
+      assert.equal((await send('PUT', `/api/suite/links/${kidRow.id}`, { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ suite_member_id: KID.memberId }))).status, 200);
+    });
+
+    it('local mode asks for no passkey', async () => {
+      assert.equal((await get('/api/accounts', OWN_PAGE)).status, 200);
+      assert.equal((await get('/accounts.html', NAV)).status, 200);
+    });
   });
 
   it('Home Base\'s probes and the page assets need no member and no fetch metadata; assets carry no data', async () => {

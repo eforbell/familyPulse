@@ -987,8 +987,10 @@ function fmtDateTime(dateStr) {
   });
 }
 
+// Through passkey.js where it loaded, which asks for the passkey check a change needs in tailnet mode.
 async function api(url, opts) {
-  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
+  const init = { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } };
+  const res = await (window.PulsePasskey ? window.PulsePasskey.fetch(url, init) : fetch(url, init));
   if (res.status === 401) {
     window.location.replace('login.html');
     throw new Error('Session expired');
