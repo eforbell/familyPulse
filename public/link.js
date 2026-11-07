@@ -94,7 +94,7 @@ function renderLinks() {
 async function saveLink(member, select) {
   select.disabled = true;
   try {
-    const res = await fetch(`api/suite/links/${member.id}`, {
+    const res = await window.PulsePasskey.fetch(`api/suite/links/${member.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ suite_member_id: select.value || null }),
