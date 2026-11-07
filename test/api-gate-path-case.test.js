@@ -81,6 +81,12 @@ describe('the API gate and path spelling', () => {
     const spellings = ['/%61ccounts.html', '/accounts%2Ehtml', '//accounts.html', '/./accounts.html', '/x/../accounts.html', '/%2faccounts.html', '/%61dmin.html', '//', '/.'];
     for (const path of spellings) assert.equal(await request('GET', path), 302, path);
     for (const path of ['/%61dmin.html', '//admin.html', '/x/../settings.html']) assert.equal(await request('GET', path, kidCookie), 302, `kid ${path}`);
+    // Characters a case-insensitive filesystem folds into ASCII open nothing: long s, Kelvin sign.
+    for (const path of ['/%C5%BFettings.html', '/account%C5%BF.html']) {
+      assert.equal(await request('GET', path), 404, path);
+      assert.equal(await request('GET', path, kidCookie), 404, `kid ${path}`);
+    }
+    assert.equal(await request('GET', '/%E2%84%AAids.html', kidCookie), 404, 'lower case makes this /kids.html, which a kid may open');
     // A path nothing can decode opens no page.
     assert.equal(await request('GET', '/%E0%A4%A.html'), 404);
     // Pages without a gate still open.
