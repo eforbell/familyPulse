@@ -215,6 +215,7 @@ describe('Suite identity (tailnet mode)', () => {
     const me = await (await get('/api/auth/me', parent)).json();
     assert.equal(me.id, parentRow.id);
     assert.equal(me.role, 'parent');
+    assert.equal(me.tailnet, true, 'so pages drop sign-out and passphrases');
     for (const path of ['/api/accounts', '/api/items', '/api/auth/members']) assert.equal((await get(path, parent)).status, 200, path);
     const categories = await (await get('/api/categories', parent)).json();
     assert.ok(categories.length > 0);

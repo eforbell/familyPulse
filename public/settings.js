@@ -875,9 +875,9 @@ async function loadPassphraseManager() {
   const section = document.getElementById('passphrase-section');
   if (!section) return;
 
-  // Show if: no auth enabled yet (so Eric can set first passphrase), or current user is parent
+  // Show if: no auth enabled yet (so the first passphrase can be set), or current user is parent. Tailnet mode has none.
   const isBootstrap = currentMember == null;
-  if (!isBootstrap && currentMember.role !== 'parent') {
+  if (currentMember?.tailnet || (!isBootstrap && currentMember.role !== 'parent')) {
     section.classList.add('hidden');
     return;
   }
@@ -987,7 +987,7 @@ function fmtDateTime(dateStr) {
 }
 
 async function api(url, opts) {
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
   if (res.status === 401) {
     window.location.replace('login.html');
     throw new Error('Session expired');

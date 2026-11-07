@@ -448,7 +448,7 @@ async function deletePlanned(id, itemType) {
   const label = itemType === 'income' ? 'planned income' : 'planned expense';
   if (!confirm(`Delete this ${label}?`)) return;
   try {
-    await fetch(`api/cash-flow/planned-expenses/${id}`, { method: 'DELETE' });
+    await fetch(`api/cash-flow/planned-expenses/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
     plannedItemsCache = null;
     await refreshForecast();
   } catch (err) {
@@ -525,7 +525,7 @@ async function refreshForecast() {
     document.getElementById('refresh-btn').disabled = true;
     document.getElementById('refresh-btn').textContent = 'Refreshing...';
     plannedItemsCache = null;
-    const res = await fetch('api/cash-flow/forecast/refresh', { method: 'POST' });
+    const res = await fetch('api/cash-flow/forecast/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     forecastData = await res.json();
     render();
   } catch (err) {

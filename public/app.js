@@ -793,8 +793,11 @@ function updateWhoBtn() {
   const btn = $('who-btn');
   if (!btn) return;
   btn.textContent = currentMember ? (currentMember.avatar_emoji || '\u{1F464}') : '\u{1F464}';
-  btn.onclick = currentMember ? doLogout : null;
-  btn.title = currentMember ? 'Sign out' : '';
+  // In tailnet mode the household account says who this is, so there's nothing to sign out of.
+  const canSignOut = currentMember && !currentMember.tailnet;
+  btn.onclick = canSignOut ? doLogout : null;
+  btn.title = canSignOut ? 'Sign out' : '';
+  btn.setAttribute('aria-label', canSignOut ? 'Sign out' : (currentMember?.name || 'Member'));
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -874,7 +877,7 @@ function bindEnterSubmit(id, handler) {
 }
 
 async function api(url, opts) {
-  const res = await fetch(url, opts);
+  const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
   if (res.status === 401) {
     window.location.replace('login.html');
     throw new Error('Session expired');
