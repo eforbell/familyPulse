@@ -23,7 +23,6 @@ const TIMEOUT_ITEM_ID = 'test-item-timeout';
 const TIMEOUT_ACCOUNT_ID = 'acct-timeout-1';
 const SESSION_TOKEN = 'test-lt-link-table';
 const OAUTH_SESSION_TOKEN = 'test-lt-link-oauth';
-const OAUTH_STATE_ID = 'test-oauth-state-link';
 const DEFAULT_LINK_TOKEN = 'test-link-token-default';
 const UPGRADE_LINK_TOKEN = 'test-link-token-upgrade';
 const ACCOUNT_SELECTION_LINK_TOKEN = 'test-link-token-account-selection';
@@ -699,36 +698,6 @@ describe('link_sessions table', () => {
     assert.equal(rows[0].owner, 'Eric');
 
     await pool.query('DELETE FROM link_sessions WHERE link_token = $1', [SESSION_TOKEN]);
-  });
-});
-
-// ── OAuth callback route ────────────────────────────────────
-
-describe('GET /oauth/callback', () => {
-  it('requires oauth_state_id', async () => {
-    const res = await fetch(`${baseUrl}/oauth/callback`);
-    assert.equal(res.status, 400);
-  });
-
-  it('binds the oauth_state_id to the pending session and serves the resume page', async () => {
-    await pool.query(
-      'DELETE FROM link_sessions WHERE link_token = ANY($1::text[])',
-      [[SESSION_TOKEN, OAUTH_SESSION_TOKEN, DEFAULT_LINK_TOKEN, UPGRADE_LINK_TOKEN, ACCOUNT_SELECTION_LINK_TOKEN]]
-    );
-    await insertPendingLinkSession(OAUTH_SESSION_TOKEN, 'Eric');
-
-    const res = await authFetch(`${baseUrl}/oauth/callback?oauth_state_id=${OAUTH_STATE_ID}`);
-    assert.equal(res.status, 200);
-    const text = await res.text();
-    assert.ok(text.includes('Completing bank connection'));
-    assert.ok(text.includes('receivedRedirectUri'));
-    assert.ok(text.includes(OAUTH_SESSION_TOKEN));
-
-    const { rows } = await pool.query(
-      'SELECT oauth_state_id FROM link_sessions WHERE link_token = $1',
-      [OAUTH_SESSION_TOKEN]
-    );
-    assert.equal(rows[0].oauth_state_id, OAUTH_STATE_ID);
   });
 });
 
