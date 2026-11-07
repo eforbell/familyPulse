@@ -106,9 +106,21 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// The page a path will open. express.static decodes and normalizes a path before it looks for the file, so this gate
+// has to judge the same page it will serve, in lower case for a filesystem that ignores case. A path that can't be
+// decoded is left as it is: static opens nothing for it.
+function servedPage(requestPath) {
+  let decoded = requestPath;
+  try { decoded = decodeURIComponent(requestPath); } catch { /* judged as written */ }
+  return path.posix.normalize(decoded).toLowerCase();
+}
+
+// If sign-in can't be checked, nobody gets in: an error here must not read as "auth is off".
+const SIGN_IN_UNAVAILABLE = 'Family Pulse can\'t check sign-in right now. Try again in a minute.';
+
 app.use(async (req, res, next) => {
-  if (req.method !== 'GET') return next();
-  const urlPath = req.path.toLowerCase();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const urlPath = servedPage(req.path);
   if (!HTML_PAGES.has(urlPath)) return next();
 
   try {
@@ -128,6 +140,7 @@ app.use(async (req, res, next) => {
     }
   } catch (err) {
     logger.error('Auth gate error', { error: err.message });
+    return res.status(503).type('text').send(SIGN_IN_UNAVAILABLE);
   }
   next();
 });
@@ -142,6 +155,7 @@ app.get('/kids/:name', async (req, res, next) => {
     }
   } catch (err) {
     logger.error('Kid route auth error', { error: err.message });
+    return res.status(503).type('text').send(SIGN_IN_UNAVAILABLE);
   }
   res.sendFile(path.join(__dirname, 'public', 'kids.html'));
 });
@@ -201,7 +215,7 @@ app.use(async (req, res, next) => {
     if (!isAuthOn) return next();
   } catch (err) {
     logger.error('Auth check error', { error: err.message });
-    return next();
+    return res.status(503).json({ error: SIGN_IN_UNAVAILABLE });
   }
 
   // Require valid session for all other API routes

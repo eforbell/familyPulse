@@ -9,19 +9,21 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { Pool } = require('pg');
 const { hashPassphrase, createSession } = require('../lib/auth');
+const { pool: appPool } = require('../lib/db');
 const { app } = require('../server');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 describe('the API gate and path spelling', () => {
   let server;
-  let base;
+  let port;
   let parentId;
   let kidId;
   let kidCookie;
 
+  // Host and path separately: a URL string would tidy /x/../ away before it was sent.
   const request = (method, path, headers = {}) => new Promise((resolve, reject) => {
-    const req = http.request(`${base}${path}`, { method, headers }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
       res.resume();
       res.on('end', () => resolve(res.statusCode));
     });
@@ -36,7 +38,7 @@ describe('the API gate and path spelling', () => {
     kidCookie = { cookie: `fp_session=${(await createSession(kidId)).token}` };
     server = app.listen(0, '127.0.0.1');
     await new Promise((resolve) => server.once('listening', resolve));
-    base = `http://127.0.0.1:${server.address().port}`;
+    ({ port } = server.address());
   });
 
   after(async () => {
@@ -73,5 +75,38 @@ describe('the API gate and path spelling', () => {
   it('a page can\'t skip the sign-in redirect by spelling either', async () => {
     assert.equal(await request('GET', '/accounts.html'), 302);
     assert.equal(await request('GET', '/ACCOUNTS.HTML'), 302);
+  });
+
+  it('a page is gated by the file it would open, however the path is written', async () => {
+    const spellings = ['/%61ccounts.html', '/accounts%2Ehtml', '//accounts.html', '/./accounts.html', '/x/../accounts.html', '/%2faccounts.html', '/%61dmin.html', '//', '/.'];
+    for (const path of spellings) assert.equal(await request('GET', path), 302, path);
+    for (const path of ['/%61dmin.html', '//admin.html', '/x/../settings.html']) assert.equal(await request('GET', path, kidCookie), 302, `kid ${path}`);
+    // A path nothing can decode opens no page.
+    assert.equal(await request('GET', '/%E0%A4%A.html'), 404);
+    // Pages without a gate still open.
+    assert.equal(await request('GET', '/login.html'), 200);
+  });
+
+  it('HEAD is gated like GET', async () => {
+    for (const path of ['/', '/accounts.html', '/admin.html', '/%61dmin.html']) assert.equal(await request('HEAD', path), 302, path);
+    assert.equal(await request('HEAD', '/admin.html', kidCookie), 302);
+    assert.equal(await request('HEAD', '/login.html'), 200);
+  });
+
+  it('when sign-in can\'t be checked, nobody gets in', async () => {
+    const realQuery = appPool.query;
+    appPool.query = function query(text, ...rest) {
+      if (String(text).includes('passphrase_hash IS NOT NULL LIMIT 1')) return Promise.reject(new Error('database unavailable'));
+      return realQuery.call(this, text, ...rest);
+    };
+    try {
+      for (const path of ['/api/accounts', '/API/accounts', '/accounts.html', '/admin.html', '/kids/anyone']) {
+        assert.equal(await request('GET', path), 503, path);
+      }
+      assert.equal(await request('DELETE', '/api/items/1'), 503);
+    } finally {
+      appPool.query = realQuery;
+    }
+    assert.equal(await request('GET', '/api/accounts'), 401, 'and it recovers when the check works again');
   });
 });
