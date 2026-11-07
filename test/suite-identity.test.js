@@ -155,11 +155,16 @@ describe('Suite identity (tailnet mode)', () => {
     const promoted = await get('/api/auth/me', { ...as(KID), ...OWN_PAGE });
     assert.equal((await promoted.json()).role, 'parent');
     assert.equal((await get('/api/accounts', { ...as(KID), ...OWN_PAGE })).status, 200);
-    // The row says parent, the directory kid.
+    // The row says parent, the directory kid: not parent access, and not that parent's data on a kid's pages either.
     tailnet([{ ...PARENT, role: 'kid' }]);
-    const demoted = await get('/api/auth/me', { ...as(PARENT), ...OWN_PAGE });
-    assert.equal((await demoted.json()).role, 'kid');
-    assert.equal((await get('/api/accounts', { ...as(PARENT), ...OWN_PAGE })).status, 403);
+    for (const path of ['/api/auth/me', '/api/kids/dashboard', '/api/kids/report-card', '/api/categories', '/api/accounts']) {
+      const answer = await get(path, { ...as(PARENT), ...OWN_PAGE });
+      assert.equal(answer.status, 403, path);
+      assert.equal((await answer.json()).code, 'stale_link', path);
+    }
+    const page = await get('/kids.html', { ...as(PARENT), ...NAVIGATION });
+    assert.equal(page.status, 403);
+    assert.match(page.headers.get('content-type'), /html/);
   });
 
   it('anyone the directory does not admit is refused, with a page saying who to ask', async () => {

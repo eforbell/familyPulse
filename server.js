@@ -41,7 +41,7 @@ function buildSovereignFontsCss() {
 // these run first, so a write is checked before anything reads it, and every request but the probes and assets is
 // a household member's.
 async function findLinkedMember(suiteMemberId) {
-  const { rows } = await pool.query('SELECT id, name, avatar_emoji FROM family_members WHERE suite_member_id = $1', [suiteMemberId]);
+  const { rows } = await pool.query('SELECT id, name, role, avatar_emoji FROM family_members WHERE suite_member_id = $1', [suiteMemberId]);
   return rows[0] || null;
 }
 let suite = createSuiteIdentity(process.env, { findLinked: findLinkedMember });
