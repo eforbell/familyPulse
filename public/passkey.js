@@ -31,12 +31,15 @@
   // check sets the cookie each of them reads. A request whose answer comes back after a check has ended takes the
   // outcome of the first check that ended after it was sent: the one its batch shared. So a late answer neither asks
   // again after a cancel nor saves part of what the member cancelled, even once a later save has been checked.
+  // A request notes how many checks had ended when it was sent; the next one to end is the one it waits on.
   let checking = null;
-  const ended = [];   // every check that ended, oldest first: { at, outcome: null (through), false (cancelled), or an error }
-  const settle = (outcome) => { ended.push({ at: performance.now(), outcome }); };
-  function satisfyOnce(stepUp, sentAt) {
-    const earlier = ended.find((check) => check.at > sentAt);
-    if (earlier) return earlier.outcome instanceof Error ? Promise.reject(earlier.outcome) : Promise.resolve(earlier.outcome);
+  const ended = [];   // the outcome of every check that ended, in order: null (through), false (cancelled), or an error
+  const settle = (outcome) => { ended.push(outcome); };
+  function satisfyOnce(stepUp, endedBeforeSend) {
+    if (ended.length > endedBeforeSend) {
+      const outcome = ended[endedBeforeSend];
+      return outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome);
+    }
     if (!checking) {
       checking = loadHelper().then((h) => h.satisfy(stepUp)).then(
         (done) => { settle(done === false ? false : null); return done; },
@@ -55,11 +58,11 @@
   // fetch, and when the answer asks for a passkey check: the check, then the same request once more. The body must be
   // a string (or absent), so the retry sends exactly what was asked.
   async function passkeyFetch(url, init = {}) {
-    const sentAt = performance.now();
+    const endedBeforeSend = ended.length;
     const first = await fetch(url, init);
     const stepUp = await stepUpAsked(first);
     if (!stepUp) return first;
-    if ((await satisfyOnce(stepUp, sentAt)) === false) throw new Error(CANCELLED);
+    if ((await satisfyOnce(stepUp, endedBeforeSend)) === false) throw new Error(CANCELLED);
     const retry = await fetch(url, init);
     if (await stepUpAsked(retry)) throw new Error(NOT_ACCEPTED);
     return retry;
