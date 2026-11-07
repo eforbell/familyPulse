@@ -136,7 +136,9 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal(body.id, kidRow.id);
     assert.equal(body.role, 'kid');
     assert.equal((await get('/api/kids/dashboard', kid)).status, 200);
-    assert.equal((await get('/api/categories', kid)).status, 200);
+    const picker = await get('/api/categories', kid);
+    assert.equal(picker.status, 200);
+    for (const category of await picker.json()) assert.deepEqual(Object.keys(category).sort(), ['color', 'id', 'name'], 'no budgets or household counts');
     const page = { ...as(KID), ...NAVIGATION };
     assert.equal((await get('/kids.html', page)).status, 200);
     assert.equal((await get('/kids/suite-kid', page)).status, 200);
@@ -207,6 +209,9 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal(me.id, parentRow.id);
     assert.equal(me.role, 'parent');
     for (const path of ['/api/accounts', '/api/items', '/api/auth/members']) assert.equal((await get(path, parent)).status, 200, path);
+    const categories = await (await get('/api/categories', parent)).json();
+    assert.ok(categories.length > 0);
+    for (const category of categories) assert.ok('budget_amount' in category && 'transaction_count' in category, 'a parent keeps the full list');
     assert.equal((await get('/accounts.html', { ...as(PARENT), ...NAVIGATION })).status, 200);
     const login = await get('/login.html', { ...as(PARENT), ...NAVIGATION });
     assert.equal(login.status, 303);
@@ -227,6 +232,16 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal(login.status, 409);
     assert.equal((await login.json()).code, 'tailnet_mode');
     assert.equal((await send('PUT', '/api/auth/passphrase', { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ member_id: parentRow.id, passphrase: 'a-new-passphrase' }))).status, 409);
+    // Every spelling Express routes to them is refused the same way.
+    for (const path of ['/API/auth/login', '/api/AUTH/LOGIN', '/api/auth/login/', '/API/Auth/Login/']) {
+      const answer = await send('POST', path, { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ member_id: parentRow.id, passphrase: 'x' }));
+      assert.equal(answer.status, 409, path);
+      assert.equal((await answer.json()).code, 'tailnet_mode', path);
+    }
+    for (const path of ['/API/auth/passphrase', '/api/auth/passphrase/', '/Api/Auth/Passphrase/']) {
+      const answer = await send('PUT', path, { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ member_id: parentRow.id, passphrase: 'a-new-passphrase' }));
+      assert.equal(answer.status, 409, path);
+    }
     const { rows: [saved] } = await pool.query('SELECT passphrase_hash FROM family_members WHERE id = $1', [parentRow.id]);
     assert.equal(saved.passphrase_hash, null, 'unchanged');
   });
@@ -277,8 +292,34 @@ describe('Suite identity (tailnet mode)', () => {
         assert.equal((await answer.json()).code, 'not_a_page', path);
       }
     }
+    // However the path is spelled: Express routes all of these to the same handlers.
+    for (const member of [PARENT, KID]) {
+      for (const path of ['/API/magic/digest', '/Api/kids/report-card', '/API/accounts/', '/api/accounts/']) {
+        const answer = await get(path, { ...as(member), 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' });
+        assert.equal(answer.status, 403, path);
+        assert.equal((await answer.json()).code, 'not_a_page', path);
+      }
+    }
     const download = await get('/api/transaction-attachments/999999999/download', { ...as(PARENT), ...NAVIGATION });
     assert.equal(download.status, 404, 'reaches its route, which finds nothing');
+  });
+
+  it('another spelling of a path gets a kid or a stranger nothing, and is refused as an API path', async () => {
+    tailnet();
+    const kid = { ...as(KID), ...OWN_PAGE };
+    for (const path of ['/API/items', '/Api/accounts', '/api/items/', '/API/categories', '/API/auth/me', '/api/auth/me/']) {
+      const answer = await get(path, kid);
+      assert.equal(answer.status, 403, path);
+      assert.equal((await answer.json()).code, 'parent_only', path);
+    }
+    const stranger = await get('/API/accounts', OWN_PAGE);
+    assert.equal(stranger.status, 403);
+    assert.equal((await stranger.json()).code, 'not_member');
+    // A spelling the unlinked parent's list doesn't know stays closed too.
+    assert.equal((await get('/API/bootstrap', { ...as(NEW_PARENT), ...OWN_PAGE })).status, 403);
+    const login = await get('/LOGIN.HTML', { ...as(PARENT), ...NAVIGATION });
+    assert.equal(login.status, 303);
+    assert.equal(login.headers.get('location'), '/pulse/');
   });
 
   it('Home Base\'s probes and the page assets need no member and no fetch metadata; assets carry no data', async () => {
