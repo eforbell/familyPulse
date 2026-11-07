@@ -4,9 +4,11 @@ require('dotenv').config();
 const { describe, it, before, after, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const express = require('express');
 const { Pool } = require('pg');
 const { createSession } = require('../lib/auth');
 const { createSuiteIdentity, publicPath } = require('../lib/suite-identity');
+const { createSuiteLinks } = require('../lib/routes/suite-links');
 const { app, setSuiteIdentityForTests, bootstrapState } = require('../server');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -207,6 +209,114 @@ describe('Suite identity (tailnet mode)', () => {
     assert.equal(setup.status, 200);
     assert.deepEqual(Object.keys(await setup.json()).sort(), ['app', 'bootstrap', 'status', 'version'], 'whether setup is needed, and no household counts');
     assert.equal((await send('POST', '/api/bootstrap/household', { ...as(NEW_PARENT), ...JSON_WRITE }, JSON.stringify({ members: [{ name: 'x', role: 'parent' }] }))).status, 409);
+  });
+
+  describe('linking household members', () => {
+    let spare;
+    const putLink = (id, value, member = PARENT) => send('PUT', `/api/suite/links/${id}`, { ...as(member), ...JSON_WRITE }, JSON.stringify({ suite_member_id: value }));
+    const code = async (answer) => (await answer.json()).code;
+
+    before(async () => {
+      ({ rows: [spare] } = await pool.query(`INSERT INTO family_members (name, role, avatar_emoji, color) VALUES ('Spare Parent', 'parent', '🙂', '#123456') RETURNING *`));
+    });
+    after(() => pool.query('DELETE FROM family_members WHERE id = $1', [spare.id]));
+    afterEach(() => pool.query('UPDATE family_members SET suite_member_id = NULL WHERE id = $1', [spare.id]));
+
+    it('a parent nobody has linked can link themselves, and then gets in', async () => {
+      tailnet();
+      const parent = { ...as(NEW_PARENT), ...OWN_PAGE };
+      const page = await get('/link', { ...as(NEW_PARENT), ...NAVIGATION });
+      assert.equal(page.status, 200);
+      assert.equal(page.headers.get('cache-control'), 'no-store');
+      const list = await (await get('/api/suite/links', parent)).json();
+      assert.equal(list.you, NEW_PARENT.memberId);
+      assert.ok(list.members.some((member) => member.id === spare.id));
+      assert.ok(!list.directory.some((person) => person.memberId === NO_ACCESS.memberId), 'only people with access to Family Pulse');
+      assert.equal((await get('/api/accounts', parent)).status, 403);
+      const linked = await putLink(spare.id, NEW_PARENT.memberId, NEW_PARENT);
+      assert.equal(linked.status, 200);
+      assert.equal((await linked.json()).suite_member_id, NEW_PARENT.memberId);
+      assert.equal((await get('/api/accounts', parent)).status, 200);
+      assert.equal((await (await get('/api/auth/me', parent)).json()).id, spare.id);
+    });
+
+    it('a link can be cleared, which puts that parent back at the link page', async () => {
+      tailnet();
+      assert.equal((await putLink(spare.id, NEW_PARENT.memberId)).status, 200);
+      assert.equal((await putLink(spare.id, null)).status, 200);
+      assert.equal((await get('/api/accounts', { ...as(NEW_PARENT), ...OWN_PAGE })).status, 403);
+    });
+
+    it('only someone the directory admits can be linked, and only once', async () => {
+      tailnet();
+      assert.equal(await code(await putLink(spare.id, 'm_nobody')), 'unknown_member');
+      assert.equal(await code(await putLink(spare.id, NO_ACCESS.memberId)), 'unknown_member');
+      for (const value of [undefined, 7, {}, '']) assert.equal((await putLink(spare.id, value)).status, 400, JSON.stringify(value));
+      const taken = await putLink(spare.id, PARENT.memberId);
+      assert.equal(taken.status, 409);
+      assert.equal(await code(taken), 'already_linked');
+    });
+
+    it('a kid\'s account never takes a parent\'s row, because kid pages show that row\'s data', async () => {
+      tailnet();
+      const refused = await putLink(spare.id, NEW_KID.memberId);
+      assert.equal(refused.status, 400);
+      assert.equal(await code(refused), 'role_mismatch');
+      const { rows: [row] } = await pool.query('SELECT suite_member_id FROM family_members WHERE id = $1', [spare.id]);
+      assert.equal(row.suite_member_id, null);
+    });
+
+    it('an unknown member is a 404, even one too large for the column', async () => {
+      tailnet();
+      for (const id of ['2147483647', '2147483648', '999999999999999999']) {
+        const answer = await putLink(id, PARENT.memberId);
+        assert.equal(answer.status, 404, id);
+        assert.equal(await code(answer), 'not_found', id);
+      }
+    });
+
+    it('a kid can\'t see or change links, and a row saying parent doesn\'t help', async () => {
+      tailnet();
+      const kid = { ...as(KID), ...OWN_PAGE };
+      assert.equal((await get('/api/suite/links', kid)).status, 403);
+      assert.equal((await putLink(spare.id, KID.memberId, KID)).status, 403);
+      assert.equal(await code(await putLink(kidRow.id, null, KID)), 'parent_only');
+      assert.equal((await get('/link', { ...as(KID), ...NAVIGATION })).status, 303);
+      tailnet([{ ...PARENT, role: 'kid' }]);
+      assert.equal((await get('/api/suite/links', { ...as(PARENT), ...OWN_PAGE })).status, 403, 'a directory kid linked to a parent row');
+    });
+
+    it('the routes check the directory\'s role themselves, behind the kid allowlist', async () => {
+      const inner = express();
+      inner.use((req, _res, next) => { req.suiteMember = { role: 'kid', memberId: KID.memberId }; next(); });
+      inner.use(express.json());
+      inner.use(createSuiteLinks(() => ({ tailnet: true, directory: () => [] })));
+      const listener = inner.listen(0, '127.0.0.1');
+      await new Promise((resolve) => listener.once('listening', resolve));
+      try {
+        const url = `http://127.0.0.1:${listener.address().port}`;
+        assert.equal((await fetch(`${url}/link`)).status, 403);
+        assert.equal((await fetch(`${url}/api/suite/links`)).status, 403);
+        assert.equal((await fetch(`${url}/api/suite/links/${spare.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{"suite_member_id":null}' })).status, 403);
+      } finally {
+        await new Promise((resolve) => listener.close(resolve));
+      }
+    });
+
+    it('none of it exists in local mode', async () => {
+      assert.equal((await get('/link', NAVIGATION)).status, 404);
+      assert.equal((await get('/api/suite/links', OWN_PAGE)).status, 404);
+      assert.equal((await send('PUT', `/api/suite/links/${spare.id}`, { ...as(PARENT), ...JSON_WRITE }, JSON.stringify({ suite_member_id: PARENT.memberId }))).status, 404);
+    });
+
+    it('linking is refused from anywhere but the app\'s own page', async () => {
+      tailnet();
+      const body = JSON.stringify({ suite_member_id: NEW_PARENT.memberId });
+      const sibling = await send('PUT', `/api/suite/links/${spare.id}`, { ...as(PARENT), 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', origin: 'https://smith-home.example-tailnet.ts.net', 'content-type': 'application/json' }, body);
+      assert.equal(sibling.status, 403);
+      const form = await send('PUT', `/api/suite/links/${spare.id}`, { ...as(PARENT), ...OWN_PAGE, origin: ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body);
+      assert.equal(form.status, 403);
+    });
   });
 
   it('a linked parent gets everything a parent does, with no passphrase', async () => {
