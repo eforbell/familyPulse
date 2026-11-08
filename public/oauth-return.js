@@ -22,15 +22,26 @@
     statusEl.append(line);
   }
 
+  // Why a bank link can't be finished here (oauth_refused, tailnet mode). Pulse ties each link to the browser and the
+  // person that started it, for ten minutes.
+  const REFUSED = {
+    expired: 'More than ten minutes passed since the link started. Start it again from Settings',
+    wrong_member: 'Someone else started this bank link. Start your own from Settings',
+  };
+  const NOT_THIS_BROWSER = 'This browser didn\'t start this bank link, or it already finished. Start it again from Settings in this browser';
+
+  // Through passkey.js, which asks for the passkey check Family Pulse needs in tailnet mode.
   async function postJson(url, body) {
-    const res = await fetch(url, {
+    const init = {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    });
+    };
+    const res = await (window.PulsePasskey ? window.PulsePasskey.fetch(url, init) : fetch(url, init));
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) throw new Error('Sign in to Family Pulse in this browser, then link the bank again from Settings');
+    if (data.error === 'oauth_refused') throw new Error(REFUSED[data.reason] || NOT_THIS_BROWSER);
     if (!res.ok) throw new Error(data.error || `Pulse answered ${res.status}`);
     return data;
   }

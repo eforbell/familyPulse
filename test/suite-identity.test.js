@@ -159,11 +159,13 @@ describe('Suite identity (tailnet mode)', () => {
     const page = { ...as(KID), ...NAVIGATION };
     assert.equal((await get('/kids.html', page)).status, 200);
     assert.equal((await get('/kids/suite-kid', page)).status, 200);
-    for (const path of ['/', '/index.html', '/accounts.html', '/settings.html', '/admin.html', '/setup', '/link', '/login.html', '/oauth/callback']) {
+    for (const path of ['/', '/index.html', '/accounts.html', '/settings.html', '/admin.html', '/setup', '/link', '/login.html']) {
       const answer = await get(path, page);
       assert.equal(answer.status, 303, path);
       assert.equal(answer.headers.get('location'), '/pulse/kids.html', path);
     }
+    // The bank's return answers anyone the same way, holding nothing (test/tailnet-oauth.test.js).
+    assert.equal((await get('/oauth/callback', page)).status, 400);
   });
 
   it('the directory decides the role, never the row', async () => {
