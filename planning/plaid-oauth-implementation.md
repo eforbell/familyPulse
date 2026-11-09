@@ -45,8 +45,8 @@ Notes:
 
 - `PLAID_OAUTH_REDIRECT_URI` is injected into Plaid link token creation in
   [lib/plaid-client.js](/Volumes/DATA/workspace/homeApps/familyPulse/lib/plaid-client.js#L103).
-- `APP_URL` is used only to build the post-success "Return to Settings" link shown on the
-  callback page in [lib/routes/link.js](/Volumes/DATA/workspace/homeApps/familyPulse/lib/routes/link.js#L13).
+- `APP_URL` is where the callback sends the browser on to (`APP_URL/oauth-return.html`). In
+  tailnet mode the address Home Base publishes (`APP_PUBLIC_URL`) is used instead.
 - `APP_URL` should point to the internal URL users actually use for Family Pulse. It does
   not need to be public.
 
@@ -125,6 +125,40 @@ sign in and start again.
 `onSuccess` posts `public_token` and `link_session_id` to `POST /api/link/exchange`, the same
 signed-in route Settings uses, which exchanges the token and marks that session `exchanged`.
 
+## Tailnet Mode (D22)
+
+In tailnet mode (`SOVEREIGN_AUTH_MODE=tailnet`) each link is also bound to who started it,
+following the household's OAuth contract (sovereignAuth `docs/wire-contract.md`, section 10).
+Plaid's return carries no state of Pulse's, only its own `oauth_state_id`, so a browser cookie
+says which link a return belongs to:
+
+- **Start.** The four link-start routes (`create-token`, `update-token`,
+  `create-liability-upgrade-token`, `create-account-selection-token`) need a passkey check in the
+  last five minutes. Each records the member's stable user ID, this hostname, and the SHA-256 of
+  a random value it sets in `__Host-sv_oauth` (Secure, HttpOnly, `SameSite=Strict`, ten minutes).
+  The value itself is never stored.
+- **Return.** `GET /oauth/callback` and `oauth-return.html` need no member and no passkey: the
+  browser arrives from the bank's site (or through a public tunnel) without the passkey cookie,
+  and neither page holds anything. Other spellings of those paths are checked as usual. The
+  callback sends the browser to `APP_PUBLIC_URL/oauth-return.html`.
+- **Resume.** `POST /api/link/oauth-resume` needs the 30-day passkey check (the return page asks
+  for one through `passkey.js` if needed), not the five-minute one. It returns the link this member
+  started in this browser on this hostname, at most ten minutes ago, and still writes nothing.
+  Otherwise it refuses with `{"error": "oauth_refused", "reason": ...}`: `no_cookie`,
+  `duplicate_cookie`, `wrong_correlation`, `unknown_state`, `expired`, `wrong_member` or
+  `wrong_hostname`.
+- **Finish.** `exchange` (which must name its `link_session_id`) and the two `complete-*` routes
+  take the link first, so it is used once whatever happens next, then refuse unless this member
+  started it on this hostname. They don't need the cookie, because the Plaid result never passes
+  through an address and a desktop Link popup can outlast ten minutes. Every finishing answer
+  clears the cookie.
+
+A link started in local mode before the switch has no starter, so it can't be resumed or finished
+in tailnet mode; start it again. Local mode is unchanged.
+
+If the redirect URI is the tailnet address itself (`https://<host>.ts.net/pulse/oauth/callback`),
+no public tunnel route is needed: the redirect is the member's own browser.
+
 ## Normal Link and Update Mode Behavior
 
 Non-OAuth institutions still use `POST /api/link/exchange`, but the request now includes
@@ -143,7 +177,8 @@ That change prevents race conditions where multiple pending Link sessions exist 
 OAuth resume depends on the `link_sessions` table created in
 [db/migrations/002-link-sessions.sql](/Volumes/DATA/workspace/homeApps/familyPulse/db/migrations/002-link-sessions.sql#L1).
 
-Required fields:
+Required fields (tailnet mode also needs `started_by`, `hostname` and `correlation_hash`, from
+`030-link-session-binding.sql`):
 
 - `link_token`
 - `oauth_state_id`
@@ -156,7 +191,8 @@ Operational expectations:
 
 - pending sessions expire after 4 hours
 - only pending, unexpired sessions may be resumed
-- OAuth binding is only allowed when there is a single unbound pending session available
+- local mode resumes only when exactly one pending session exists; tailnet mode resumes the one
+  its cookie names
 
 ## What Plaid Expects From This App
 
