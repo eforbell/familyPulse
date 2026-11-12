@@ -342,6 +342,7 @@ function renderNotificationChannels() {
           </label>
           <input type="password" id="notify-secret-${channel.member_id}" placeholder="${channel.has_secret ? 'Leave blank to keep saved secret/webhook' : 'Paste brrr secret or webhook URL'}" class="magic-input" style="min-width:260px" autocomplete="off">
           <button class="btn-primary" onclick="saveNotificationChannel(${channel.member_id})">Save</button>
+          <button class="btn-ghost" onclick="checkNotificationChannel(${channel.member_id})">Verify saved secret (no push)</button>
           <button class="btn-ghost" onclick="testNotificationChannel(${channel.member_id})">Test</button>
           ${channel.has_secret ? `<button class="btn-danger" onclick="clearNotificationChannel(${channel.member_id})">Clear</button>` : ''}
         </div>
@@ -362,7 +363,7 @@ function renderNotificationChannels() {
         </div>
         <div class="form-actions" style="margin-top:0.6rem">
           <button class="btn-ghost" onclick="saveNotificationSubscriptions(${channel.member_id})">Save Event Categories</button>
-          <span id="notify-status-${channel.member_id}" class="settings-help-copy"></span>
+          <span id="notify-status-${channel.member_id}" role="status" aria-live="polite" class="settings-help-copy"></span>
         </div>
       </div>
     </div>
@@ -382,14 +383,14 @@ async function saveNotificationChannel(memberId) {
   }
 
   try {
-    await api(`api/notification-channels/${memberId}/brrr`, {
+    const saved = await api(`api/notification-channels/${memberId}/brrr`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     secretInput.value = '';
-    statusEl.textContent = 'Channel saved.';
     await loadNotificationChannels();
+    document.getElementById(`notify-status-${memberId}`).textContent = `Saved. ${saved.verification.message}`;
   } catch (err) {
     statusEl.textContent = `Save failed: ${err.message}`;
   }
@@ -1151,4 +1152,14 @@ async function resetPrompt(key) {
   if (DEFAULT_PROMPTS[key] !== undefined) {
     el.value = DEFAULT_PROMPTS[key];
   }
+}
+
+async function checkNotificationChannel(memberId) {
+  const el = document.getElementById(`notify-status-${memberId}`);
+  el.classList.remove('hidden', 'ok', 'error');
+  el.textContent = 'Checking saved secret (no notification)…';
+  try {
+    const data = await api(`api/notification-channels/${memberId}/brrr/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    el.textContent = data.message;
+  } catch (err) { el.textContent = err.message; }
 }
