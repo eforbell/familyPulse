@@ -12,6 +12,11 @@
   const RELOADED = 'pulse-passkey-reloaded';
   let helper = null;
 
+  // The reload after a check that went through: which page, for which policy, and when. Every page that loads this
+  // script takes it, so it only ever describes the reload that brought this page up, never an earlier one.
+  let reloaded = null;
+  try { reloaded = JSON.parse(sessionStorage.getItem(RELOADED)); sessionStorage.removeItem(RELOADED); } catch { reloaded = null; }
+
   function loadHelper() {
     if (window.SovereignStepUp) return Promise.resolve(window.SovereignStepUp);
     if (!helper) {
@@ -52,7 +57,10 @@
   async function stepUpAsked(res) {
     if (res.status !== 401) return null;
     const body = await res.clone().json().catch(() => null);
-    return body && body.error === 'step_up_required' ? body : null;
+    // Only the library's whole answer: which policy, at what level, with what kind of credential.
+    const whole = body && body.error === 'step_up_required'
+      && ['policy', 'level', 'kind'].every((key) => typeof body[key] === 'string' && body[key]);
+    return whole ? body : null;
   }
 
   // fetch, and when the answer asks for a passkey check: the check, then the same request once more. The body must be
@@ -70,7 +78,8 @@
 
   // The page Family Pulse answers with when a parent opens it without a current check: run the check, then reload. If
   // this page comes back straight after a check that went through (Home Base's new key or a changed access hasn't
-  // reached Family Pulse yet), it waits for a tap rather than looping through checks.
+  // reached Family Pulse yet), it waits for a tap rather than looping through checks. Another page, or another check,
+  // runs its own.
   function checkOnOpen(main) {
     const status = document.getElementById('passkey-status');
     const retry = document.getElementById('passkey-retry');
@@ -82,7 +91,8 @@
       try {
         if (!stepUp) throw new Error(NOT_ACCEPTED);
         if ((await (await loadHelper()).satisfy({ ...stepUp, message: 'Check with your passkey to open Family Pulse.' })) !== false) {
-          try { sessionStorage.setItem(RELOADED, String(Date.now())); } catch { /* private mode: no loop guard to keep */ }
+          const mark = { at: Date.now(), page: window.location.href, policy: stepUp.policy };
+          try { sessionStorage.setItem(RELOADED, JSON.stringify(mark)); } catch { /* private mode: no loop guard to keep */ }
           window.location.reload();
           return;
         }
@@ -93,9 +103,8 @@
       retry.hidden = false;
     }
     retry.addEventListener('click', run);
-    let reloadedAt = 0;
-    try { reloadedAt = Number(sessionStorage.getItem(RELOADED)) || 0; sessionStorage.removeItem(RELOADED); } catch { /* as above */ }
-    if (Date.now() - reloadedAt < 60 * 1000) {
+    const sameCheck = reloaded && stepUp && reloaded.page === window.location.href && reloaded.policy === stepUp.policy;
+    if (sameCheck && Date.now() - Number(reloaded.at) < 60 * 1000) {
       status.textContent = STILL_REFUSED;
       retry.hidden = false;
       return;
