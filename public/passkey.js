@@ -12,10 +12,20 @@
   const RELOADED = 'pulse-passkey-reloaded';
   let helper = null;
 
-  // The reload after a check that went through: which page, for which policy, and when. Every page that loads this
-  // script takes it, so it only ever describes the reload that brought this page up, never an earlier one.
+  // The reload after a check that went through: which page, for which policy, and when. A page that loads this
+  // script takes it. Most pages don't load it, so a passkey page also needs to have come from a reload to count it:
+  // one reached any other way is a new refusal, whatever an earlier check left behind.
   let reloaded = null;
   try { reloaded = JSON.parse(sessionStorage.getItem(RELOADED)); sessionStorage.removeItem(RELOADED); } catch { reloaded = null; }
+
+  function cameByReload() {
+    try {
+      const [entry] = performance.getEntriesByType('navigation');
+      if (entry) return entry.type === 'reload';
+      if (performance.navigation) return performance.navigation.type === 1;
+    } catch { /* no navigation timing: keep the guard */ }
+    return true;
+  }
 
   function loadHelper() {
     if (window.SovereignStepUp) return Promise.resolve(window.SovereignStepUp);
@@ -103,7 +113,8 @@
       retry.hidden = false;
     }
     retry.addEventListener('click', run);
-    const sameCheck = reloaded && stepUp && reloaded.page === window.location.href && reloaded.policy === stepUp.policy;
+    const sameCheck = reloaded && stepUp && reloaded.page === window.location.href && reloaded.policy === stepUp.policy
+      && cameByReload();
     if (sameCheck && Date.now() - Number(reloaded.at) < 60 * 1000) {
       status.textContent = STILL_REFUSED;
       retry.hidden = false;
