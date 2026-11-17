@@ -240,3 +240,26 @@ describe('transfer flag follows the category (#168)', () => {
     assert.equal((await flags(cleared)).is_transfer, false);
   });
 });
+
+describe('recategorizing both legs of a pair at once', () => {
+  it('never deadlocks', async () => {
+    const { withTransaction } = require('../lib/db');
+    const { setSingleTransactionCategory } = require('../lib/transaction-allocations');
+    for (let i = 0; i < 25; i++) {
+      const out = await insertTx(`race-out-${i}`, { amount: 800 + i, name: `FLAGTEST RACE OUT ${i}` });
+      const into = await insertTx(`race-in-${i}`, { accountId: savingsId, amount: -(800 + i), name: `FLAGTEST RACE IN ${i}` });
+      await pool.query(
+        `UPDATE transactions SET is_transfer = true, transfer_type = 'inter_account',
+           transfer_pair_id = CASE WHEN id = $1 THEN $2 ELSE $1 END
+         WHERE id IN ($1, $2)`,
+        [out, into]
+      );
+      const results = await Promise.allSettled([out, into].map(id => withTransaction(client =>
+        setSingleTransactionCategory(client, { transactionId: id, categoryId: cat.groceries })
+      )));
+      for (const result of results) {
+        assert.equal(result.status, 'fulfilled', result.reason && `${result.reason.code} ${result.reason.message}`);
+      }
+    }
+  });
+});
