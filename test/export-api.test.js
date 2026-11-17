@@ -3,6 +3,8 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const { readdir } = require('node:fs/promises');
+const { tmpdir } = require('node:os');
 const { app } = require('../server');
 const { pool, withTransaction } = require('../lib/db');
 const { withExportSnapshot } = require('../lib/data-export');
@@ -51,9 +53,11 @@ describe('operator data export', () => {
     const { rows: txns } = await pool.query(`INSERT INTO transactions
       (plaid_transaction_id,account_id,amount,date,authorized_date,name,merchant_name,pending,is_hidden,source_removed,source,raw_json)
       SELECT $1 || '-' || n, $2, 42.50, '2026-03-01'::date, '2026-02-28'::date,
-      'Original text', '=HYPERLINK("bad")', n=2, n=3, n=4, 'test', '{"original":"☃"}'::jsonb
+      'Original text', '=HYPERLINK("bad")', n=2, n=3, n=4, 'test',
+      '{"original":"☃","large_integer":9007199254740993,"precise_decimal":0.1234567890123456789}'::jsonb
       FROM generate_series(1,505) n RETURNING id`, [prefix, accountId]);
     transactionId = txns[0].id;
+    await pool.query("UPDATE transactions SET created_at='2026-03-01T00:01:02.123456Z' WHERE id=$1", [transactionId]);
     await pool.query('UPDATE transactions SET is_transfer=true WHERE id=$1', [txns[4].id]);
     await pool.query('UPDATE transactions SET amount=-100 WHERE id=$1', [txns[5].id]);
     incomeId = txns[5].id;
@@ -125,6 +129,7 @@ describe('operator data export', () => {
     assert.equal(row.amount, '42.50');
     assert.equal(row.date, '2026-03-01');
     assert.equal(row.authorized_date, '2026-02-28');
+    assert.equal(row.created_at, '2026-03-01T00:01:02.123456Z');
     assert.equal(row.account_mask, '0012');
     assert.equal(row.account_display_name, 'Export Checking');
     assert.equal(row.institution_name, 'Export Bank');
@@ -132,7 +137,10 @@ describe('operator data export', () => {
     assert.equal(row.note, '☃ note, "quoted"\nsecond line');
     assert.equal(row.merchant_name, '\'=HYPERLINK("bad")');
     assert.equal(JSON.parse(row.raw_json).original, '☃');
+    assert.match(row.raw_json, /"large_integer":\s*9007199254740993/);
+    assert.match(row.raw_json, /"precise_decimal":\s*0\.1234567890123456789/);
     assert.equal(JSON.parse(row.allocations).length, 2);
+    assert.match(row.allocations, /"amount":\s*22\.50/);
     assert.ok(JSON.parse(row.allocations).every(a => a.category_name.startsWith(prefix)));
     assert.equal(JSON.parse(row.recurring_matches).length, 2);
     assert.deepEqual(JSON.parse(row.recurring_matches).map(match => match.cashflow_type).sort(), ['expense', 'income']);
@@ -143,9 +151,55 @@ describe('operator data export', () => {
     assert.equal(income.amount, '-100.00');
     assert.equal(JSON.parse(income.paycheck).employer, 'Export Employer');
     assert.equal(JSON.parse(income.paycheck_deposit).source_net_amount, 100);
+    assert.match(income.paycheck_deposit, /"source_net_amount":\s*100\.00/);
     assert.ok(!headers.includes('access_token'));
     for (const secret of ['secret-not-for-export', prefix + '-secret-storage-path', parentToken, kidToken]) {
       assert.ok(!text.includes(secret));
+    }
+  });
+
+  it('returns JSON 500 and removes its temporary directory when export preparation fails', async () => {
+    const directoriesBefore = await readdir(tmpdir());
+    const originalConnect = pool.connect;
+    pool.connect = function (...args) {
+      // Session/auth pool.query calls use the callback overload; only wrap the
+      // explicit snapshot connection, without modifying a pooled client's methods.
+      if (args.length) return originalConnect.apply(this, args);
+      return originalConnect.call(this).then(client => ({
+        query(sql, ...params) {
+          if (typeof sql === 'string' && sql.startsWith('DECLARE export_rows')) throw new Error('Injected export query failure');
+          return client.query(sql, ...params);
+        },
+        release() { client.release(); }
+      }));
+    };
+    try {
+      const response = await request('?format=csv');
+      assert.equal(response.status, 500);
+      assert.match(response.headers.get('content-type'), /json/);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.deepEqual(await response.json(), { error: 'Export failed. Please try again.' });
+      const newDirectories = (await readdir(tmpdir())).filter(name => name.startsWith('familypulse-export-') && !directoriesBefore.includes(name));
+      assert.deepEqual(newDirectories, []);
+    } finally {
+      pool.connect = originalConnect;
+    }
+  });
+
+  it('returns JSON 500 and cleans up when download fails before sending headers', async () => {
+    const directoriesBefore = await readdir(tmpdir());
+    const originalDownload = app.response.download;
+    app.response.download = function (_file, _filename, callback) {
+      callback(new Error('Injected download stat failure'));
+    };
+    try {
+      const response = await request('?format=csv');
+      assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), { error: 'Export failed. Please try again.' });
+      const newDirectories = (await readdir(tmpdir())).filter(name => name.startsWith('familypulse-export-') && !directoriesBefore.includes(name));
+      assert.deepEqual(newDirectories, []);
+    } finally {
+      app.response.download = originalDownload;
     }
   });
 

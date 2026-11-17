@@ -30,7 +30,7 @@ test('snapshot is read-only, consistent, committed and released; failures roll b
     const run = withExportSnapshot(pool, async c => { assert.equal(c, client); if (fail) throw new Error('query failed'); return 42; });
     if (fail) await assert.rejects(run, /query failed/);
     else assert.equal(await run, 42);
-    assert.deepEqual(calls, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', "SET LOCAL TIME ZONE 'UTC'", fail ? 'ROLLBACK' : 'COMMIT', 'release']);
+    assert.deepEqual(calls, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', "SET LOCAL TIME ZONE 'UTC'", "SET LOCAL DateStyle = 'ISO, YMD'", fail ? 'ROLLBACK' : 'COMMIT', 'release']);
   }
 });
 
@@ -68,4 +68,17 @@ test('CSV propagates write failures, so the route cannot offer an incomplete fil
   await assert.rejects(writeCsv(client, new Writable({ write(_chunk, _encoding, callback) {
     callback(new Error('disk full'));
   } })), /disk full/);
+});
+
+test('cursor preserves exact JSON numbers and microsecond timestamp text', async () => {
+  const json = '{"large": 9007199254740993, "amount": 22.50}';
+  const client = { query: async query => {
+    if (typeof query !== 'string') {
+      for (const oid of [114, 3802]) assert.equal(query.types.getTypeParser(oid, 'text')(json), json);
+      assert.equal(query.types.getTypeParser(1184, 'text')('2026-03-01 00:01:02.123456+00'), '2026-03-01T00:01:02.123456Z');
+      assert.equal(query.types.getTypeParser(1082, 'text')('2026-03-01'), '2026-03-01');
+      return { fields: [], rows: [] };
+    }
+  } };
+  for await (const _batch of readDataset(client, { sql: 'SELECT 1' })) { /* exercise parsers */ }
 });

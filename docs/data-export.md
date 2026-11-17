@@ -40,10 +40,14 @@ Deleted/purged rows and attachment binaries cannot be recovered from it.
 - Server-side cursor fetches 500 rows at a time, writing a private temporary file
   before offering a download. Query/write failures do not offer partial exports.
   Temporary files are removed after transfer or failure; response caching is disabled.
+  A process crash can leave a private temporary export for system cleanup; it is
+  not an encrypted archive or a durable backup.
 - UTF-8 with BOM, CRLF record separators, every field quoted, embedded quotes
   doubled. Quoted fields may contain newlines; do not parse by splitting lines.
-- Dates are `YYYY-MM-DD`; top-level timestamps are UTC ISO 8601. Structured cells
-  are JSON. Null values are empty fields; numeric amounts keep database precision.
+- Dates are `YYYY-MM-DD`; top-level timestamps are UTC ISO 8601, preserving stored
+  fractional seconds. Structured cells retain PostgreSQL JSON text without a
+  JavaScript parse/re-serialize step, preserving large numbers and decimal scale.
+  Null values are empty fields; numeric amounts keep database precision.
 - Potential spreadsheet formulas in text are prefixed with an apostrophe, including
   whitespace/control-prefixed and full-width initiators. Signed database-typed
   numeric values remain numeric text. This deliberately changes affected text for
