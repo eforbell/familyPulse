@@ -184,7 +184,7 @@ describe('transfer flag follows the category (#168)', () => {
     assert.equal(row.transfer_type, null);
   });
 
-  it('keeps a detected pair when it stays a transfer, and unlinks both legs when it leaves', async () => {
+  it('keeps a detected pair when it stays a transfer, and leaves only the edited leg when it leaves', async () => {
     const out = await insertTx('pair-out', { amount: 613.29, name: 'FLAGTEST TO SAVINGS' });
     const into = await insertTx('pair-in', { accountId: savingsId, amount: -613.29, name: 'FLAGTEST FROM CHECKING' });
     await pool.query(
@@ -206,7 +206,7 @@ describe('transfer flag follows the category (#168)', () => {
     assert.equal(row.transfer_pair_id, null);
     const partner = await flags(into);
     assert.equal(partner.is_transfer, true, 'the other leg is still money arriving from elsewhere');
-    assert.equal(partner.transfer_pair_id, null);
+    assert.equal(partner.transfer_type, 'inter_account');
   });
 
   it('a rule matching merchant_name exactly categorizes and flags in one step', async () => {
