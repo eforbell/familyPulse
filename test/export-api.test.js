@@ -195,6 +195,7 @@ describe('operator data export', () => {
     try {
       const response = await request('?format=csv');
       assert.equal(response.status, 500);
+      assert.match(response.headers.get('content-type'), /json/);
       assert.deepEqual(await response.json(), { error: 'Export failed. Please try again.' });
       const newDirectories = (await readdir(tmpdir())).filter(name => name.startsWith('familypulse-export-') && !directoriesBefore.includes(name));
       assert.deepEqual(newDirectories, []);
