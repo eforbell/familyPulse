@@ -226,6 +226,23 @@ describe('transfer flag follows the category (#168)', () => {
     assert.equal(row.transfer_type, 'crypto_savings');
   });
 
+  it("a household rule to a spending category beats a built-in transfer pattern", async () => {
+    // Detection runs before categorization in a sync; "autopay" is a built-in
+    // card-payment pattern, but the household's rule says this is a bill.
+    await pool.query(
+      `INSERT INTO category_rules (merchant_pattern, category_id, match_type, created_by)
+       VALUES ('flagtest electric', $1, 'contains', 'test')`,
+      [cat.groceries]
+    );
+    const id = await insertTx('rule-beats-pattern', { amount: 143.27, name: 'FLAGTEST ELECTRIC AUTOPAY' });
+    await detectTransfers(7);
+    assert.equal((await flags(id)).is_transfer, false);
+    await categorizeMany();
+    const row = await flags(id);
+    assert.equal(row.category_id, cat.groceries);
+    assert.equal(row.is_transfer, false);
+  });
+
   it('transfer detection does not re-flag a transaction someone categorized', async () => {
     const control = await insertTx('detect-control', { amount: 41.07, name: 'Coinbase FLAGTEST control' });
     const groceries = await insertTx('detect-groceries', { amount: 41.08, name: 'Coinbase FLAGTEST groceries' });
@@ -287,7 +304,9 @@ describe('concurrent category changes', () => {
       assert.ok(waiting, 'detection should be waiting on the edited row');
       await editor.query('COMMIT');
     } finally {
+      await editor.query('ROLLBACK').catch(() => {});
       editor.release();
+      await detection?.catch(() => {});
     }
     await detection;
     const row = await flags(id);
