@@ -196,6 +196,18 @@
       </div>
     </section>
 
+    <section id="data-export-section" class="hidden" style="margin-top:1.5rem">
+      <h2 class="section-heading">Data Export</h2>
+      <div class="theme-card">
+        <p class="theme-card-copy">Download all retained transactions as an enriched CSV, including hidden duplicates, pending transactions, and removed-source history. Account, category allocations, notes, recurring matches, and paycheck details are included.</p>
+        <p class="settings-help-copy">One-way data dump, not a restorable backup. Contains sensitive financial data and unblurred amounts even in Privacy mode. Credentials and attachment files are not included.</p>
+        <div class="form-actions" style="margin-top:0.75rem">
+          <button id="export-csv-btn" type="button" class="btn-primary" onclick="downloadDataExport('csv')">Download transactions CSV</button>
+          <span id="data-export-status" class="settings-help-copy" role="status" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+
     <!-- Data Import -->
     <section style="margin-top:1.5rem">
       <h2 class="section-heading">Data Import</h2>
@@ -260,6 +272,6 @@
   <script src="nav.js?v=20260516c"></script>
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
   <script src="passkey.js?v=20261116a"></script>
-  <script src="settings.js?v=20261107a"></script>
+  <script src="settings.js?v=20261117a"></script>
 </body>
 </html>

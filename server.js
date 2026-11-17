@@ -456,6 +456,7 @@ app.use(require('./lib/routes/transactions'));
 app.use(require('./lib/routes/categories'));
 app.use(require('./lib/routes/link'));
 app.use(require('./lib/routes/import'));
+app.use(require('./lib/routes/export'));
 app.use(require('./lib/routes/budget'));
 app.use(require('./lib/routes/recurring'));
 app.use(require('./lib/routes/anomalies'));
