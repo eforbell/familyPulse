@@ -241,10 +241,8 @@ describe('transfer flag follows the category (#168)', () => {
   });
 });
 
-describe('recategorizing both legs of a pair at once', () => {
-  it('never deadlocks', async () => {
-    const { withTransaction } = require('../lib/db');
-    const { setSingleTransactionCategory } = require('../lib/transaction-allocations');
+describe('concurrent category changes', () => {
+  it('recategorizing both legs of a pair at once never deadlocks', async () => {
     for (let i = 0; i < 25; i++) {
       const out = await insertTx(`race-out-${i}`, { amount: 800 + i, name: `FLAGTEST RACE OUT ${i}` });
       const into = await insertTx(`race-in-${i}`, { accountId: savingsId, amount: -(800 + i), name: `FLAGTEST RACE IN ${i}` });
@@ -254,12 +252,46 @@ describe('recategorizing both legs of a pair at once', () => {
          WHERE id IN ($1, $2)`,
         [out, into]
       );
-      const results = await Promise.allSettled([out, into].map(id => withTransaction(client =>
-        setSingleTransactionCategory(client, { transactionId: id, categoryId: cat.groceries })
-      )));
-      for (const result of results) {
-        assert.equal(result.status, 'fulfilled', result.reason && `${result.reason.code} ${result.reason.message}`);
+      const results = await Promise.all([out, into].map(id => jsonRequest(`/api/transactions/${id}/category`, {
+        method: 'PUT',
+        body: JSON.stringify({ category_id: cat.groceries })
+      })));
+      for (const { response, body } of results) {
+        assert.equal(response.status, 200, JSON.stringify(body));
       }
     }
+  });
+
+  it('detection does not flag a transaction whose manual edit commits while it waits', async () => {
+    const id = await insertTx('detect-race', { amount: 57.13, name: 'Coinbase FLAGTEST race' });
+    const { setSingleTransactionCategory } = require('../lib/transaction-allocations');
+    const editor = await pool.connect();
+    let detection;
+    try {
+      await editor.query('BEGIN');
+      await setSingleTransactionCategory(editor, {
+        transactionId: id, categoryId: cat.groceries, categorizationSource: 'manual'
+      });
+      // Detection reads the row as an uncategorized Coinbase purchase, then
+      // queues behind the editor's lock.
+      detection = detectTransfers(7);
+      let waiting = false;
+      for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+        const { rows: [row] } = await pool.query(
+          `SELECT count(*)::int AS n FROM pg_stat_activity
+           WHERE datname = current_database() AND wait_event_type = 'Lock'`
+        );
+        waiting = row.n > 0;
+        if (!waiting) await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      assert.ok(waiting, 'detection should be waiting on the edited row');
+      await editor.query('COMMIT');
+    } finally {
+      editor.release();
+    }
+    await detection;
+    const row = await flags(id);
+    assert.equal(row.category_id, cat.groceries);
+    assert.equal(row.is_transfer, false);
   });
 });
