@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
+  document.getElementById('data-export-section').classList.toggle('hidden', currentMember?.role !== 'parent');
   await Promise.all([loadItems(), loadMembers(), loadDedupHistory(), loadMerchantRenameRules()]);
   loadBalancePolicy();
   loadNotificationConfig();
@@ -48,6 +49,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ── Data fetching ────────────────────────────────────────────
+
+async function downloadDataExport(format) {
+  const button = document.getElementById('export-csv-btn');
+  const status = document.getElementById('data-export-status');
+  if (button.disabled) return;
+  button.disabled = true;
+  status.textContent = 'Preparing complete export…';
+  try {
+    const response = await fetch(`api/export?format=${encodeURIComponent(format)}`, { cache: 'no-store' });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || `Export failed (${response.status}). Please try again.`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
+      || `familypulse-transactions.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Let browsers consume the object URL before releasing its memory.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    status.textContent = 'Export downloaded. Store it securely.';
+  } catch (err) {
+    status.textContent = err.message || 'Export failed. Please try again.';
+  } finally {
+    button.disabled = false;
+  }
+}
 
 async function loadItems() {
   try {

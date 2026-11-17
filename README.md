@@ -137,6 +137,13 @@ Current app behavior:
 - `Purge` is the explicit destructive action for deleting preserved local history after a disconnect.
 - Historical accounts remain visible for past transactions and account history, but they no longer affect live balance totals.
 
+## Operator Data Export
+
+Parents can download an enriched CSV of every retained transaction from
+**Settings → Data Export**. This includes hidden duplicates and historical data;
+it is a one-way dump, not a restorable backup. See [export scope, safety notes,
+and multi-sheet XLSX feasibility](docs/data-export.md).
+
 ## Backup Restore Drill
 
 Run a monthly restore drill to prove backups are fully recoverable:
