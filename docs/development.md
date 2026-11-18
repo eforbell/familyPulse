@@ -193,4 +193,4 @@ PORT=3097 PLAID_CLIENT_ID=demo PLAID_SECRET=demo PLAID_ENV=sandbox node server.j
 node scripts/demo-showcase.js screenshots      # writes docs/images/*.png
 ```
 
-`seed` refuses any database whose name lacks `demo` or `showcase`, and any database that already has transactions. Dates are relative to today, so re-run it on a freshly created database when the images need refreshing. Leave the demo database without passphrases: `screenshots` signs in as the demo parent through the member picker.
+Before writing anything, `seed` checks that the database name contains `demo` or `showcase` and that the database has no tables at all. It refuses `NODE_ENV=production` or `test`. Dates are relative to today, so re-run it on a freshly created database when the images need refreshing. Leave the demo database without passphrases: `screenshots` signs in as the demo parent through the member picker.

@@ -31,7 +31,7 @@ Most budgeting apps are built for one person and rented by the month. Family Pul
 - **Built for families.** Parents see everything. Kids get their own "My Money" view, limited to their own accounts and allowance budget.
 - **Your data stays home.** Plaid syncs into a Postgres database you control. No vendor cloud, no analytics.
 - **It looks ahead.** Recurring-bill detection and a 90-day forecast show next month's tight spots before you reach them.
-- **AI is optional.** Turn on Ask Pulse and what-if planning with your own API key. Without a key, nothing leaves the server.
+- **AI is optional.** Turn on Ask Pulse and what-if planning with your own API key. Without a key, Pulse makes no AI calls.
 
 ## Features
 
@@ -102,7 +102,8 @@ Family Pulse began as one family's replacement for Monarch Money, so migrating i
 
 1. In Monarch, open **Settings → Export Data** and download your transactions CSV.
 2. In Family Pulse, open **Import**, upload the file, and map Monarch's categories to yours. Suggestions are filled in for you.
-3. Your history arrives categorized and deduplicated against anything Plaid has already synced.
+3. Your history arrives categorized. Re-importing the same file skips rows already imported.
+4. Once Plaid has synced too, run **Transactions → Remove duplicates** to hide imported rows that overlap your bank-synced history, so nothing counts twice.
 
 Budgets, anomaly baselines, and trend charts work from day one because they have your full history. The Sankey view is included.
 
@@ -142,13 +143,15 @@ Requirements: a current Node.js LTS and PostgreSQL. The included Docker Compose 
 git clone https://github.com/eforbell/familyPulse.git
 cd familyPulse
 docker compose up -d db          # Postgres on localhost:5434
-cp .env.example .env             # add PLAID_CLIENT_ID, PLAID_SECRET, BOOTSTRAP_SECRET
+cp .env.example .env             # set DATABASE_URL, Plaid keys, BOOTSTRAP_SECRET
 npm install
 node db/migrate.js
 npm start                        # http://localhost:3003
 ```
 
-Open the app and follow first-run setup to create your household. `BOOTSTRAP_SECRET` protects that first step. Then link your banks in **Settings**.
+With the bundled Compose database, `DATABASE_URL` is `postgresql://familypulse:familypulse@localhost:5434/familypulse`.
+
+Open the app and follow first-run setup to create your household and set a parent passphrase. `BOOTSTRAP_SECRET` guards the passphrase step, but not household creation, so keep a fresh install on localhost or your private network until setup is done. Then link your banks in **Settings**.
 
 > [!TIP]
 > Link credit cards, mortgages, and student loans with **Link Credit / Loan Account**. That flow requests Plaid Liabilities, so Pulse sees monthly payments rather than only the total balance.
@@ -157,7 +160,7 @@ Open the app and follow first-run setup to create your household. `BOOTSTRAP_SEC
 
 - Plaid access tokens and API keys never appear in logs, API responses, or AI prompts. This is enforced in code (`lib/secrets-guard.js`, `lib/logger.js`).
 - Parent and kid roles are checked on the server. Kids can only read accounts assigned to them.
-- AI features are off until you add a key. When on, prompts carry aggregated context (balances, category totals, top merchants), never Plaid tokens or credentials.
+- AI features are off until you add an OpenAI key. When on, prompts carry account names, balances, category totals and top merchants. A kid's report card also sends that kid's name and recent purchases. Plaid tokens and credentials are never sent.
 - The MCP server is read-only and requires its own bearer token.
 
 See [SECURITY.md](SECURITY.md) for the full data classification and threat model.

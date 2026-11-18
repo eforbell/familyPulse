@@ -15,9 +15,10 @@
  *     Captures the README images from a running server that uses the demo DB.
  *     Needs Chrome or `npx playwright install chromium`.
  *
- * Every name, merchant amount, institution and account here is made up. The seed
- * refuses any database whose name does not contain "demo" or "showcase", and any
- * database that already holds transactions, so it cannot touch real data.
+ * Every name, merchant amount, institution and account here is made up. Before
+ * writing anything, the seed checks (read-only) that the database name contains
+ * "demo" or "showcase" and that the database is brand new, with no tables at all,
+ * so it cannot touch real data.
  *
  * Typical run (Docker Postgres from docker-compose.yml):
  *   docker compose exec -T db psql -U familypulse -d postgres -c 'CREATE DATABASE familypulse_showcase'
@@ -44,8 +45,23 @@ function guardDatabase() {
   if (!url) fail('set DATABASE_URL to a dedicated demo database (it is not read from .env)');
   const name = extractDatabaseName(url) || '';
   if (!/demo|showcase/i.test(name)) fail(`refusing database "${name}": its name must contain "demo" or "showcase"`);
-  if (process.env.NODE_ENV === 'production') fail('refusing to run with NODE_ENV=production');
+  // test mode makes db/migrate.js load .env.test, which could point the migration elsewhere
+  if (['production', 'test'].includes(process.env.NODE_ENV)) fail(`refusing to run with NODE_ENV=${process.env.NODE_ENV}`);
   return name;
+}
+
+// Read-only check before any write: only a freshly created, empty database qualifies.
+async function assertEmptyDatabase(dbName) {
+  const { Client } = require('pg');
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [{ tables }] } = await client.query(
+      `SELECT count(*)::int AS tables FROM information_schema.tables WHERE table_schema = 'public'`);
+    if (tables > 0) fail(`"${dbName}" already has ${tables} tables; seed only into a freshly created, empty database`);
+  } finally {
+    await client.end();
+  }
 }
 
 // ── deterministic helpers ─────────────────────────────────────
@@ -65,7 +81,11 @@ const monthOffset = (d, n) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMont
 
 async function seed() {
   const dbName = guardDatabase();
-  execFileSync(process.execPath, [path.join(ROOT, 'db/migrate.js')], { stdio: 'inherit', env: process.env });
+  await assertEmptyDatabase(dbName);
+  execFileSync(process.execPath, [path.join(ROOT, 'db/migrate.js')], {
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development' }, // migrate exactly the DATABASE_URL validated above
+  });
 
   const { pool } = require('../lib/db');
   const { householdToday } = require('../lib/reports');
@@ -74,9 +94,6 @@ async function seed() {
   const { detectAnomalies } = require('../lib/anomaly-detector');
   const { backfillSnapshots } = require('../lib/snapshot-generator');
   const q = (sql, params) => pool.query(sql, params);
-
-  const { rows: [{ count }] } = await q('SELECT count(*)::int AS count FROM transactions');
-  if (count > 0) fail(`"${dbName}" already has ${count} transactions; drop and recreate it first`);
 
   await q(fs.readFileSync(path.join(ROOT, 'db/seed.sql'), 'utf8'));
 
@@ -156,9 +173,10 @@ async function seed() {
     if (day === 5) add(A.visa, d, 85.00, 'Riverside Youth Soccer', 'Kids Activities');
     if (day === 10) add(A.visa, d, 140.00, 'Harmony Piano Studio', 'Kids Activities');
 
-    if (day === 16) add(A.checking, d, 250.00, 'NC 529 College Plan', '529 Contribution');
-    if (weekday === 1 && day <= 7) add(A.checking, d, 200.00, 'Swan Bitcoin', 'Crypto/BTC');
-    if (day === 28) add(A.checking, d, 500.00, 'Transfer to Vanguard Brokerage', 'Investing');
+    // savings leave checking as transfers, as sync's transfer detection marks them
+    if (day === 16) add(A.checking, d, 250.00, 'NC 529 College Plan', '529 Contribution', { transferType: '529_contribution' });
+    if (weekday === 1 && day <= 7) add(A.checking, d, 200.00, 'Swan Bitcoin', 'Crypto/BTC', { transferType: 'crypto_savings' });
+    if (day === 28) add(A.checking, d, 500.00, 'Transfer to Vanguard Brokerage', 'Investing', { transferType: 'transfer' });
     if (weekday === 6) for (const [kid, amount] of [[A.leo, 15], [A.maya, 12]]) {
       const pair = `allowance-${iso(d)}-${kid}`;
       add(A.checking, d, amount, 'Allowance transfer', 'Transfer', { pair, transferType: 'inter_account' });
@@ -203,7 +221,7 @@ async function seed() {
       `INSERT INTO transactions (plaid_transaction_id, account_id, amount, date, merchant_name, name, category_id,
          pending, is_transfer, transfer_type, categorization_source)
        VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,'rule') RETURNING id`,
-      [t.id, t.account, t.amount, t.date, t.merchant, t.category, !!t.pending, !!t.pair, t.transferType || null]);
+      [t.id, t.account, t.amount, t.date, t.merchant, t.category, !!t.pending, !!t.transferType, t.transferType || null]);
     t.dbId = rows[0].id;
     if (t.pair) (pairs[t.pair] ||= []).push(t.dbId);
   }
