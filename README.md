@@ -1,264 +1,181 @@
+<div align="center">
+
+<img src="images/family-pulse-icon_1024x1024.png" alt="Family Pulse icon" width="112">
+
 # Family Pulse
 
-Family Pulse is a household finance dashboard for your family. It pulls account and transaction data from Plaid, organizes spending into household-friendly categories, tracks budget periods and snapshots, flags anomalies, and supports lightweight AI-generated summaries and planning prompts.
+**See where your household's money goes, on a server you own.**
 
-The app is intentionally small and direct:
-- Express server with server-rendered static pages from `public/`
-- PostgreSQL for all application state
-- Plaid for account linking and transaction sync
-- optional OpenAI-powered digest and what-if features
+Bank sync, budgets, recurring bills, a 90-day cash forecast, and a full cash-flow diagram for the whole family.
+Self-hosted. No subscription. Your transactions stay in your own Postgres database.
 
-## Core Capabilities
+[![License: MIT](https://img.shields.io/badge/license-MIT-10b981)](LICENSE) ![Self-hosted](https://img.shields.io/badge/self--hosted-yes-10b981) ![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=nodedotjs&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white) ![Plaid](https://img.shields.io/badge/bank%20sync-Plaid-111111) [![Part of The Sovereign Home](https://img.shields.io/badge/part%20of-The%20Sovereign%20Home-0f766e)](https://www.sovereignhome.org)
 
-- link household financial institutions through Plaid
-- sync accounts and transactions into a local PostgreSQL database
-- review balances, transactions, budgets, and reports in a simple web UI
-- categorize spending with manual edits plus reusable rules
-- snapshot monthly budget state for historical reporting
-- detect unusual category spending
-- support parent/kid household access with session auth and account scoping
-- generate weekly digest, monthly close, and what-if style AI outputs
+[Features](#features) · [Coming from Monarch?](#coming-from-monarch) · [Screenshots](#screenshots) · [Get started](#get-started) · [Privacy](#privacy-and-security) · [Docs](#documentation)
 
-## Project Layout
+</div>
 
-- [server.js](/Volumes/DATA/workspace/homeApps/familyPulse/server.js): app bootstrap, middleware, route mounting, cron jobs
-- [lib/routes](/Volumes/DATA/workspace/homeApps/familyPulse/lib/routes): API route modules
-- [lib](/Volumes/DATA/workspace/homeApps/familyPulse/lib): business logic, sync, auth, budgeting, anomaly detection, AI helpers
-- [public](/Volumes/DATA/workspace/homeApps/familyPulse/public): frontend pages and browser JS
-- [db/migrations](/Volumes/DATA/workspace/homeApps/familyPulse/db/migrations): schema migrations
-- [db/seed.sql](/Volumes/DATA/workspace/homeApps/familyPulse/db/seed.sql): deterministic baseline seed data
-- [test](/Volumes/DATA/workspace/homeApps/familyPulse/test): unit and integration tests
+<br>
 
-## Local Development
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/cash-flow-dark.png">
+  <img alt="Cash flow Sankey diagram: gross pay splits into taxes and payroll deductions, savings, and each spending category" src="docs/images/cash-flow-light.png">
+</picture>
 
-### Prerequisites
+<p align="center"><sub>Every dollar from gross pay to where it went. Taxes, 401(k), mortgage, groceries, and what you saved, in one picture.<br>Screenshots use a made-up demo household. No real accounts appear anywhere in this README.</sub></p>
 
-- Node.js
-- Docker with Docker Compose
+## Why Family Pulse
 
-### Start the database
+Most budgeting apps are built for one person and rented by the month. Family Pulse is built for a household and runs on your hardware.
+
+- **Built for families.** Parents see everything. Kids get their own "My Money" view, limited to their own accounts and allowance budget.
+- **Your data stays home.** Plaid syncs into a Postgres database you control. No vendor cloud, no analytics.
+- **It looks ahead.** Recurring-bill detection and a 90-day forecast show next month's tight spots before you reach them.
+- **AI is optional.** Turn on Ask Pulse and what-if planning with your own API key. Without a key, nothing leaves the server.
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🌊 Cash flow you can see
+A Sankey diagram from income to every category, by month, quarter, or year. Add a paystub breakdown and it starts from **gross pay**, so federal tax, Social Security, Medicare, 401(k), and health premiums get their own flows.
+
+</td>
+<td width="50%" valign="top">
+
+### 🎯 Budgets with hot spots
+Set a budget for each category and track it through the month. **Hot Spots** flag a category running well above its 3- or 12-month average, such as dining out at 275% of normal, while you can still act.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔁 Recurring radar
+Finds subscriptions, bills, and paychecks without setup. Alerts when a **price goes up**, when a **new commitment** appears, or when **expected income** doesn't arrive. Lists everything due in the next 30 days.
+
+</td>
+<td valign="top">
+
+### 🔮 90-day forecast
+Projects your balance day by day from expected paychecks, scheduled bills, card payments, and normal spending, with a confidence band. Warns about **danger zones** below your safety floor and shows **excess cash** you could move.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 👧 Kids' money view
+Each kid signs in to a simple page with their balance, monthly budget, spending by category, and recent purchases. They see only their own accounts.
+
+</td>
+<td valign="top">
+
+### 🧾 Transactions that remember
+Split one charge across categories. Attach receipts and notes. Rename cryptic merchants. Rules and **learned auto-categorization** cover the routine ones. Transfers and duplicates are detected so nothing counts twice.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 💳 Credit and loan coverage
+Uses Plaid Liabilities to pull statement balances, minimum payments, and due dates, then shows how many times your checking balance covers what's due.
+
+</td>
+<td valign="top">
+
+### ✨ Optional AI, your keys
+**Ask Pulse** answers questions about your own data. **What-if** projects a scenario over 3, 6, and 12 months. A weekly digest and monthly close report are also available. A read-only **MCP server** lets your own AI client query balances, budgets, and cash flow.
+
+</td>
+</tr>
+</table>
+
+Also included: push reminders via [brrr](https://brrr.now) or a self-hosted gateway, CSV export of every transaction, balance history charts, and phone-friendly layouts throughout.
+
+## Coming from Monarch?
+
+Family Pulse began as one family's replacement for Monarch Money, so migrating is a built-in feature:
+
+1. In Monarch, open **Settings → Export Data** and download your transactions CSV.
+2. In Family Pulse, open **Import**, upload the file, and map Monarch's categories to yours. Suggestions are filled in for you.
+3. Your history arrives categorized and deduplicated against anything Plaid has already synced.
+
+Budgets, anomaly baselines, and trend charts work from day one because they have your full history. The Sankey view is included.
+
+## Screenshots
+
+**Dashboard**: net position, liability coverage, your recurring plan, and spending pace against last month.
+
+<img src="docs/images/dashboard.png" alt="Dashboard with net position, liability coverage, recurring plan, and spending pace chart">
+
+**Budget**: category progress for the month, with Hot Spots for anything running well above normal.
+
+<img src="docs/images/budget.png" alt="Budget page with income, spending, net cash flow, and a Dining Out hot spot">
+
+**Forecast**: a 90-day balance trajectory with a confidence band, monthly outlook, and planned one-off expenses.
+
+<img src="docs/images/forecast.png" alt="Forecast page with a 90-day balance trajectory and monthly outlook">
+
+**On your phone**: dashboard, recurring alerts, and forecast.
+
+<img src="docs/images/mobile.png" alt="Family Pulse on a phone in dark mode: dashboard, recurring alerts, and forecast">
+
+<p align="center"><sub>Built for phones too, in light or dark mode. The Sankey is the one view that waits for a wide screen.</sub></p>
+
+## Get started
+
+You need your own [Plaid](https://plaid.com) developer account for bank sync. Plaid's Sandbox is free and works with test banks. Linking real banks requires Plaid production access.
+
+### Option 1: Install with Home Base (recommended)
+
+Family Pulse is part of **[The Sovereign Home](https://www.sovereignhome.org)**, a set of self-hosted family apps. [Home Base](https://github.com/eforbell/homeBase) installs it on a Debian or Ubuntu server, along with the database, the reverse proxy at `/pulse/`, and the systemd services. Then finish setup in the browser.
+
+### Option 2: Run it yourself
+
+Requirements: a current Node.js LTS and PostgreSQL. The included Docker Compose file runs Postgres for you.
 
 ```sh
-docker compose up -d db
-```
-
-The default Docker setup uses one Postgres container with two databases:
-- `familypulse` for normal development
-- `familypulse_test` for test runs
-
-### Environment files
-
-- use `.env` for normal app development
-- use `.env.test` for test execution
-- `.env.example` and `.env.test.example` provide templates
-
-Important variables:
-- `DATABASE_URL`
-- `PLAID_CLIENT_ID`
-- `PLAID_SECRET`
-- `PLAID_ENV`
-- `OPENAI_API_KEY`
-- `BOOTSTRAP_SECRET`
-
-### Run the app
-
-```sh
+git clone https://github.com/eforbell/familyPulse.git
+cd familyPulse
+docker compose up -d db          # Postgres on localhost:5434
+cp .env.example .env             # add PLAID_CLIENT_ID, PLAID_SECRET, BOOTSTRAP_SECRET
 npm install
-npm start
+node db/migrate.js
+npm start                        # http://localhost:3003
 ```
 
-Default app URL:
+Open the app and follow first-run setup to create your household. `BOOTSTRAP_SECRET` protects that first step. Then link your banks in **Settings**.
 
-```text
-http://localhost:3003
-```
+> [!TIP]
+> Link credit cards, mortgages, and student loans with **Link Credit / Loan Account**. That flow requests Plaid Liabilities, so Pulse sees monthly payments rather than only the total balance.
 
-### Reset linked financial data
+## Privacy and security
 
-If you previously linked sandbox institutions and want to start fresh before switching to production Plaid credentials, the safest path is usually to clear linked financial data from the database instead of trying to clean it up manually in the UI.
+- Plaid access tokens and API keys never appear in logs, API responses, or AI prompts. This is enforced in code (`lib/secrets-guard.js`, `lib/logger.js`).
+- Parent and kid roles are checked on the server. Kids can only read accounts assigned to them.
+- AI features are off until you add a key. When on, prompts carry aggregated context (balances, category totals, top merchants), never Plaid tokens or credentials.
+- The MCP server is read-only and requires its own bearer token.
 
-This script preserves:
-- `family_members`
-- `sessions`
-- `app_config`
-- `categories`
-- `category_rules`
-- `schema_migrations`
+See [SECURITY.md](SECURITY.md) for the full data classification and threat model.
 
-It clears:
-- Plaid-linked `items`
-- `accounts` via cascade
-- `transactions` via cascade
-- `account_members` via cascade
-- `link_sessions`
-- `import_runs`
-- `anomalies`
-- `budget_snapshots`
-- `magic_actions_log`
+## Documentation
 
-It preserves the `monarch-import` sentinel item so historical Monarch CSV import continues to work after the reset.
+| Guide | What's in it |
+| --- | --- |
+| [Operator guide](docs/operator-guide.md) | Balance history, Plaid institution quirks, disconnect vs. purge, push verification, resetting linked data |
+| [Data export](docs/data-export.md) | The enriched CSV export: what it includes and how to handle it safely |
+| [AI planning access](docs/family-planning-access.md) | Read-only MCP/CLI access that combines Pulse cash flow with Helm investments |
+| [Restore drill](planning/restore-drill.md) | A monthly check that your `pg_dump` backups restore |
+| [Development](docs/development.md) | Project layout, local setup, the test database, and running tests |
 
-Run it intentionally:
+## Contributing
 
-```sh
-npm run db:clear-linked-data
-```
+Issues and pull requests are welcome. Start with [docs/development.md](docs/development.md): the test suite runs against a dedicated test database and refuses to touch your development data.
 
-Or directly:
+## License
 
-```sh
-node db/clear-linked-data.js --yes
-```
-
-## Authentication
-
-The app supports household member sessions with parent and kid roles.
-
-- when no passphrases are configured yet, initial setup is protected by `BOOTSTRAP_SECRET`
-- once passphrases exist, API and page access are session-gated
-- parent-only routes protect administrative and account-linking actions
-- kid access is scoped through `account_members`
-
-## Plaid Behavior Notes
-
-Family Pulse now supports editing the synced account set for an existing Plaid Item through update mode, and preserves de-selected accounts locally as historical instead of deleting them.
-
-A few institution behaviors are worth knowing up front:
-
-- Many OAuth institutions appear to be effectively add-only from Plaid Link's point of view.
-- In production testing, both `Chase` and `Capital One` allowed adding newly shared accounts more easily than removing a single account from an existing Item.
-- Some institutions expose removal only as a full app disconnect on the bank side, not as a granular per-account de-selection flow for Family Pulse.
-- Because of that, `Edit synced accounts` should be treated as a best-effort review/add flow, not a guarantee of symmetric add/remove control across all institutions.
-- If an Item needs a permission reset, or if liabilities were never added to a legacy bundled Item, the practical remedy may be `Disconnect` followed by a fresh `Link Institution`.
-
-Current app behavior:
-
-- `Disconnect` removes the Plaid Item remotely and stops future sync/billing, but preserves local history.
-- `Purge` is the explicit destructive action for deleting preserved local history after a disconnect.
-- Historical accounts remain visible for past transactions and account history, but they no longer affect live balance totals.
-
-## Operator Data Export
-
-Parents can download an enriched CSV of every retained transaction from
-**Settings → Data Export**. This includes hidden duplicates and historical data;
-it is a one-way dump, not a restorable backup. See [export scope, safety notes,
-and multi-sheet XLSX feasibility](docs/data-export.md).
-
-## Backup Restore Drill
-
-Run a monthly restore drill to prove backups are fully recoverable:
-- [planning/restore-drill.md](planning/restore-drill.md)
-
-The runbook is written for `pg_dump -Fc` backups and `pg_restore` validation into an isolated drill database.
-If transaction attachments are in use, include `/data/apps/familyPulse/transaction-files` in the same backup window as the database dump.
-
-## Testing
-
-Tests are guarded to prevent accidental writes against a normal development or production database.
-
-### One-time setup on each machine
-
-1. Start Postgres with `docker compose up -d db`.
-2. Copy `.env.test.example` to `.env.test`.
-3. Keep `.env` pointed at `familypulse`.
-4. Keep `.env.test` pointed at `familypulse_test`.
-
-If your `db` container was initialized before the two-database setup existed, the second database will not appear automatically because Postgres init scripts only run on first boot of a fresh data volume. In that case either:
-- create `familypulse_test` manually once
-- or recreate the Docker volume and reinitialize the container
-
-### Running tests
-
-- `npm test` preloads `test/bootstrap.js`
-- `npm test` also resets, migrates, and seeds the dedicated test DB first
-- the bootstrap loads `.env.test`
-- the bootstrap forces `NODE_ENV=test`
-- the bootstrap rejects any `DATABASE_URL` that does not clearly target a test database
-
-If the guard fails, fix `.env.test` instead of pointing tests at your regular dev database.
-
-Useful commands:
-
-```sh
-npm test
-npm run test:fast
-npm run test:db:reset
-npm run test:db:migrate
-npm run test:db:seed
-npm run test:prepare
-```
-
-Command behavior:
-- `npm test`: deterministic run, including reset -> migrate -> seed -> test
-- `npm run test:fast`: runs tests against the already-prepared test DB without resetting it
-- `npm run test:prepare`: prepares the test DB without running the test suite
-
-## Docker Test Database Harness
-
-The second database is created by [db/initdb/01-create-test-db.sh](/Volumes/DATA/workspace/homeApps/familyPulse/db/initdb/01-create-test-db.sh), which is mounted through [docker-compose.yml](/Volumes/DATA/workspace/homeApps/familyPulse/docker-compose.yml).
-
-### Important behavior
-
-Postgres only runs `/docker-entrypoint-initdb.d/*` scripts when initializing a fresh data directory. That means:
-- deleting the container alone is not enough
-- if the named volume still exists, the init script will be skipped on next start
-
-### Normal startup
-
-```sh
-docker compose up -d db
-```
-
-### Clean rebuild from scratch
-
-Use this when you want Postgres to re-run the init scripts and recreate both databases from a clean volume:
-
-```sh
-docker compose down -v
-docker compose up -d db
-```
-
-This removes:
-- the running `db` container
-- the Compose network
-- the named Postgres volume
-
-After that, the next `docker compose up -d db` performs a true first-time initialization.
-
-### Verify the databases exist
-
-```sh
-docker compose exec -T db psql -U familypulse -d postgres -tAc "SELECT datname FROM pg_database ORDER BY datname;"
-```
-
-Expected output includes:
-- `familypulse`
-- `familypulse_test`
-
-### If `familypulse_test` is missing
-
-The most likely cause is that the Postgres volume was reused and initialization was skipped. Run the clean rebuild steps above if you are comfortable discarding the local Docker database state.
-
-## Operator AI planning access
-
-Use the local read-only `family-planning` MCP/JSON CLI to combine production
-FamilyPulse cashflow with Helm investment foundations over private SSH. It does not
-expose either app publicly or give the model sync/trading tools.
-See [setup, usage, coverage caveats, and verification](docs/family-planning-access.md).
-
-## Silent push verification
-
-Push setup uses `PUSH_BASE_URL` (default: `https://api.brrr.now`). In notification
-settings, **Verify saved secret (no push)** rechecks the currently saved target;
-save any edited secret first. Saving a target also returns a verification result.
-The check uses bearer-authenticated `GET /v1/check` with a timeout and refuses
-redirects or URLs belonging to a different push service. Secrets and gateway
-response bodies are not included in verification feedback.
-
-A verified device/person secret means homePush recognizes it and has at least one
-active device with an APNs key. It does **not** prove phone delivery, notification
-permissions, or end-to-end receipt. Unknown secrets, inactive devices, missing
-APNs keys, connectivity errors, and invalid responses remain **not verified**.
-brrr and endpoints returning 404/405/501 are **unsupported**, not successful
-verification; saving remains available. Results are point-in-time, not a durable
-health badge—recheck after changing services or rotating/enrolling devices.
+[MIT](LICENSE)
