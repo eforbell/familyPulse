@@ -86,7 +86,7 @@ psql "$DATABASE_URL" -f db/seed.sql
 
 The app supports household member sessions with parent and kid roles.
 
-- when no passphrases are configured yet, initial setup is protected by `BOOTSTRAP_SECRET`
+- when no passphrases are configured yet, `BOOTSTRAP_SECRET` guards setting the first parent passphrase; household creation itself is not gated, so keep first-run instances on localhost or a private network (see [SECURITY.md](../SECURITY.md))
 - once passphrases exist, API and page access are session-gated
 - parent-only routes protect administrative and account-linking actions
 - kid access is scoped through `account_members`
