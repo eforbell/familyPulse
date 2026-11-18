@@ -181,17 +181,19 @@ function renderTransactions(txns) {
   }
 
   list.innerHTML = txns.map(t => {
-    const merchant = esc(t.merchant_name || t.name || 'Unknown');
-    const displayName = esc(t.effective_display_name || t.merchant_name || t.name || 'Unknown');
+    const rawName = t.effective_display_name || t.merchant_name || t.name || 'Unknown';
+    const displayName = esc(rawName);
     const amt = parseFloat(t.amount);
     const amtClass = amt < 0 ? 'credit' : 'debit';
+    const iconLetter = esc(rawName.trim().charAt(0).toUpperCase() || '•');
+    const iconClass = t.category_name ? (amt < 0 ? 'in' : 'out') : 'uncat';
     const catBadge = t.category_name
       ? `<span class="cat-badge" style="background:${t.category_color || '#6b7280'}22;border:1px solid ${t.category_color || '#6b7280'}55;color:${t.category_color || '#6b7280'}">${esc(plainCategoryName(t.category_name))}</span>`
       : '<span class="cat-badge uncat">Uncategorized</span>';
 
     return `
-      <div class="tx-row" onclick="openTransactionDetail(${t.id})">
-        <div></div>
+      <div class="tx-row kid-tx-row" onclick="openTransactionDetail(${t.id})">
+        <div class="tx-icon ${iconClass}">${iconLetter}</div>
         <div class="tx-main">
           <div class="tx-merchant">${displayName}</div>
           <div class="tx-detail">

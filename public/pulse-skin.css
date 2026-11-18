@@ -270,6 +270,8 @@
 .tx-row:hover    { background: var(--surface2); }
 .tx-row.selected { background: var(--accent-wash); }
 .tx-row.pending  { opacity: 0.80; }
+/* Kid rows have no bulk-select checkbox: avatar, main, amount. */
+.tx-row.kid-tx-row { grid-template-columns: 32px minmax(0, 1fr) auto; }
 
 .tx-check {
   width: 16px; height: 16px;
